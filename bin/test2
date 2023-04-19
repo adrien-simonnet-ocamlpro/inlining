@@ -1,0 +1,1 @@
+let x = 40 in let f = ifzero 0 then (fun z -> z + x) else (fun z -> z) in print (f 2)

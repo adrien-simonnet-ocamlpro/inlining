@@ -1,0 +1,9 @@
+(executable
+ (public_name cps)
+ (name main)
+ (libraries cps))
+
+(ocamllex lexer)
+
+(menhir
+ (modules parser))
