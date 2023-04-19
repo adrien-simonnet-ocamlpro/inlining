@@ -136,3 +136,30 @@ and sprintf (cps : expr) : string =
         kf
         (List.fold_left (fun acc s -> acc ^ " x" ^ s) "" argsf)
   | Apply (x, arg, K k) -> Printf.sprintf "(x%s x%s) -> k%d" x arg k
+
+let rec to_ast_named named : Ast.expr =
+  match named with
+  | Prim (prim, args) ->
+      Ast.Prim (prim, List.map (fun arg -> Ast.Var ("x" ^ arg)) args)
+  | Fun (arg, expr, K _) -> Ast.Fun ("x" ^ arg, to_ast expr)
+  | Var x -> Ast.Var ("x" ^ x)
+
+and to_ast (cps : expr) : Ast.expr =
+  match cps with
+  | Let (var, named, expr) ->
+      Ast.Let ("x" ^ var, to_ast_named named, to_ast expr)
+  | Let_cont (K k, [ arg ], e1, e2) ->
+      Ast.Let ("k" ^ string_of_int k, Ast.Fun ("x" ^ arg, to_ast e1), to_ast e2)
+  | Let_cont (K k, _, e1, e2) ->
+      Ast.Let ("k" ^ string_of_int k, Ast.Fun ("x", to_ast e1), to_ast e2)
+  | Apply_cont (K _, [ arg ]) -> Var ("x" ^ arg)
+  | Apply_cont (K k, _) -> App (Ast.Var ("k" ^ string_of_int k), Var "x0")
+  | If (var, (K kt, _), (K kf, _)) ->
+      Ast.If
+        ( Ast.Var var,
+          App (Ast.Var ("k" ^ string_of_int kt), Prim (Const 0, [])),
+          App (Ast.Var ("k" ^ string_of_int kf), Prim (Const 0, [])) )
+  | Apply (x, arg, K k) ->
+      App
+        ( Ast.Var ("k" ^ string_of_int k),
+          App (Ast.Var ("x" ^ x), Ast.Var ("x" ^ arg)) )

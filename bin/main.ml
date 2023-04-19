@@ -64,8 +64,10 @@ let _ =
   try
     let ast = Parser.programme Lexer.jetons source in
     Printf.printf "----- AST -----\n%s\n" (Ast.sprintf ast);
-    let cps = Cps.from_ast ast "0" (Apply_cont (Cps.K 0, [])) in
+    let cps = Cps.from_ast ast "0" (Apply_cont (Cps.K 0, ["0"])) in
     Printf.printf "\n----- CPS -----\n%s\n" (Cps.sprintf cps);
+    let ast2 = Cps.to_ast cps in
+    Printf.printf "\n-- CPS > AST --\nlet print = Printf.printf \"%%d\" in\nlet k0 = print in\n%s;;\n" (Ast.sprintf ast2);
     Printf.printf "\n---- EVAL -----\n";
     let env = interp cps [] [] in
     Printf.printf "\n----- ENV -----\n%s"

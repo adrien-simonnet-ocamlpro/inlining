@@ -24,6 +24,6 @@ and sprintf (ast : expr) : string =
   | Let (var, e1, e2) ->
       Printf.sprintf "(let %s = %s in\n%s)" var (sprintf e1) (sprintf e2)
   | If (cond, t, f) ->
-      Printf.sprintf "(if %s then %s else %s)" (sprintf cond) (sprintf t)
+      Printf.sprintf "(if %s = 0 then %s else %s)" (sprintf cond) (sprintf t)
         (sprintf f)
   | App (e1, e2) -> Printf.sprintf "(%s %s)" (sprintf e1) (sprintf e2)
