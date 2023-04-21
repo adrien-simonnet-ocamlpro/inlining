@@ -1,1 +1,1 @@
-let f = fun x -> 3 in f 2
+let f = fun x -> x + 3 in let x = (f 2) in print x

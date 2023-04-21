@@ -1,9 +1,34 @@
 (executable
  (public_name cps)
  (name main)
+ (modules ast cps lexer main parser)
  (libraries cps))
 
 (ocamllex lexer)
 
 (menhir
  (modules parser))
+
+(executable
+ (name original)
+ (modules original))
+
+(rule
+ (target original.ml)
+ (deps main.exe)
+ (action
+  (with-stdout-to
+   original.ml
+   (run ./main.exe ../../../bin/test1234))))
+
+(executable
+ (name simplified)
+ (modules simplified))
+
+(rule
+ (target simplified.ml)
+ (deps main.exe)
+ (action
+  (with-stdout-to
+   simplified.ml
+   (run ./main.exe ../../../bin/test1234 -prop -clean))))

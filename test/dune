@@ -1,2 +1,17 @@
 (test
  (name cps))
+
+(rule
+ (with-stdout-to
+  test.expected
+  (run ../bin/original.exe)))
+
+(rule
+ (with-stdout-to
+  test.output
+  (run ../bin/simplified.exe)))
+
+(rule
+ (alias runtest)
+ (action
+  (diff test.expected test.output)))

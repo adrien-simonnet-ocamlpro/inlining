@@ -1,1 +1,5 @@
-let add = fun x y -> x + y in print (add 1 2)
+let g = fun x -> (let y = x + x in 
+    fun z -> y + z) in
+let machin = fun h -> h 150 in
+let truc = g 1 in
+machin truc
