@@ -11,6 +11,7 @@ and expr =
   | Apply_cont of kvar * Ast.var list
   | If of Ast.var * (kvar * Ast.var list) * (kvar * Ast.var list)
   | Apply of Ast.var * Ast.var * kvar
+  | Return of string
 
 let rec replace_var_named var new_var (ast : named) : named =
   match ast with
@@ -42,6 +43,8 @@ and replace_var var new_var (ast : expr) : expr =
       , replace_var var new_var e2 )
   | Apply_cont (k, args) ->
     Apply_cont (k, List.map (fun arg -> if arg = var then new_var else arg) args)
+  | Return x when x = var -> Return new_var
+  | Return x -> Return x
 ;;
 
 let rec replace_cont_named var new_var (ast : named) : named =
@@ -70,6 +73,7 @@ and replace_cont var new_var (ast : expr) : expr =
     Let_cont (k, args, replace_cont var new_var e1, replace_cont var new_var e2)
   | Apply_cont (K k, args) when k = var -> Apply_cont (K new_var, args)
   | Apply_cont (k, args) -> Apply_cont (k, args)
+  | Return x -> Return x
 ;;
 
 let vars = ref 0
@@ -118,8 +122,8 @@ let rec from_ast (ast : Ast.expr) var (expr : expr) : expr =
     Let_cont
       ( K k1
       , [ v ]
-      , from_ast (Ast.replace_var x v suite) var (expr)
-      , from_ast e1 v1 (from_ast e2 v2 (Apply (v1, v2, K k1) )))
+      , from_ast (Ast.replace_var x v suite) var expr
+      , from_ast e1 v1 (from_ast e2 v2 (Apply (v1, v2, K k1))) )
   | Let (var', If (cond, t, f), e) ->
     let v1 = inc vars in
     from_ast (If (cond, t, f)) v1 (from_ast (Ast.replace_var var' v1 e) var expr)
@@ -191,6 +195,7 @@ and sprintf (cps : expr) : string =
        then List.fold_left (fun acc s -> acc ^ " " ^ s) "" argsf
        else " ()")
   | Apply (x, arg, K k) -> Printf.sprintf "((x%s k%d) x%s)" x k arg
+  | Return x -> "x" ^ x
 ;;
 
 let rec to_ast_named named : Ast.expr =
@@ -215,4 +220,5 @@ and to_ast (cps : expr) : Ast.expr =
       , App (Ast.Var ("k" ^ string_of_int kf), Prim (Const 0, [])) )
   | Apply (x, arg, K k) ->
     App (Ast.Var ("k" ^ string_of_int k), App (Ast.Var ("x" ^ x), Ast.Var ("x" ^ arg)))
+  | Return x -> Var x
 ;;
