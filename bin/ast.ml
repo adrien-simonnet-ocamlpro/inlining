@@ -33,22 +33,21 @@ and sprintf (ast : expr) : string =
 ;; *)
 
 let rec pp_expr fmt = function
-| Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
-| Var x -> Format.fprintf fmt "%s" x
-| Prim (Const x, _) -> Format.fprintf fmt "%d" x
+  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
+  | Var x -> Format.fprintf fmt "%s" x
+  | Prim (Const x, _) -> Format.fprintf fmt "%d" x
   | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" pp_expr x1 pp_expr x2
   | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" pp_expr x1
-| Let (var, e1, e2) ->
-  Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
-| If (cond, t, f) ->
-  Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
-| App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
-| _ -> failwith "invalid args"
+  | Let (var, e1, e2) ->
+    Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
+  | If (cond, t, f) ->
+    Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
+  | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
+  | _ -> failwith "invalid args"
+;;
 
 let print_expr e = pp_expr Format.std_formatter e
-
-let sprintf e =
-  Format.asprintf "%a" pp_expr e
+let sprintf e = Format.asprintf "%a" pp_expr e
 
 (* let through_buf e =
   let buf = Buffer.create 512 in 
