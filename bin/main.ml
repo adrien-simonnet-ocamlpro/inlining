@@ -6,9 +6,9 @@ type value =
 
 type env = value map
 
-let print_env env =
+(* let print_env env =
   Printf.printf "%s ]\n%!" (List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env)
-;;
+;; *)
 
 let has env var = List.exists (fun (var', _) -> var = var') env
 let has_cont conts var = List.exists (fun (var', _, _, _) -> var = var') conts
@@ -76,9 +76,6 @@ and propagation (cps : Cps.expr) env (conts : (int * Ast.var list * Cps.expr * e
      | Apply_cont (K k, [ arg ]) when [ arg ] = args' ->
        propagation (Cps.replace_cont k' k e2') env conts
      | _ -> Let_cont (K k', args', e1', e2'))
-  | Apply_cont (K k, []) ->
-    let _, cont, env' = get_cont conts k in
-    propagation cont env' conts
   | Apply_cont (K k, args) ->
     if has_cont conts k
     then
@@ -86,8 +83,8 @@ and propagation (cps : Cps.expr) env (conts : (int * Ast.var list * Cps.expr * e
       then (
         let args', cont, env' = get_cont conts k in
         propagation
-          cont
-          (List.map2 (fun arg' arg -> arg', get env arg) args' args @ env')
+          (List.fold_left (fun cont (arg', arg) -> Cps.replace_var arg' arg cont) cont (List.map2 (fun arg' arg -> (arg', arg)) args' args))
+          (List.map (fun arg -> arg, get env arg) args @ env')
           conts)
       else Apply_cont (K k, args)
     else Apply_cont (K k, args)
@@ -109,8 +106,8 @@ and propagation (cps : Cps.expr) env (conts : (int * Ast.var list * Cps.expr * e
           let value = get env arg in
           propagation
             (Cps.replace_cont k' k (Cps.replace_var arg' arg expr))
-            ((arg', value) :: env')
-            ((k', args, cont, env'') :: conts))
+            ((arg, value) :: env')
+            ((k, args, cont, env'') :: conts))
         else Apply (x, arg, K k)
       | _ -> failwith "invalid type")
     else Apply (x, arg, K k)
@@ -189,7 +186,6 @@ and interp_named var (named : Cps.named) (env : (Ast.var * value) list) =
   match named with
   | Prim (prim, args) -> interp_prim var prim args env
   | Fun (arg, expr, k) ->
-    print_env env;
     [ var, Fun (arg, expr, k, env) ]
   | Var x -> [ var, get env x ]
 
@@ -247,6 +243,7 @@ let speclist =
 
 let _ =
   Arg.parse speclist anon_fun usage_msg;
+  let outchan = if !output_file = "" then stdout else open_out !output_file in
   for i = 0 to List.length !input_files - 1 do
     let _ = Array.length Sys.argv = 3 in
     let entree = open_in (List.nth !input_files i) in
@@ -266,8 +263,8 @@ let _ =
         if !eval
         then (
           let env = interp cps3 [] [] in
-          Printf.printf
-            "\n----- ENV -----\n%s"
+          Printf.fprintf outchan
+            "----- ENV -----\n%s"
             (List.fold_left
                (fun str (var, value) ->
                  match value with
@@ -275,10 +272,10 @@ let _ =
                  | _ -> str ^ "x" ^ var ^ " = fun\n")
                ""
                env))
-        else Printf.printf "%s;;\n%!" (Cps.sprintf cps3))
+        else Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3))
     with
     | Parsing.Parse_error ->
-      Printf.printf "Erreur de parsing au caractère %d.\n" source.Lexing.lex_curr_pos
-    | Failure s -> Printf.printf "Failure: %s.\n" s
+      Printf.fprintf stderr "Erreur de parsing au caractère %d.\n" source.Lexing.lex_curr_pos
+    | Failure s -> Printf.fprintf stderr "Failure: %s.\n" s
   done
 ;;
