@@ -24,3 +24,7 @@ let get_cont env var =
        ^ List.fold_left (fun str (x, _, _, _) -> str ^ " k" ^ string_of_int x) "[" env
        ^ " ].")
 ;;
+
+(* let print_env env =
+  Printf.printf "%s ]\n%!" (List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env)
+;; *)
