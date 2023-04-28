@@ -1,4 +1,2 @@
-let f = fun x -> fun z -> x in
-let g = f 1 in
-let h = f 2 in
-g 0
+let f = fun x -> ifzero x then fun y -> y + y else fun y -> y in
+(f 0) 3
