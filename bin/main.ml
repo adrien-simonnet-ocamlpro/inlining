@@ -32,7 +32,7 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps = Cps.from_ast ast "0" (Return "0") in
+        let cps = Ast.to_cps ast "0" (Return "0") in
         let cps2 = if !prop then Cps.propagation cps [] [] else cps in
         let cps3 =
           if !unused_vars
