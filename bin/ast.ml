@@ -97,16 +97,14 @@ let rec to_cps (ast : expr) var (expr : Cps.expr) : Cps.expr =
       ( var
       , Fun (v1, to_cps (replace_var x v1 e) v2 (Apply_cont (K k1, [ v2 ])), K k1)
       , expr )
-  (* todo: replace_var var new_var cps *)
-  | Var x -> Let (var, Var x, expr)
+  | Var x -> Cps.replace_var var x expr
   | Prim (prim, args) ->
     let vars = List.map (fun arg -> inc vars, arg) args in
     List.fold_left
       (fun expr (var, e) -> to_cps e var expr)
       (Let (var, Prim (prim, List.map (fun (var, _) -> var) vars), expr))
       vars
-  | Let (x1, Let (x2, e2, e2'), e1') ->
-    to_cps (Let (x2, e2, Let (x1, e2', e1'))) var expr
+  | Let (x1, Let (x2, e2, e2'), e1') -> to_cps (Let (x2, e2, Let (x1, e2', e1'))) var expr
   | Let (x, Var x', e) -> to_cps (replace_var x x' e) var expr
   | Let (x, App (e1, e2), suite) ->
     let v = inc vars in
@@ -143,11 +141,10 @@ let rec to_cps (ast : expr) var (expr : Cps.expr) : Cps.expr =
     Let_cont (K k, [ var ], expr, to_cps e1 v1 (to_cps e2 v2 (Apply (v1, v2, K k))))
 ;;
 
-let rec from_cps_named (named: Cps.named) : expr =
+let rec from_cps_named (named : Cps.named) : expr =
   match named with
   | Prim (prim, args) -> Prim (prim, List.map (fun arg -> Var ("x" ^ arg)) args)
   | Fun (arg, expr, K _) -> Fun ("x" ^ arg, from_cps expr)
-  | Var x -> Var ("x" ^ x)
 
 and from_cps (cps : Cps.expr) : expr =
   match cps with

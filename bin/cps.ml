@@ -4,7 +4,6 @@ let get = Env.get
 let get_cont = Env.get_cont
 
 type var = string
-
 type kvar = K of int
 
 type prim =
@@ -15,7 +14,6 @@ type prim =
 type named =
   | Prim of prim * var list
   | Fun of var * expr * kvar
-  | Var of var
 
 and expr =
   | Let of var * named * expr
@@ -39,8 +37,6 @@ let rec replace_var_named var new_var (ast : named) : named =
     Prim (prim, List.map (fun arg -> if arg = var then new_var else arg) args)
   | Fun (x, e, k) when x = var -> Fun (x, e, k)
   | Fun (x, e, k) -> Fun (x, replace_var var new_var e, k)
-  | Var x when x = var -> Var new_var
-  | Var x -> Var x
 
 and replace_var var new_var (ast : expr) : expr =
   match ast with
@@ -72,7 +68,6 @@ let rec replace_cont_named var new_var (ast : named) : named =
   | Prim (prim, args) -> Prim (prim, args)
   | Fun (x, e, K k) when k = var -> Fun (x, replace_cont var new_var e, K new_var)
   | Fun (x, e, K k) -> Fun (x, replace_cont var new_var e, K k)
-  | Var x -> Var x
 
 and replace_cont var new_var (ast : expr) : expr =
   match ast with
@@ -96,15 +91,10 @@ and replace_cont var new_var (ast : expr) : expr =
   | Return x -> Return x
 ;;
 
-
-
-
-
 let rec sprintf_named named =
   match named with
   | Prim (prim, args) -> sprintf_prim prim args
   | Fun (arg, expr, K k) -> Printf.sprintf "(fun k%d x%s -> %s)" k arg (sprintf expr)
-  | Var x -> "x" ^ x
 
 and sprintf_prim (prim : prim) args =
   match prim, args with
@@ -149,8 +139,6 @@ and sprintf (cps : expr) : string =
   | Return x -> "x" ^ x
 ;;
 
-
-
 let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
   match prim, args with
   | Const x, args' -> Prim (Const x, args')
@@ -164,8 +152,6 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
           match get env x2 with
           | Int n2 -> Prim (Const (n1 + n2), [])
           | _ -> failwith "invalid type")
-        else if n1 = 0
-        then Var x2
         else Prim (Add, args)
       | _ -> failwith "invalid type")
     else Prim (Add, args)
@@ -174,10 +160,8 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
 
 and propagation (cps : expr) env (conts : (int * var list * expr * env) list) : expr =
   match cps with
-  | Let (var, Var var', expr) -> propagation (replace_var var var' expr) env conts
   | Let (var, Prim (prim, args), expr) ->
     (match propagation_prim prim args env with
-     | Var var' -> propagation (replace_var var var' expr) env conts
      | Fun (arg, expr, k) ->
        Let
          ( var
@@ -216,7 +200,10 @@ and propagation (cps : expr) env (conts : (int * var list * expr * env) list) : 
     if has env var
     then (
       match get env var with
-      | Int n -> if n = 0 then propagation (Apply_cont (K kt, argst)) env conts else propagation (Apply_cont (K kf, argsf)) env conts
+      | Int n ->
+        if n = 0
+        then propagation (Apply_cont (K kt, argst)) env conts
+        else propagation (Apply_cont (K kf, argsf)) env conts
       | _ -> failwith "invalid type")
     else If (var, (K kt, argst), (K kf, argsf))
   | Apply (x, arg, K k) ->
@@ -248,9 +235,6 @@ let rec elim_unused_vars_named (vars : int array) (conts : int array) (named : n
         Array.set vars (int_of_string arg) (Array.get vars (int_of_string arg) + 1))
       args;
     Prim (prim, args)
-  | Var x ->
-    Array.set vars (int_of_string x) (Array.get vars (int_of_string x) + 1);
-    Var x
   | Fun (v1, e, k) -> Fun (v1, elim_unused_vars vars conts e, k)
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
@@ -313,7 +297,6 @@ and interp_named var (named : named) (env : (var * value) list) =
   match named with
   | Prim (prim, args) -> interp_prim var prim args env
   | Fun (arg, expr, k) -> [ var, Fun (arg, expr, k, env) ]
-  | Var x -> [ var, get env x ]
 
 and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list) =
   try
