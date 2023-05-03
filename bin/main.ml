@@ -33,7 +33,7 @@ let _ =
       then Ast.print_expr ast
       else (
         let cps = Ast.to_cps ast "0" (Return "0") in
-        let cps2 = if !prop then Cps.propagation cps [] [] else cps in
+        let cps2 = if !prop then Cps.propagation cps [] [] [] else cps in
         let cps3 =
           if !unused_vars
           then Cps.elim_unused_vars (Array.make 1000 0) (Array.make 1000 0) cps2

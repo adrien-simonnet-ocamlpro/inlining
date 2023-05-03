@@ -119,6 +119,17 @@ let rec to_cps (ast : expr) var (expr : Cps.expr) : Cps.expr =
   | Let (var', If (cond, t, f), e) ->
     let v1 = inc vars in
     to_cps (If (cond, t, f)) v1 (to_cps (replace_var var' v1 e) var expr)
+  | Let (var', Fun (x, e), e2) ->
+    let v0 = inc vars in
+
+
+    let k1 = inc_conts () in
+    let v1 = inc vars in
+    let v2 = inc vars in
+    Let
+      ( v0
+      , Fun (v1, to_cps (replace_var var' v0 (replace_var x v1 e)) v2 (Apply_cont (K k1, [ v2 ])), K k1)
+      , (to_cps (replace_var var' v0 e2) var expr) )
   | Let (var', e1, e2) ->
     let v1 = inc vars in
     to_cps e1 v1 (to_cps (replace_var var' v1 e2) var expr)
