@@ -13,7 +13,7 @@
 
 //%token NIL CONS DEUX_POINTS_DEUX_POINTS HD TL
 
-%token IFZERO /*IFEMPTY*/ THEN ELSE
+%token IFZERO /*IFEMPTY*/ THEN ELSE WHILE
 
 %token<string> IDENT
 
@@ -32,6 +32,7 @@
 %nonassoc IN
 %nonassoc IFZERO
 %nonassoc ELSE
+%nonassoc WHILE
 %nonassoc FUN
 %nonassoc FLECHE
 %nonassoc NAT
@@ -52,11 +53,11 @@ terme :
 /*| PARENTHESE_OUVRANTE PARENTHESE_FERMANTE { Ast.Unit }*/
 | PARENTHESE_OUVRANTE e = terme PARENTHESE_FERMANTE { e }
 
-| NAT { Ast.Prim (Cps.Const $1, []) }
-| e1 = terme PLUS e2 = terme { Ast.Prim (Cps.Add, [e1; e2]) }
+| NAT { Ast.Prim (Cps2.Const $1, []) }
+| e1 = terme PLUS e2 = terme { Ast.Prim (Cps2.Add, [e1; e2]) }
 /*| terme MOINS terme { Ast.Sub ($1, $3) }*/
 
-| PRINT e = terme { Ast.Prim (Cps.Print, [e]) }
+| PRINT e = terme { Ast.Prim (Cps2.Print, [e]) }
 
 /*| NIL { Ast.Nil }
 | CONS terme terme { Ast.Cons ($2, $3) }

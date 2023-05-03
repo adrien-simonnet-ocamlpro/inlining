@@ -32,27 +32,27 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps = Ast.to_cps ast "0" (Return "0") in
-        let cps2 = if !prop then Cps.propagation cps [] [] [] else cps in
+        let cps = Ast.to_cps ast 0 (Return 0) [] in
+        let cps2 = if !prop then Cps2.propagation cps [] [] [] else cps in
         let cps3 =
           if !unused_vars
-          then Cps.elim_unused_vars (Array.make 1000 0) (Array.make 1000 0) cps2
+          then Cps2.elim_unused_vars (Array.make 1000 0) (Array.make 1000 0) cps2
           else cps2
         in
         if !eval
         then (
-          let env = Cps.interp cps3 [] [] in
+          let env = Cps2.interp cps3 [] [] in
           Printf.fprintf
             outchan
             "----- ENV -----\n%s"
             (List.fold_left
                (fun str (var, value) ->
                  match value with
-                 | Cps.Int i -> str ^ "x" ^ var ^ " = " ^ string_of_int i ^ "\n"
-                 | _ -> str ^ "x" ^ var ^ " = fun\n")
+                 | Cps2.Int i -> str ^ "x" ^ (string_of_int var) ^ " = " ^ string_of_int i ^ "\n"
+                 | _ -> str ^ "x" ^ (string_of_int var) ^ " = fun\n")
                ""
                env))
-        else Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3))
+        else Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf cps3))
     with
     | Parsing.Parse_error ->
       Printf.fprintf

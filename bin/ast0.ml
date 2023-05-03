@@ -10,7 +10,7 @@ type expr =
   | Let of var * expr * expr
   | Fun of var * expr
   | App of expr * expr
-  | Prim of Cps2.prim * expr list
+  | Prim of Cps.prim * expr list
   | If of expr * expr * expr
 
 (* let rec sprintf_prim (prim : prim) args =
@@ -75,7 +75,7 @@ let conts = ref 0
 
 let inc vars =
   vars := !vars + 1;
-  !vars
+  string_of_int !vars
 ;;
 
 let inc_conts () =
@@ -83,40 +83,29 @@ let inc_conts () =
   !conts
 ;;
 
-let add_subs env var va = (var, va)::env
-
-
-let get_subs env var =
-  match List.find_opt (fun (var', _) -> var = var') env with
-  | Some (_, v) -> v
-  | None ->
-    failwith
-      (var
-       ^ " not found in "
-       ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env
-       ^ " ].")
-;;
-
-let rec to_cps (ast : expr) var (expr : Cps2.expr) (substitutions: (string * int) list) : Cps2.expr =
+let rec to_cps (ast : expr) var (expr : Cps.expr) : Cps.expr =
   match ast with
+  (* | Fun (x, e) ->
+    let k1 = inc_conts () in
+    let v1 = inc vars in
+    Let_cont (K k1, [v1], replace_var x v1 e, expr) *)
   | Fun (x, e) ->
     let k1 = inc_conts () in
     let v1 = inc vars in
     let v2 = inc vars in
     Let
       ( var
-      , Fun (v1, to_cps e v2 (Apply_cont (K k1, [ v2 ])) (add_subs substitutions x v1), K k1)
+      , Fun (v1, to_cps (replace_var x v1 e) v2 (Apply_cont (K k1, [ v2 ])), K k1)
       , expr )
-  | Var x -> Let (var, Var (get_subs substitutions x), expr)
+  | Var x -> Cps.replace_var var x expr
   | Prim (prim, args) ->
     let vars = List.map (fun arg -> inc vars, arg) args in
     List.fold_left
-      (fun expr (var, e) -> to_cps e var expr substitutions)
+      (fun expr (var, e) -> to_cps e var expr)
       (Let (var, Prim (prim, List.map (fun (var, _) -> var) vars), expr))
       vars
-  | Let (x1, Let (x2, e2, e2'), e1') -> to_cps (Let (x2, e2, Let (x1, e2', e1'))) var expr substitutions
-  | Let (x, Var x', e) ->
-    to_cps e var expr (add_subs substitutions x (get_subs substitutions x'))
+  | Let (x1, Let (x2, e2, e2'), e1') -> to_cps (Let (x2, e2, Let (x1, e2', e1'))) var expr
+  | Let (x, Var x', e) -> to_cps (replace_var x x' e) var expr
   | Let (x, App (e1, e2), suite) ->
     let v = inc vars in
     let v1 = inc vars in
@@ -125,11 +114,11 @@ let rec to_cps (ast : expr) var (expr : Cps2.expr) (substitutions: (string * int
     Let_cont
       ( K k1
       , [ v ]
-      , to_cps suite var expr (add_subs substitutions x v)
-      , to_cps e1 v1 (to_cps e2 v2 (Apply (v1, v2, K k1)) substitutions) substitutions)
+      , to_cps (replace_var x v suite) var expr
+      , to_cps e1 v1 (to_cps e2 v2 (Apply (v1, v2, K k1))) )
   | Let (var', If (cond, t, f), e) ->
     let v1 = inc vars in
-    to_cps (If (cond, t, f)) v1 (to_cps e var expr (add_subs substitutions var' v1)) substitutions
+    to_cps (If (cond, t, f)) v1 (to_cps (replace_var var' v1 e) var expr)
   | Let (var', Fun (x, e), e2) ->
     let v0 = inc vars in
 
@@ -139,11 +128,11 @@ let rec to_cps (ast : expr) var (expr : Cps2.expr) (substitutions: (string * int
     let v2 = inc vars in
     Let
       ( v0
-      , Fun (v1, to_cps e v2 (Apply_cont (K k1, [ v2 ])) (add_subs (add_subs substitutions x v1) var' v0), K k1)
-      , (to_cps e2 var expr (add_subs substitutions var' v0)) )
+      , Fun (v1, to_cps (replace_var var' v0 (replace_var x v1 e)) v2 (Apply_cont (K k1, [ v2 ])), K k1)
+      , (to_cps (replace_var var' v0 e2) var expr) )
   | Let (var', e1, e2) ->
     let v1 = inc vars in
-    to_cps e1 v1 (to_cps e2 var expr (add_subs substitutions var' v1)) substitutions
+    to_cps e1 v1 (to_cps (replace_var var' v1 e2) var expr)
   | If (cond, t, f) ->
     let v1 = inc vars in
     let k1 = inc_conts () in
@@ -154,36 +143,35 @@ let rec to_cps (ast : expr) var (expr : Cps2.expr) (substitutions: (string * int
       (Let_cont
          ( K k1
          , []
-         , to_cps t var expr substitutions
-         , Let_cont (K k2, [], to_cps f var expr substitutions, If (v1, (K k1, []), (K k2, []))) ) ) substitutions
+         , to_cps t var expr
+         , Let_cont (K k2, [], to_cps f var expr, If (v1, (K k1, []), (K k2, []))) ))
   | App (e1, e2) ->
     let k = inc_conts () in
     let v1 = inc vars in
     let v2 = inc vars in
-    Let_cont (K k, [ var ], expr, to_cps e1 v1 (to_cps e2 v2 (Apply (v1, v2, K k)) substitutions) substitutions) 
+    Let_cont (K k, [ var ], expr, to_cps e1 v1 (to_cps e2 v2 (Apply (v1, v2, K k))))
 ;;
 
-let rec from_cps_named (named : Cps2.named) : expr =
+let rec from_cps_named (named : Cps.named) : expr =
   match named with
-  | Prim (prim, args) -> Prim (prim, List.map (fun arg -> Var ("x" ^ (string_of_int arg))) args)
-  | Fun (arg, expr, K _) -> Fun ("x" ^ (string_of_int arg), from_cps expr)
-  | Var x -> Var ("x" ^ (string_of_int x))
+  | Prim (prim, args) -> Prim (prim, List.map (fun arg -> Var ("x" ^ arg)) args)
+  | Fun (arg, expr, K _) -> Fun ("x" ^ arg, from_cps expr)
 
-and from_cps (cps : Cps2.expr) : expr =
+and from_cps (cps : Cps.expr) : expr =
   match cps with
-  | Let (var, named, expr) -> Let ("x" ^ (string_of_int var), from_cps_named named, from_cps expr)
+  | Let (var, named, expr) -> Let ("x" ^ var, from_cps_named named, from_cps expr)
   | Let_cont (K k, [ arg ], e1, e2) ->
-    Let ("k" ^ string_of_int k, Fun ("x" ^ (string_of_int arg), from_cps e1), from_cps e2)
+    Let ("k" ^ string_of_int k, Fun ("x" ^ arg, from_cps e1), from_cps e2)
   | Let_cont (K k, _, e1, e2) ->
     Let ("k" ^ string_of_int k, Fun ("x", from_cps e1), from_cps e2)
-  | Apply_cont (K _, [ arg ]) -> Var ("x" ^ (string_of_int arg))
+  | Apply_cont (K _, [ arg ]) -> Var ("x" ^ arg)
   | Apply_cont (K k, _) -> App (Var ("k" ^ string_of_int k), Var "x0")
   | If (var, (K kt, _), (K kf, _)) ->
     If
-      ( Var ("x" ^ (string_of_int var))
+      ( Var var
       , App (Var ("k" ^ string_of_int kt), Prim (Const 0, []))
       , App (Var ("k" ^ string_of_int kf), Prim (Const 0, [])) )
   | Apply (x, arg, K k) ->
-    App (Var ("k" ^ string_of_int k), App (Var ("x" ^ (string_of_int x)), Var ("x" ^ (string_of_int arg))))
-  | Return x -> Var (string_of_int x)
+    App (Var ("k" ^ string_of_int k), App (Var ("x" ^ x), Var ("x" ^ arg)))
+  | Return x -> Var x
 ;;

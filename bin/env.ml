@@ -25,6 +25,18 @@ let get_cont env var =
        ^ " ].")
 ;;
 
+let get2 env var =
+  match List.find_opt (fun (var', _) -> var = var') env with
+  | Some (_, v) -> v
+  | None ->
+    failwith
+      ("x"
+       ^ (string_of_int var)
+       ^ " not found in "
+       ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ (string_of_int x)) "[" env
+       ^ " ].")
+;;
+
 (* let print_env env =
   Printf.printf "%s ]\n%!" (List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env)
 ;; *)
