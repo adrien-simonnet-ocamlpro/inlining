@@ -1,2 +1,1 @@
-let f = fun x -> ifzero x then fun y -> y + y else fun y -> y in
-(f 0) 3
+let x = 3 in let f = fun x -> x + 1 in (f x) + (f 1) + (f 333)
