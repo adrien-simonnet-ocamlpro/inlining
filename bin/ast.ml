@@ -177,17 +177,19 @@ let rec to_cps (ast : expr) var (expr : Cps2.expr) (substitutions : (string * in
     let v1 = inc vars in
     let k1 = inc_conts () in
     let k2 = inc_conts () in
-    let cps1, substitutions1, fv1 = to_cps t var expr substitutions in
-    let cps2, substitutions2, fv2 = to_cps f var expr substitutions in
+    let cps1, substitutions1, fv1 = to_cps t var expr [] in
+    let cps2, substitutions2, fv2 = to_cps f var expr [] in
+    let fv1' = List.filter (fun fv -> not (Env.has_var substitutions (Env.get_var substitutions1 fv))) fv1 in
+    let fv2' = List.filter (fun fv -> not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2 in
     let cps3, substitutions3, fv3 =
       to_cps
         cond
         v1
         (Let_cont
-           (K k1, [], cps1, Let_cont (K k2, [], cps2, If (v1, (K k1, []), (K k2, [])))))
+           (K k1, fv1, cps1, Let_cont (K k2, fv2, cps2, If (v1, (K k1, (List.map (fun fv -> let fval = Env.get_var substitutions1 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv) fv1)), (K k2, (List.map (fun fv -> let fval = Env.get_var substitutions2 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv) fv2))))))
         substitutions
     in
-    cps3, substitutions1 @ substitutions2 @ substitutions3, fv1 @ fv2 @ fv3
+    cps3, substitutions1 @ substitutions2 @ substitutions3, fv1' @ fv2' @ fv3
   | App (e1, e2) ->
     let k = inc_conts () in
     let v1 = inc vars in
