@@ -56,3 +56,7 @@ let get_name var = List.find_opt (fun (_, v) -> var = v)
 let print_subs env =
   Printf.printf "%s ]\n%!" (List.fold_left (fun str (x, v) -> str ^ " " ^ x ^ " -> " ^ (string_of_int v)) "[" env)
 ;;
+
+let print_fv env =
+  Printf.printf "%s ]\n%!" (List.fold_left (fun str v -> str ^ " " ^ (string_of_int v)) "[" env)
+;;

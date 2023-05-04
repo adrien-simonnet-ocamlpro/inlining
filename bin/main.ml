@@ -32,7 +32,9 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps, subs = Ast.to_cps ast 0 (Return 0) [] in
+        let cps, subs, fv = Ast.to_cps ast 0 (Return 0) [] in
+        Env.print_subs subs;
+        Env.print_fv fv;
         let cps2 = if !prop then Cps2.propagation cps [] [] [] else cps in
         let cps3 =
           if !unused_vars
