@@ -32,7 +32,7 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps = Ast.to_cps ast 0 (Return 0) [] in
+        let cps, subs = Ast.to_cps ast 0 (Return 0) [] in
         let cps2 = if !prop then Cps2.propagation cps [] [] [] else cps in
         let cps3 =
           if !unused_vars
@@ -52,7 +52,7 @@ let _ =
                  | _ -> str ^ "x" ^ (string_of_int var) ^ " = fun\n")
                ""
                env))
-        else Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf cps3))
+        else Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf2 cps3 subs))
     with
     | Parsing.Parse_error ->
       Printf.fprintf

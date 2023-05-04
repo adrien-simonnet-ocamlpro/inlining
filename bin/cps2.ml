@@ -144,6 +144,60 @@ and sprintf (cps : expr) : string =
   | Return x -> "x" ^ (string_of_int x)
 ;;
 
+let gen_name id env =
+  match Env.get_name id env with
+  | Some (v, _) -> v
+  | None -> "_" ^ (string_of_int id)
+
+let rec sprintf_named2 named subs =
+  match named with
+  | Prim (prim, args) -> sprintf_prim2 prim args subs
+  | Fun (arg, expr, K k) -> Printf.sprintf "(fun k%d %s -> %s)" k (gen_name arg subs) (sprintf2 expr subs)
+  | Var x -> (gen_name x subs)
+
+and sprintf_prim2 (prim : prim) args subs =
+  match prim, args with
+  | Const x, _ -> string_of_int x
+  | Add, x1 :: x2 :: _ -> Printf.sprintf "(%s + %s)" (gen_name x1 subs) (gen_name x2 subs)
+  | Print, x1 :: _ -> Printf.sprintf "(print %s)" (gen_name x1 subs)
+  | _ -> failwith "invalid args"
+
+and sprintf2 (cps : expr) subs : string =
+  match cps with
+  | Let (var, named, expr) ->
+    Printf.sprintf "\n\tlet %s = %s in %s" (gen_name var subs) (sprintf_named2 named subs) (sprintf2 expr subs)
+  | Let_cont (K k, args, e1, e2) ->
+    Printf.sprintf
+      "\nlet k%d%s = (( %s\n )) in %s\n"
+      k
+      (if List.length args > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+       else " ()")
+      (sprintf2 e1 subs)
+      (sprintf2 e2 subs)
+  | Apply_cont (K k, args) ->
+    Printf.sprintf
+      "(k%d%s)"
+      k
+      (if List.length args > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+       else " ()")
+  | If (var, (K kt, argst), (K kf, argsf)) ->
+    Printf.sprintf
+      "(if %s = 0 then (k%d%s) else (k%d%s))"
+      (gen_name var subs)
+      kt
+      (if List.length argst > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argst
+       else " ()")
+      kf
+      (if List.length argsf > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argsf
+       else " ()")
+  | Apply (x, arg, K k) -> Printf.sprintf "((%s k%d) %s)" (gen_name x subs) k (gen_name arg subs)
+  | Return x -> (gen_name x subs)
+;;
+
 let vis var cont visites = (var, cont)::visites
 let a_visite var cont visites = List.exists (fun (var', cont') -> var = var' && cont = cont') visites
 
