@@ -146,7 +146,7 @@ and sprintf (cps : expr) : string =
 
 let gen_name id env =
   match Env.get_name id env with
-  | Some (v, _) -> v
+  | Some (v, _) -> v ^ "_" ^ (string_of_int id)
   | None -> "_" ^ (string_of_int id)
 
 let rec sprintf_named2 named subs =
@@ -366,15 +366,14 @@ and interp_named var (named : named) (env : (var * value) list) =
   | Fun (arg, expr, k) -> [ var, Fun (arg, expr, k, env) ]
   | Var x -> [ var, get env x ]
 
-and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list) =
+and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
   try
     match cps with
     | Let (var, named, expr) -> interp expr (interp_named var named env @ env) conts
     | Let_cont (K k', args', e1, e2) -> interp e2 env ((k', args', e1, env) :: conts)
-    | Apply_cont (K k, _) when k = 0 -> env
     | Apply_cont (K k', args) ->
-      let args', cont, env' = get_cont conts k' in
-      interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args @ env') conts
+      let args', cont, _ = get_cont conts k' in
+      interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
     | If (var, (K kt, argst), (K kf, argsf)) ->
       (match get env var with
        | Int n ->
@@ -386,10 +385,11 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
       (match get env x with
        | Fun (arg', expr, K k', env') ->
          let value = get env arg in
-         let args, cont, env'' = get_cont conts k in
-         interp expr ((arg', value) :: (x, Fun (arg', expr, K k', env')) :: env') ((k', args, cont, env'') :: conts)
+         let args, cont, _ = get_cont conts k in
+         let v = interp expr ((arg', value) :: (x, Fun (arg', expr, K k', env')) :: env') conts in
+         interp cont ((List.nth args 0, v)::env) conts
        | _ -> failwith ("invalid type x" ^ (string_of_int x)))
-    | Return _ -> env
+    | Return v -> get env v
   with
   | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps))
 ;;

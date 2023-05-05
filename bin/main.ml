@@ -43,17 +43,14 @@ let _ =
         in
         if !eval
         then (
-          let env = Cps2.interp cps3 [] [] in
-          Printf.fprintf
-            outchan
-            "----- ENV -----\n%s"
-            (List.fold_left
-               (fun str (var, value) ->
-                 match value with
-                 | Cps2.Int i -> str ^ "x" ^ (string_of_int var) ^ " = " ^ string_of_int i ^ "\n"
-                 | _ -> str ^ "x" ^ (string_of_int var) ^ " = fun\n")
-               ""
-               env))
+          let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps2.Int i)) fv in
+          let r = Cps2.interp cps3 init [] in
+          (
+            match r with
+            | Int i -> Printf.printf "%d\n" i
+            | _ -> Printf.printf "fun\n"
+          )
+        )
         else Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf2 cps3 subs))
     with
     | Parsing.Parse_error ->
