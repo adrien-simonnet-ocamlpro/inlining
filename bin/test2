@@ -1,1 +1,1 @@
-let x = 3 in let f = fun x -> x + 1 in (f x) + (f 1) + (f 333)
+ifzero 1 then 1 else 1000
