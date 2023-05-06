@@ -22,7 +22,7 @@ rule jetons = parse
 | "hd" { HD }
 | "tl" { TL }*)
 
-| "ifzero" { IFZERO }
+| "if" { IFZERO }
 (*| "ifempty" { IFEMPTY }*)
 | "then" { THEN }
 | "else" { ELSE }
