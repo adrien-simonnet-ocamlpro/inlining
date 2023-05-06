@@ -98,7 +98,7 @@ and replace_cont var new_var (ast : expr) : expr =
 let rec sprintf_named named =
   match named with
   | Prim (prim, args) -> sprintf_prim prim args
-  | Fun (arg, expr, K k) -> Printf.sprintf "(fun k%d x%s -> %s)" k (string_of_int arg) (sprintf expr)
+  | Fun (arg, expr, _) -> Printf.sprintf "(fun x%s -> %s)" (string_of_int arg) (sprintf expr)
   | Var x -> "x" ^ (string_of_int x)
 
 and sprintf_prim (prim : prim) args =
@@ -152,7 +152,7 @@ let gen_name id env =
 let rec sprintf_named2 named subs =
   match named with
   | Prim (prim, args) -> sprintf_prim2 prim args subs
-  | Fun (arg, expr, K k) -> Printf.sprintf "(fun k%d %s -> %s)" k (gen_name arg subs) (sprintf2 expr subs)
+  | Fun (arg, expr, _) -> Printf.sprintf "(fun %s -> %s)" (gen_name arg subs) (sprintf2 expr subs)
   | Var x -> (gen_name x subs)
 
 and sprintf_prim2 (prim : prim) args subs =
