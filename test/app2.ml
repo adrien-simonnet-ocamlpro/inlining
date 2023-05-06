@@ -1,0 +1,1 @@
+let x = 1 in let f = fun x -> x in f x

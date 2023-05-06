@@ -1,0 +1,1 @@
+if cond then t else f
