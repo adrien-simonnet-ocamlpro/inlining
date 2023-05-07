@@ -1,1 +1,1 @@
-let x = 1 in let f = fun x -> x in f x
+let x = f (if 0 then 1 else 2) in y

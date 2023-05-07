@@ -1,1 +1,3 @@
-(fun x -> x) 3
+let x = 0 in
+let b = 0 in
+c
