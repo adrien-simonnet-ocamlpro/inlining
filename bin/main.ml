@@ -32,28 +32,28 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps, subs, fv, cont = Ast.to_cps (Cps2.End) [] ast 0 (Return 0) [] in
-        let cont' = Cps2.Let_cont (Cps2.K 0, fv, cps, cont) in
+        let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
+        let cont' = Cps.Let_cont (Cps.K 0, fv, cps, cont) in
         Env.print_subs subs;
         Env.print_fv fv;
-        let cps2 = if !prop then Cps2.propagation cps [] [] [] else cps in
-        let cps3 =
+        let cps2 = if !prop then Cps.propagation cps [] [] [] else cps in
+        let _ =
           if !unused_vars
-          then Cps2.elim_unused_vars (Array.make 1000 0) (Array.make 1000 0) cps2
+          then Cps.elim_unused_vars (Array.make 1000 0) (Array.make 1000 0) cps2
           else cps2
         in
         if !eval
         then (
-          let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps2.Int i)) fv in
-          let r = Cps2.interp cps3 init [] in
+          let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
+          let r = Cps.interp_cont 0 cont' [] init in
           (
             match r with
             | Int i -> Printf.printf "%d\n" i
             | _ -> Printf.printf "fun\n"
           )
         )
-        else (* Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf cps3 subs)) *)
-        Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf_prog cont' subs))
+        else (* Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3 subs)) *)
+        Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf_prog cont' subs))
     with
     | Parsing.Parse_error ->
       Printf.fprintf
