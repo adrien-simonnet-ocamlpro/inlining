@@ -21,7 +21,7 @@ and expr =
   | Let_cont of kvar * var list * expr * expr
   | Apply_cont of kvar * var list
   | If of var * (kvar * var list) * (kvar * var list)
-  | Apply of var * var * kvar
+  | Apply of var * var * (kvar * var list)
   | Return of var
 
 type 'a map = (var * 'a) list
@@ -84,7 +84,7 @@ and replace_cont var new_var (ast : expr) : expr =
   | If (cond, (K kt, argst), (K kf, argsf)) when kf = var ->
     If (cond, (K kt, argst), (K new_var, argsf))
   | If (cond, (K kt, argst), (K kf, argsf)) -> If (cond, (K kt, argst), (K kf, argsf))
-  | Apply (v1, v2, K k) when k = var -> Apply (v1, v2, K new_var)
+  | Apply (v1, v2, (K k, args)) when k = var -> Apply (v1, v2, (K new_var, args))
   | Apply (v1, v2, k) -> Apply (v1, v2, k)
   | Let_cont (K k, args, e1, e2) when k = var ->
     Let_cont (K new_var, args, replace_cont var new_var e1, replace_cont var new_var e2)
@@ -140,7 +140,7 @@ and sprintf (cps : expr) : string =
       (if List.length argsf > 0
        then List.fold_left (fun acc s -> acc ^ " " ^ (string_of_int s)) "" argsf
        else " ()")
-  | Apply (x, arg, K k) -> Printf.sprintf "((x%s k%d) x%s)" (string_of_int x) k (string_of_int arg)
+  | Apply (x, arg, (K k, args)) -> Printf.sprintf "(k%d (x%s x%s) %s)" k (string_of_int x) (string_of_int arg)  (List.fold_left (fun acc s -> acc ^ " x" ^ (string_of_int s)) "" args)
   | Return x -> "x" ^ (string_of_int x)
 ;;
 
@@ -194,7 +194,7 @@ and sprintf2 (cps : expr) subs : string =
       (if List.length argsf > 0
        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argsf
        else " ()")
-  | Apply (x, arg, K k) -> Printf.sprintf "((%s k%d) %s)" (gen_name x subs) k (gen_name arg subs)
+  | Apply (x, arg, (K k, args)) -> Printf.sprintf "(k%d (%s %s) %s)" k (gen_name x subs) (gen_name arg subs) (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args)
   | Return x -> (gen_name x subs)
 ;;
 
@@ -270,7 +270,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
         else propagation (Apply_cont (K kf, argsf)) env conts visites
       | _ -> failwith "invalid type")
     else If (var, (K kt, argst), (K kf, argsf))
-  | Apply (x, arg, K k) ->
+  | Apply (x, arg, (K k, args)) ->
     if has env x && not (a_visite x k visites)
     then (
       match get env x with
@@ -283,9 +283,9 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
             (replace_cont k' k (replace_var arg' arg expr))
             ((arg, value) :: env')
             (conts) (vis x k visites))
-        else Apply (x, arg, K k)
+        else Apply (x, arg, (K k, args))
       | _ -> failwith "invalid type")
-    else Apply (x, arg, K k)
+    else Apply (x, arg, (K k, args))
   | Return x -> Return x
 ;;
 
@@ -332,11 +332,11 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     Array.set conts kt (Array.get vars kt + 1);
     Array.set conts kf (Array.get vars kf + 1);
     If (var, (K kt, argst), (K kf, argsf))
-  | Apply (x, arg, K k) ->
+  | Apply (x, arg, (K k, args)) ->
     Array.set conts k (Array.get vars k + 1);
     Array.set vars x (Array.get vars x + 1);
     Array.set vars arg (Array.get vars arg + 1);
-    Apply (x, arg, K k)
+    Apply (x, arg, (K k, args))
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x
@@ -381,7 +381,7 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
          then interp (Apply_cont (K kt, argst)) env conts
          else interp (Apply_cont (K kf, argsf)) env conts
        | _ -> failwith "invalid type")
-    | Apply (x, arg, K k) ->
+    | Apply (x, arg, (K k, _)) ->
       (match get env x with
        | Fun (arg', expr, K k', env') ->
          let value = get env arg in
