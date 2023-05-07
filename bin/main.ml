@@ -32,7 +32,8 @@ let _ =
       if !show_ast
       then Ast.print_expr ast
       else (
-        let cps, subs, fv = Ast.to_cps [-1] ast 0 (Return 0) [] in
+        let cps, subs, fv, cont = Ast.to_cps (Cps2.End) [] ast 0 (Return 0) [] in
+        let cont' = Cps2.Let_cont (Cps2.K 0, fv, cps, cont) in
         Env.print_subs subs;
         Env.print_fv fv;
         let cps2 = if !prop then Cps2.propagation cps [] [] [] else cps in
@@ -51,7 +52,8 @@ let _ =
             | _ -> Printf.printf "fun\n"
           )
         )
-        else Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf2 cps3 subs))
+        else (* Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf cps3 subs)) *)
+        Printf.fprintf outchan "%s;;\n%!" (Cps2.sprintf_prog cont' subs))
     with
     | Parsing.Parse_error ->
       Printf.fprintf

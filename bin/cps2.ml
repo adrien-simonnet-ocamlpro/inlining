@@ -18,11 +18,14 @@ type named =
 
 and expr =
   | Let of var * named * expr
-  | Let_cont of kvar * var list * expr * expr
   | Apply_cont of kvar * var list
   | If of var * (kvar * var list) * (kvar * var list)
   | Apply of var * var * (kvar * var list)
   | Return of var
+
+type cont =
+| Let_cont of kvar * var list * expr * cont
+| End
 
 type 'a map = (var * 'a) list
 
@@ -52,6 +55,13 @@ and replace_var var new_var (ast : expr) : expr =
   | Apply (v1, v2, k) when v1 = var -> Apply (new_var, v2, k)
   | Apply (v1, v2, k) when v2 = var -> Apply (v1, new_var, k)
   | Apply (v1, v2, k) -> Apply (v1, v2, k)
+  | Apply_cont (k, args) ->
+    Apply_cont (k, List.map (fun arg -> if arg = var then new_var else arg) args)
+  | Return x when x = var -> Return new_var
+  | Return x -> Return x
+
+  and replace_var_cont var new_var (ast : cont) : cont =
+  match ast with
   | Let_cont (k, args, e1, e2) ->
     Let_cont
       ( k
@@ -59,11 +69,8 @@ and replace_var var new_var (ast : expr) : expr =
       , (if List.exists (fun arg -> arg = var) args
          then e1
          else replace_var var new_var e1)
-      , replace_var var new_var e2 )
-  | Apply_cont (k, args) ->
-    Apply_cont (k, List.map (fun arg -> if arg = var then new_var else arg) args)
-  | Return x when x = var -> Return new_var
-  | Return x -> Return x
+      , replace_var_cont var new_var e2 )
+  | End -> End
 ;;
 
 let rec replace_cont_named var new_var (ast : named) : named =
@@ -86,62 +93,17 @@ and replace_cont var new_var (ast : expr) : expr =
   | If (cond, (K kt, argst), (K kf, argsf)) -> If (cond, (K kt, argst), (K kf, argsf))
   | Apply (v1, v2, (K k, args)) when k = var -> Apply (v1, v2, (K new_var, args))
   | Apply (v1, v2, k) -> Apply (v1, v2, k)
-  | Let_cont (K k, args, e1, e2) when k = var ->
-    Let_cont (K new_var, args, replace_cont var new_var e1, replace_cont var new_var e2)
-  | Let_cont (k, args, e1, e2) ->
-    Let_cont (k, args, replace_cont var new_var e1, replace_cont var new_var e2)
   | Apply_cont (K k, args) when k = var -> Apply_cont (K new_var, args)
   | Apply_cont (k, args) -> Apply_cont (k, args)
   | Return x -> Return x
-;;
 
-let rec sprintf_named named =
-  match named with
-  | Prim (prim, args) -> sprintf_prim prim args
-  | Fun (arg, expr, _) -> Printf.sprintf "(fun x%s -> %s)" (string_of_int arg) (sprintf expr)
-  | Var x -> "x" ^ (string_of_int x)
-
-and sprintf_prim (prim : prim) args =
-  match prim, args with
-  | Const x, _ -> string_of_int x
-  | Add, x1 :: x2 :: _ -> Printf.sprintf "(x%s + x%s)" (string_of_int x1) (string_of_int x2)
-  | Print, x1 :: _ -> Printf.sprintf "(print x%s)" (string_of_int x1)
-  | _ -> failwith "invalid args"
-
-and sprintf (cps : expr) : string =
-  match cps with
-  | Let (var, named, expr) ->
-    Printf.sprintf "\n\tlet x%s = %s in %s" (string_of_int var) (sprintf_named named) (sprintf expr)
-  | Let_cont (K k, args, e1, e2) ->
-    Printf.sprintf
-      "\nlet k%d%s = (( %s\n )) in %s\n"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " x" ^ (string_of_int s)) "" args
-       else " ()")
-      (sprintf e1)
-      (sprintf e2)
-  | Apply_cont (K k, args) ->
-    Printf.sprintf
-      "(k%d%s)"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " x" ^ (string_of_int s)) "" args
-       else " ()")
-  | If (var, (K kt, argst), (K kf, argsf)) ->
-    Printf.sprintf
-      "(if x%s = 0 then (k%d%s) else (k%d%s))"
-      (string_of_int var)
-      kt
-      (if List.length argst > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (string_of_int s)) "" argst
-       else " ()")
-      kf
-      (if List.length argsf > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (string_of_int s)) "" argsf
-       else " ()")
-  | Apply (x, arg, (K k, args)) -> Printf.sprintf "(k%d (x%s x%s) %s)" k (string_of_int x) (string_of_int arg)  (List.fold_left (fun acc s -> acc ^ " x" ^ (string_of_int s)) "" args)
-  | Return x -> "x" ^ (string_of_int x)
+  and replace_cont_cont var new_var (ast : cont) : cont =
+  match ast with
+  | Let_cont (K k, args, e1, e2) when k = var ->
+    Let_cont (K new_var, args, replace_cont var new_var e1, replace_cont_cont var new_var e2)
+  | Let_cont (k, args, e1, e2) ->
+    Let_cont (k, args, replace_cont var new_var e1, replace_cont_cont var new_var e2)
+  | End -> End
 ;;
 
 let gen_name id env =
@@ -152,39 +114,30 @@ let gen_name id env =
 let rec sprintf_named2 named subs =
   match named with
   | Prim (prim, args) -> sprintf_prim2 prim args subs
-  | Fun (arg, expr, _) -> Printf.sprintf "(fun %s -> %s)" (gen_name arg subs) (sprintf2 expr subs)
-  | Var x -> (gen_name x subs)
+  | Fun (arg, expr, _) -> Printf.sprintf "(fun %s ->\n%s)" (gen_name arg subs) (sprintf expr subs)
+  | Var x -> gen_name x subs
 
 and sprintf_prim2 (prim : prim) args subs =
   match prim, args with
   | Const x, _ -> string_of_int x
-  | Add, x1 :: x2 :: _ -> Printf.sprintf "(%s + %s)" (gen_name x1 subs) (gen_name x2 subs)
-  | Print, x1 :: _ -> Printf.sprintf "(print %s)" (gen_name x1 subs)
+  | Add, x1 :: x2 :: _ -> Printf.sprintf "%s + %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Print, x1 :: _ -> Printf.sprintf "print %s" (gen_name x1 subs)
   | _ -> failwith "invalid args"
 
-and sprintf2 (cps : expr) subs : string =
+and sprintf (cps : expr) subs : string =
   match cps with
   | Let (var, named, expr) ->
-    Printf.sprintf "\n\tlet %s = %s in %s" (gen_name var subs) (sprintf_named2 named subs) (sprintf2 expr subs)
-  | Let_cont (K k, args, e1, e2) ->
-    Printf.sprintf
-      "\nlet k%d%s = (( %s\n )) in %s\n"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-       else " ()")
-      (sprintf2 e1 subs)
-      (sprintf2 e2 subs)
+    Printf.sprintf "\tlet %s = %s in\n%s" (gen_name var subs) (sprintf_named2 named subs) (sprintf expr subs)
   | Apply_cont (K k, args) ->
     Printf.sprintf
-      "(k%d%s)"
+      "\tk%d%s"
       k
       (if List.length args > 0
        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
        else " ()")
   | If (var, (K kt, argst), (K kf, argsf)) ->
     Printf.sprintf
-      "(if %s = 0 then (k%d%s) else (k%d%s))"
+      "\tif %s = 0 then k%d%s else k%d%s"
       (gen_name var subs)
       kt
       (if List.length argst > 0
@@ -194,8 +147,50 @@ and sprintf2 (cps : expr) subs : string =
       (if List.length argsf > 0
        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argsf
        else " ()")
-  | Apply (x, arg, (K k, args)) -> Printf.sprintf "(k%d (%s %s) %s)" k (gen_name x subs) (gen_name arg subs) (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args)
-  | Return x -> (gen_name x subs)
+  | Apply (x, arg, (K k, args)) -> Printf.sprintf "\tk%d (%s %s)%s" k (gen_name x subs) (gen_name arg subs) (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args)
+  | Return x -> "\t" ^ (gen_name x subs)
+
+  and sprintf_cont (cps : cont) subs : string =
+  match cps with
+  | Let_cont (K k, args, e1, Let_cont (K k', args', e1', e2')) ->
+    Printf.sprintf
+      "k%d%s =\n%s\nand %s"
+      k
+      (if List.length args > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+       else " ()")
+      (sprintf e1 subs)
+      (sprintf_cont (Let_cont (K k', args', e1', e2')) subs)
+  | Let_cont (K k, args, e1, End) ->
+    Printf.sprintf
+      "k%d%s =\n%s\n"
+      k
+      (if List.length args > 0
+        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+        else " ()")
+      (sprintf e1 subs)
+  | End -> "()"
+
+  and sprintf_prog (cps : cont) subs : string =
+  match cps with
+  | Let_cont (K k, args, e1, Let_cont (K k', args', e1', e2')) ->
+    Printf.sprintf
+      "let rec k%d%s =\n%s\nand %s"
+      k
+      (if List.length args > 0
+       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+       else " ()")
+      (sprintf e1 subs)
+      (sprintf_cont (Let_cont (K k', args', e1', e2')) subs)
+  | Let_cont (K k, args, e1, End) ->
+    Printf.sprintf
+      "\nlet k%d%s =\n%s\n;;"
+      k
+      (if List.length args > 0
+        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
+        else " ()")
+      (sprintf e1 subs)
+  | End -> "()"
 ;;
 
 let vis var cont visites = (var, cont)::visites
@@ -238,13 +233,6 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
     let e' = propagation e env conts visites in
     Let
       (var, Fun (arg, e', k), propagation expr ((var, Fun (arg, e', k, env)) :: env) conts visites)
-  | Let_cont (K k', args', e1, e2) ->
-    let e1' = propagation e1 env conts visites in
-    let e2' = propagation e2 env ((k', args', e1', env) :: conts) visites in
-    (match e1' with
-     | Apply_cont (K k, [ arg ]) when [ arg ] = args' ->
-       propagation (replace_cont k' k e2') env conts visites
-     | _ -> Let_cont (K k', args', e1', e2'))
   | Apply_cont (K k, args) ->
     if has_cont conts k
     then
@@ -287,6 +275,16 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
       | _ -> failwith "invalid type")
     else Apply (x, arg, (K k, args))
   | Return x -> Return x
+  and propagation_cont (cps : cont) (env: (var * value) list) (conts : (int * var list * expr * env) list) visites : cont =
+  match cps with
+  | Let_cont (K k', args', e1, e2) ->
+    let e1' = propagation e1 env conts visites in
+    let e2' = propagation_cont e2 env ((k', args', e1', env) :: conts) visites in
+    (match e1' with
+     | Apply_cont (K k, [ arg ]) when [ arg ] = args' ->
+       propagation_cont (replace_cont_cont k' k e2') env conts visites
+     | _ -> Let_cont (K k', args', e1', e2'))
+  | End -> End
 ;;
 
 let rec elim_unused_vars_named (vars : int array) (conts : int array) (named : named)
@@ -313,13 +311,6 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       let e1' = elim_unused_vars_named vars conts e1 in
       Let (var, e1', e2'))
     else e2'
-  | Let_cont (K k', args', e1, e2) ->
-    let e2' = elim_unused_vars vars conts e2 in
-    if Array.get conts k' > 0
-    then (
-      let e1' = elim_unused_vars vars conts e1 in
-      Let_cont (K k', args', e1', e2'))
-    else e2'
   | Apply_cont (K k, args) ->
     Array.set conts k (Array.get vars k + 1);
     List.iter
@@ -340,6 +331,16 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x
+and elim_unused_vars_cont (vars : int array) (conts : int array) (cps : cont) : cont =
+    match cps with
+    | Let_cont (K k', args', e1, e2) ->
+      let e2' = elim_unused_vars_cont vars conts e2 in
+      if Array.get conts k' > 0
+      then (
+        let e1' = elim_unused_vars vars conts e1 in
+        Let_cont (K k', args', e1', e2'))
+      else e2'
+    | End -> End
 ;;
 
 let rec interp_prim var (prim : prim) args (env : (var * value) list) =
@@ -370,7 +371,6 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
   try
     match cps with
     | Let (var, named, expr) -> interp expr (interp_named var named env @ env) conts
-    | Let_cont (K k', args', e1, e2) -> interp e2 env ((k', args', e1, env) :: conts)
     | Apply_cont (K k', args) ->
       let args', cont, _ = get_cont conts k' in
       interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
@@ -391,5 +391,10 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
        | _ -> failwith ("invalid type x" ^ (string_of_int x)))
     | Return v -> get env v
   with
-  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps))
+  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
+and interp_cont k (cps : cont) (conts : (int * var list * expr * env) list): value =
+match cps with
+    | Let_cont (K k', args', e1, e2) -> interp_cont k e2 ((k', args', e1, []) :: conts)
+    | End -> let _, cont, _ = get_cont conts k in interp cont [] conts
 ;;
