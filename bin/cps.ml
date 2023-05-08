@@ -228,8 +228,8 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
 
 and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : expr =
   match cps with
-  | Let (var, Var var', expr) when has env var' -> propagation expr ((var, get env var')::env) conts visites
-  | Let (_, Var _, expr) -> propagation expr env conts visites
+  | Let (var, Var var', expr) when has env var' -> Let (var, Var var', propagation expr ((var, get env var')::env) conts visites)
+  | Let (var, Var var', expr) -> Let (var, Var var', propagation expr env conts visites)
   | Let (var, Prim (prim, args), expr) ->
     (match propagation_prim prim args env with
      | Var var' -> propagation (replace_var var var' expr) env conts visites
@@ -272,7 +272,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
       | _ -> failwith "invalid type")
     else If (var, (K kt, argst), (K kf, argsf))
   | Apply (x, arg, (K k, args)) ->
-    if has env x && not (a_visite x k visites)
+    if false && has env x && not (a_visite x k visites)
     then (
       match get env x with
       | Fun (arg', expr, K k', env') ->
