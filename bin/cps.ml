@@ -1,7 +1,6 @@
 let has = Env.has
-let has_cont = Env.has_cont
+
 let get = Env.get2
-let get_cont = Env.get_cont
 
 type var = int
 type kvar = K of int
@@ -26,6 +25,18 @@ and expr =
 type cont =
 | Let_cont of kvar * var list * expr * cont
 | End
+
+let rec has_cont cont k =
+  match cont with
+  | Let_cont (K k', _, _, _) when k = k' -> true
+  | Let_cont (_, _, _, e2) -> has_cont e2 k
+  | End -> false
+
+let rec get_cont cont k =
+match cont with
+| Let_cont (K k', args, e1, _) when k = k' -> (args, e1, [])
+| Let_cont (_, _, _, e2) -> get_cont e2 k
+| End -> failwith "cont not found"
 
 type 'a map = (var * 'a) list
 
@@ -215,9 +226,10 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
   | Print, _ :: _ -> Prim (Print, args)
   | _ -> failwith "invalid args"
 
-and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list * expr * env) list) visites : expr =
+and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : expr =
   match cps with
-  | Let (var, Var var', expr) -> propagation (replace_var var var' expr) env conts visites
+  | Let (var, Var var', expr) when has env var' -> propagation expr ((var, get env var')::env) conts visites
+  | Let (_, Var _, expr) -> propagation expr env conts visites
   | Let (var, Prim (prim, args), expr) ->
     (match propagation_prim prim args env with
      | Var var' -> propagation (replace_var var var' expr) env conts visites
@@ -230,7 +242,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
        Let (var, Prim (Const x, []), propagation expr ((var, Int x) :: env) conts visites)
      | Prim (prim, args) -> Let (var, Prim (prim, args), propagation expr env conts visites))
   | Let (var, Fun (arg, e, k), expr) ->
-    let e' = propagation e env conts visites in
+    let e' = propagation e (List.filter (fun (var, _) -> not (var = arg) )env) conts visites in
     Let
       (var, Fun (arg, e', k), propagation expr ((var, Fun (arg, e', k, env)) :: env) conts visites)
   | Apply_cont (K k, args) ->
@@ -238,13 +250,10 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
     then
       if List.for_all (fun arg -> has env arg) args
       then (
-        let args', cont, env' = get_cont conts k in
+        let args', cont, _ = get_cont conts k in
         propagation
-          (List.fold_left
-             (fun cont (arg', arg) -> replace_var arg' arg cont)
-             cont
-             (List.map2 (fun arg' arg -> arg', arg) args' args))
-          (List.map (fun arg -> arg, get env arg) args @ env')
+        cont
+          (List.map2 (fun arg' arg -> arg', get env arg) args' args)
           conts visites)
       else Apply_cont (K k, args)
     else Apply_cont (K k, args)
@@ -252,10 +261,14 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
     if has env var
     then (
       match get env var with
-      | Int n ->
-        if n = 0
-        then propagation (Apply_cont (K kt, argst)) env conts visites
-        else propagation (Apply_cont (K kf, argsf)) env conts visites
+      | Int 0 ->
+        if List.for_all (fun arg -> has env arg) argst
+        then let _, cont, _ = get_cont conts kt in propagation cont env conts visites
+        else Apply_cont (K kt, argst)
+      | Int _ ->
+        if List.for_all (fun arg -> has env arg) argsf
+          then let _, cont, _ = get_cont conts kf in propagation cont env conts visites
+          else Apply_cont (K kt, argsf)
       | _ -> failwith "invalid type")
     else If (var, (K kt, argst), (K kf, argsf))
   | Apply (x, arg, (K k, args)) ->
@@ -263,6 +276,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
     then (
       match get env x with
       | Fun (arg', expr, K k', env') ->
+
 
         if has env arg
         then (
@@ -275,15 +289,15 @@ and propagation (cps : expr) (env: (var * value) list) (conts : (int * var list 
       | _ -> failwith "invalid type")
     else Apply (x, arg, (K k, args))
   | Return x -> Return x
-  and propagation_cont (cps : cont) (env: (var * value) list) (conts : (int * var list * expr * env) list) visites : cont =
+  and propagation_cont (cps : cont) (env: (var * value) list) (conts : cont) visites : cont =
   match cps with
   | Let_cont (K k', args', e1, e2) ->
     let e1' = propagation e1 env conts visites in
-    let e2' = propagation_cont e2 env ((k', args', e1', env) :: conts) visites in
-    (match e1' with
+    let e2' = propagation_cont e2 env conts visites in
+    (*(match e1' with
      | Apply_cont (K k, [ arg ]) when [ arg ] = args' ->
        propagation_cont (replace_cont_cont k' k e2') env conts visites
-     | _ -> Let_cont (K k', args', e1', e2'))
+     | _ -> *)Let_cont (K k', args', e1', e2')
   | End -> End
 ;;
 
@@ -372,7 +386,7 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
     match cps with
     | Let (var, named, expr) -> interp expr (interp_named var named env @ env) conts
     | Apply_cont (K k', args) ->
-      let args', cont, _ = get_cont conts k' in
+      let args', cont, _ = Env.get_cont conts k' in
       interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
     | If (var, (K kt, argst), (K kf, argsf)) ->
       (match get env var with
@@ -385,7 +399,7 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
       (match get env x with
        | Fun (arg', expr, K k', env') ->
          let value = get env arg in
-         let args, cont, _ = get_cont conts k in
+         let args, cont, _ = Env.get_cont conts k in
          let v = interp expr ((arg', value) :: (x, Fun (arg', expr, K k', env')) :: env') conts in
          interp cont ((List.nth args 0, v)::env) conts
        | _ -> failwith ("invalid type x" ^ (string_of_int x)))
@@ -396,5 +410,5 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
 and interp_cont k (cps : cont) (conts : (int * var list * expr * env) list) env: value =
 match cps with
     | Let_cont (K k', args', e1, e2) -> interp_cont k e2 ((k', args', e1, []) :: conts) env
-    | End -> let _, cont, _ = get_cont conts k in interp cont env conts
+    | End -> let _, cont, _ = Env.get_cont conts k in interp cont env conts
 ;;
