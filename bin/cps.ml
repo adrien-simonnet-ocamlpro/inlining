@@ -11,7 +11,6 @@ type prim =
 
 type named =
   | Prim of prim * var list
-  | Fun of var * expr * var
   | Var of var
   | Record of var list
   | Get of var * int
@@ -20,7 +19,6 @@ and expr =
   | Let of var * named * expr
   | Apply_cont of var * var list
   | If of var * (var * var list) * (var * var list)
-  | Apply of var * var * (var * var list)
   | Return of var
 
 type cont =
@@ -43,7 +41,6 @@ type 'a map = (var * 'a) list
 
 type value =
   | Int of int
-  | Fun of var * expr * var * value map
   | Record of value list
 
 type env = value map
@@ -52,8 +49,6 @@ let rec replace_var_named var new_var (ast : named) : named =
   match ast with
   | Prim (prim, args) ->
     Prim (prim, List.map (fun arg -> if arg = var then new_var else arg) args)
-  | Fun (x, e, k) when x = var -> Fun (x, e, k)
-  | Fun (x, e, k) -> Fun (x, replace_var var new_var e, k)
   | Var x when x = var -> Var new_var
   | Var x -> Var x
   | Record (args) ->
@@ -67,10 +62,6 @@ and replace_var var new_var (ast : expr) : expr =
     Let (var', replace_var_named var new_var e1, replace_var var new_var e2)
   | If (cond, t, f) when cond = var -> If (new_var, t, f)
   | If (cond, t, f) -> If (cond, t, f)
-  | Apply (v1, v2, k) when v1 = var && v2 = var -> Apply (new_var, new_var, k)
-  | Apply (v1, v2, k) when v1 = var -> Apply (new_var, v2, k)
-  | Apply (v1, v2, k) when v2 = var -> Apply (v1, new_var, k)
-  | Apply (v1, v2, k) -> Apply (v1, v2, k)
   | Apply_cont (k, args) ->
     Apply_cont (k, List.map (fun arg -> if arg = var then new_var else arg) args)
   | Return x when x = var -> Return new_var
@@ -89,19 +80,9 @@ and replace_var var new_var (ast : expr) : expr =
   | End -> End
 ;;
 
-let rec replace_cont_named var new_var (ast : named) : named =
+let rec replace_cont var new_var (ast : expr) : expr =
   match ast with
-  | Prim (prim, args) -> Prim (prim, args)
-  | Fun (x, e, k) when k = var -> Fun (x, replace_cont var new_var e, new_var)
-  | Fun (x, e, k) -> Fun (x, replace_cont var new_var e, k)
-  | Var x -> Var x
-  | Record (args) -> Record (args)
-  | Get (record, pos) -> Get (record, pos)
-
-and replace_cont var new_var (ast : expr) : expr =
-  match ast with
-  | Let (var', e1, e2) ->
-    Let (var', replace_cont_named var new_var e1, replace_cont var new_var e2)
+  | Let (var', e1, e2) -> Let (var', e1, e2)
   | If (cond, (kt, argst), (kf, argsf)) when kt = var && kf = var ->
     If (cond, (new_var, argst), (new_var, argsf))
   | If (cond, (kt, argst), (kf, argsf)) when kt = var ->
@@ -109,8 +90,6 @@ and replace_cont var new_var (ast : expr) : expr =
   | If (cond, (kt, argst), (kf, argsf)) when kf = var ->
     If (cond, (kt, argst), (new_var, argsf))
   | If (cond, (kt, argst), (kf, argsf)) -> If (cond, (kt, argst), (kf, argsf))
-  | Apply (v1, v2, (k, args)) when k = var -> Apply (v1, v2, (new_var, args))
-  | Apply (v1, v2, k) -> Apply (v1, v2, k)
   | Apply_cont (k, args) when k = var -> Apply_cont (new_var, args)
   | Apply_cont (k, args) -> Apply_cont (k, args)
   | Return x -> Return x
@@ -132,7 +111,6 @@ let gen_name id env =
 let rec sprintf_named2 named subs =
   match named with
   | Prim (prim, args) -> sprintf_prim2 prim args subs
-  | Fun (arg, expr, _) -> Printf.sprintf "(fun %s ->\n%s)" (gen_name arg subs) (sprintf expr subs)
   | Var x -> gen_name x subs
   | Record (args) -> Printf.sprintf "[%s]" (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
   | Get (record, pos) -> Printf.sprintf "(List.nth %s %d)" (gen_name record subs) pos
@@ -167,7 +145,6 @@ and sprintf (cps : expr) subs : string =
       (if List.length argsf > 0
        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argsf
        else " ()")
-  | Apply (x, arg, (k, args)) -> Printf.sprintf "\tk%d (%s %s)%s" k (gen_name x subs) (gen_name arg subs) (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args)
   | Return x -> "\t" ^ (gen_name x subs)
 
   and sprintf_cont (cps : cont) subs : string =
@@ -241,20 +218,11 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
   | Let (var, Prim (prim, args), expr) ->
     (match propagation_prim prim args env with
      | Var var' -> propagation (replace_var var var' expr) env conts visites
-     | Fun (arg, expr, k) ->
-       Let
-         ( var
-         , Fun (arg, expr, k)
-         , propagation expr ((var, Fun (arg, expr, k, env)) :: env) conts visites)
      | Prim (Const x, []) ->
        Let (var, Prim (Const x, []), propagation expr ((var, Int x) :: env) conts visites)
      | Prim (prim, args) -> Let (var, Prim (prim, args), propagation expr env conts visites)
      (*TODO*)
      | _ -> cps)
-  | Let (var, Fun (arg, e, k), expr) ->
-    let e' = propagation e (List.filter (fun (var, _) -> not (var = arg) )env) conts visites in
-    Let
-      (var, Fun (arg, e', k), propagation expr ((var, Fun (arg, e', k, env)) :: env) conts visites)
   | Apply_cont (k, args) ->
     if has_cont conts k
     then
@@ -289,23 +257,6 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
           end
         | _ -> failwith "invalid type")
     else If (var, (kt, argst), (kf, argsf))
-  | Apply (x, arg, (k, args)) ->
-    if false && has env x && not (a_visite x k visites)
-    then (
-      match get env x with
-      | Fun (arg', expr, k', env') ->
-
-
-        if has env arg
-        then (
-          let value = get env arg in
-          propagation
-            (replace_cont k' k (replace_var arg' arg expr))
-            ((arg, value) :: env')
-            (conts) (vis x k visites))
-        else Apply (x, arg, (k, args))
-      | _ -> failwith "invalid type")
-    else Apply (x, arg, (k, args))
   | Return x -> Return x
   (*TODO*)
   | _ -> cps
@@ -321,7 +272,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
   | End -> End
 ;;
 
-let rec elim_unused_vars_named (vars : int array) (conts : int array) (named : named)
+let rec elim_unused_vars_named (vars : int array) (named : named)
   : named
   =
   match named with
@@ -334,7 +285,6 @@ let rec elim_unused_vars_named (vars : int array) (conts : int array) (named : n
     | Var x ->
       Array.set vars x (Array.get vars x + 1);
       Var x
-  | Fun (v1, e, k) -> Fun (v1, elim_unused_vars vars conts e, k)
   (*TODO*)
   | _ -> named
 
@@ -344,7 +294,7 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     let e2' = elim_unused_vars vars conts e2 in
     if Array.get vars var > 0
     then (
-      let e1' = elim_unused_vars_named vars conts e1 in
+      let e1' = elim_unused_vars_named vars e1 in
       Let (var, e1', e2'))
     else e2'
   | Apply_cont (k, args) ->
@@ -359,11 +309,6 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     Array.set conts kt (Array.get vars kt + 1);
     Array.set conts kf (Array.get vars kf + 1);
     If (var, (kt, argst), (kf, argsf))
-  | Apply (x, arg, (k, args)) ->
-    Array.set conts k (Array.get vars k + 1);
-    Array.set vars x (Array.get vars x + 1);
-    Array.set vars arg (Array.get vars arg + 1);
-    Apply (x, arg, (k, args))
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x
@@ -400,7 +345,6 @@ let rec interp_prim var (prim : prim) args (env : (var * value) list) =
 and interp_named var (named : named) (env : (var * value) list) =
   match named with
   | Prim (prim, args) -> interp_prim var prim args env
-  | Fun (arg, expr, k) -> [ var, Fun (arg, expr, k, env) ]
   | Var x -> [ var, get env x ]
   | Record (args) -> [var, Record (List.map (fun arg -> get env arg) args)]
   | Get (record, pos) -> begin
@@ -426,14 +370,6 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
          then interp (Apply_cont (kt, argst)) env conts
          else interp (Apply_cont (kf, argsf)) env conts
        | _ -> failwith "invalid type")
-    | Apply (x, arg, (k, _)) ->
-      (match get env x with
-       | Fun (arg', expr, k', env') ->
-         let value = get env arg in
-         let args, cont, _ = Env.get_cont conts k in
-         let v = interp expr ((arg', value) :: (x, Fun (arg', expr, k', env')) :: env') conts in
-         interp cont ((List.nth args 0, v)::env) conts
-       | _ -> failwith ("invalid type x" ^ (string_of_int x)))
     | Return v -> get env v
   with
   | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
