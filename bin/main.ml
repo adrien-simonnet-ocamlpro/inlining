@@ -33,7 +33,7 @@ let _ =
       then Ast.print_expr ast
       else (
         let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
-        let cont' = Cps.Let_cont (Cps.K 0, fv, cps, cont) in
+        let cont' = Cps.Let_cont (0, fv, cps, cont) in
         Env.print_subs subs;
         Env.print_fv fv;
         let cps2 = if !prop then Cps.propagation_cont cont' [] cont' [] else cont' in
