@@ -12,7 +12,7 @@ type prim =
 type named =
   | Prim of prim * var list
   | Var of var
-  | Record of var list
+  | Tuple of var list
   | Get of var * int
 
 and expr =
@@ -41,7 +41,7 @@ type 'a map = (var * 'a) list
 
 type value =
   | Int of int
-  | Record of value list
+  | Tuple of value list
 
 type env = value map
 
@@ -51,8 +51,8 @@ let rec replace_var_named var new_var (ast : named) : named =
     Prim (prim, List.map (fun arg -> if arg = var then new_var else arg) args)
   | Var x when x = var -> Var new_var
   | Var x -> Var x
-  | Record (args) ->
-    Record (List.map (fun arg -> if arg = var then new_var else arg) args)
+  | Tuple (args) ->
+    Tuple (List.map (fun arg -> if arg = var then new_var else arg) args)
   | Get (record, pos) -> Get ((if record = var then new_var else var), pos)
 
 and replace_var var new_var (ast : expr) : expr =
@@ -112,7 +112,7 @@ let rec sprintf_named2 named subs =
   match named with
   | Prim (prim, args) -> sprintf_prim2 prim args subs
   | Var x -> gen_name x subs
-  | Record (args) -> Printf.sprintf "[%s]" (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
+  | Tuple (args) -> Printf.sprintf "[%s]" (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
   | Get (record, pos) -> Printf.sprintf "(List.nth %s %d)" (gen_name record subs) pos
 
 and sprintf_prim2 (prim : prim) args subs =
@@ -346,10 +346,10 @@ and interp_named var (named : named) (env : (var * value) list) =
   match named with
   | Prim (prim, args) -> interp_prim var prim args env
   | Var x -> [ var, get env x ]
-  | Record (args) -> [var, Record (List.map (fun arg -> get env arg) args)]
+  | Tuple (args) -> [var, Tuple (List.map (fun arg -> get env arg) args)]
   | Get (record, pos) -> begin
     match get env record with
-    | Record (values) -> [var, List.nth values pos]
+    | Tuple (values) -> [var, List.nth values pos]
     | _ -> failwith "invalid type"
     end
 
