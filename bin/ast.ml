@@ -208,32 +208,3 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 substitutions1 in
     cps2, substitutions2, fv2, conts2
 ;;
-
-let rec from_cps_named (named : Cps.named) : expr =
-  match named with
-  | Prim (prim, args) ->
-    Prim (prim, List.map (fun arg -> Var ("x" ^ string_of_int arg)) args)
-  | Var x -> Var ("x" ^ string_of_int x)
-  | _ -> failwith ""
-
-and from_cps (cps : Cps.expr) : expr =
-  match cps with
-  | Let (var, named, expr) ->
-    Let ("x" ^ string_of_int var, from_cps_named named, from_cps expr)
-  | Apply_cont (_, [ arg ]) -> Var ("x" ^ string_of_int arg)
-  | Apply_cont (k, _) -> App (Var ("k" ^ string_of_int k), Var "x0")
-  | If (var, (kt, _), (kf, _)) ->
-    If
-      ( Var ("x" ^ string_of_int var)
-      , App (Var ("k" ^ string_of_int kt), Prim (Const 0, []))
-      , App (Var ("k" ^ string_of_int kf), Prim (Const 0, [])) )
-  | Return x -> Var (string_of_int x)
-
-and from_cps_cont (cps : Cps.cont) : expr =
-  match cps with
-  | Let_cont (k, [ arg ], e1, e2) ->
-    Let ("k" ^ string_of_int k, Fun ("x" ^ string_of_int arg, from_cps e1), from_cps_cont e2)
-  | Let_cont (k, _, e1, e2) ->
-    Let ("k" ^ string_of_int k, Fun ("x", from_cps e1), from_cps_cont e2)
-  | End -> Prim (Print, [])
-;;
