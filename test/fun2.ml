@@ -1,0 +1,1 @@
+let f = (fun y -> y + 1) in (fun z -> let x = f 1 in z + x) 200
