@@ -5,13 +5,13 @@ type prim =
   | Const of int
   | Print
 
-type expr =
-  | Var of var
-  | Let of var * expr * expr
-  | Fun of var * expr
-  | App of expr * expr
-  | Prim of Cps.prim * expr list
-  | If of expr * expr * expr
+type 'var expr =
+  | Var of 'var
+  | Let of 'var * 'var expr * 'var expr
+  | Fun of 'var * 'var expr
+  | App of 'var expr * 'var expr
+  | Prim of Cps.prim * 'var expr list
+  | If of 'var expr * 'var expr * 'var expr
 
 (* let rec sprintf_prim (prim : prim) args =
   match prim, args with
@@ -46,7 +46,12 @@ let rec pp_expr fmt = function
   | _ -> failwith "invalid args"
 ;;
 
+
+
 let print_expr e = pp_expr Format.std_formatter e
+
+
+
 let sprintf e = Format.asprintf "%a" pp_expr e
 
 (* let through_buf e =
@@ -54,7 +59,7 @@ let sprintf e = Format.asprintf "%a" pp_expr e
   let fmt = Format.formatter_of_buffer buf in 
   print_expr fmt "%a" pp_expr e *)
 
-let rec replace_var var new_var (ast : expr) : expr =
+let rec replace_var var new_var (ast : 'var expr) : 'var expr =
   match ast with
   | Fun (x, e) when x = var -> Fun (x, e)
   | Fun (x, e) -> Fun (x, replace_var var new_var e)
@@ -96,7 +101,7 @@ let get_subs env var =
        ^ " ].")
 ;;
 
-let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (string * int) list)
+let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list)
   : Cps.expr * (string * int) list * int list * Cps.cont
   =
   match ast with
@@ -199,3 +204,85 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 substitutions1 in
     cps2, substitutions2, fv2, conts2
 ;;
+
+
+let add_subs subs var = List.length subs, ( var, List.length subs )::subs
+let is_subs = Env.has
+
+let get_subst = get_subs
+
+let add_fv fvs fv = fv::fvs
+let has_subst vars var = List.exists (fun (var', _) -> var = var') vars
+let rec unfree fvs fv = match fvs with
+| (fv', _)::fvs' when fv = fv' -> fvs'
+| (fv', v)::fvs' -> (fv', v)::(unfree fvs' fv)
+| [] -> failwith "substitution not found"
+
+let print_fv env =
+  Printf.printf "%s ]\n%!" (List.fold_left (fun str v -> str ^ " " ^ v) "[" env)
+;;
+
+let rec alpha_conversion (fvs: (var * Cps.var) list) (ast : 'var expr) (substitutions : (string * int) list)
+  : Cps.var expr * (var * Cps.var) list * (var * Cps.var) list
+  =
+  match ast with
+  | Let (var, e1, e2) ->
+    
+    let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
+    let var', substitutions'' = add_subs substitutions' var in
+    let fvs'' = add_fv fvs' (var, var') in
+    let e2', substitutions''', fvs''' = alpha_conversion fvs'' e2 substitutions'' in
+    Let (get_subst substitutions'' var, e1', e2'), substitutions''', unfree fvs''' var
+
+  | Var var -> if has_subst fvs var then Var (get_subst fvs var), substitutions, fvs else let var', substitutions = add_subs substitutions var in Var (var'), substitutions, add_fv fvs (var, var')
+    
+
+  | Prim (prim, exprs) ->
+    let exprs''', substitutions''', fvs''' = List.fold_left (fun (expr', substitutions', fvs') expr ->
+        let expr'', substitutions'', fvs'' = alpha_conversion fvs' expr substitutions' in
+        expr'@[expr''], substitutions'', fvs'') ([], substitutions, fvs) exprs
+    in Prim (prim, exprs'''), substitutions''', fvs'''
+
+  | Fun (var, e) ->
+    let var', substitutions' = add_subs substitutions var in
+    let fvs' = add_fv fvs (var, var') in
+    let e', substitutions'', fvs'' = alpha_conversion fvs' e substitutions' in
+    Fun (var', e'), substitutions'', unfree fvs'' var
+
+
+  
+  
+
+  
+
+  | If (cond, t, f) ->
+    let cond', substitutions', fvs' = alpha_conversion fvs cond substitutions in
+    let t', substitutions'', fvs'' = alpha_conversion fvs' t substitutions' in
+    let f', substitutions''', fvs''' = alpha_conversion fvs'' f substitutions'' in
+    If (cond', t', f'), substitutions''', fvs'''
+  | App (e1, e2) ->
+    let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
+    let e2', substitutions'', fvs'' = alpha_conversion fvs' e2 substitutions' in
+    App (e1', e2'), substitutions'', fvs''
+;;
+
+let gen_name id env =
+  match Env.get_name id env with
+  | Some (v, _) -> v ^ "_" ^ (string_of_int id)
+  | None -> "_" ^ (string_of_int id)
+
+let rec pp_expr_int subs fmt = function
+  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" (gen_name x subs) (pp_expr_int subs) e
+  | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
+  | Prim (Const x, _) -> Format.fprintf fmt "%d" x
+  | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" (pp_expr_int subs) x1 (pp_expr_int subs) x2
+  | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" (pp_expr_int subs) x1
+  | Let (var, e1, e2) ->
+    Format.fprintf fmt "(let %s = %a in\n%a)" (gen_name var subs) (pp_expr_int subs) e1 (pp_expr_int subs) e2
+  | If (cond, t, f) ->
+    Format.fprintf fmt "(if %a = 0 then %a else %a)" (pp_expr_int subs) cond (pp_expr_int subs) t (pp_expr_int subs) f
+  | App (e1, e2) -> Format.fprintf fmt "(%a %a)" (pp_expr_int subs) e1 (pp_expr_int subs) e2
+  | _ -> failwith "invalid args"
+;;
+
+let print_expr_int e subs = (pp_expr_int subs) Format.std_formatter e

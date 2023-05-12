@@ -29,8 +29,8 @@ let _ =
     let source = Lexing.from_channel entree in
     try
       let ast = Parser.programme Lexer.jetons source in
-      if !show_ast
-      then Ast.print_expr ast
+      if !show_ast     
+      then let ast', subs, _ = Ast.alpha_conversion [] ast [] in Ast.print_expr_int ast' subs
       else (
         let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
