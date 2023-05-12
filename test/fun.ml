@@ -1,1 +1,1 @@
-fun x -> y
+let x = (fun x -> x + let x = 3 in (x + y) + z) in let z = 3 in x y
