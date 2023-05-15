@@ -221,34 +221,22 @@ let rec alpha_conversion (fvs: (var * Cps.var) list) (ast : 'var expr) (substitu
   =
   match ast with
   | Let (var, e1, e2) ->
-    
     let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
     let var', substitutions'' = add_subs substitutions' var in
     let fvs'' = add_fv fvs' (var, var') in
     let e2', substitutions''', fvs''' = alpha_conversion fvs'' e2 substitutions'' in
     Let (get_subst substitutions'' var, e1', e2'), substitutions''', unfree fvs''' var
-
   | Var var -> if has_subst fvs var then Var (get_subst fvs var), substitutions, fvs else let var', substitutions = add_subs substitutions var in Var (var'), substitutions, add_fv fvs (var, var')
-    
-
   | Prim (prim, exprs) ->
     let exprs''', substitutions''', fvs''' = List.fold_left (fun (expr', substitutions', fvs') expr ->
         let expr'', substitutions'', fvs'' = alpha_conversion fvs' expr substitutions' in
         expr'@[expr''], substitutions'', fvs'') ([], substitutions, fvs) exprs
     in Prim (prim, exprs'''), substitutions''', fvs'''
-
   | Fun (var, e) ->
     let var', substitutions' = add_subs substitutions var in
     let fvs' = add_fv fvs (var, var') in
     let e', substitutions'', fvs'' = alpha_conversion fvs' e substitutions' in
     Fun (var', e'), substitutions'', unfree fvs'' var
-
-
-  
-  
-
-  
-
   | If (cond, t, f) ->
     let cond', substitutions', fvs' = alpha_conversion fvs cond substitutions in
     let t', substitutions'', fvs'' = alpha_conversion fvs' t substitutions' in
