@@ -1,1 +1,1 @@
-let x = (if a then (if b then a else d) else a + d) in x
+let y = 1000 in let x = (if 0 then 100 else 200) in x + x + y
