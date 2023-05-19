@@ -338,3 +338,38 @@ and elim_unused_vars_cont (vars : int array) (conts : int array) (cps : cont) : 
     | End -> End
 ;;
 
+let rec inline_named (named : named) (env : (var * var) list) =
+  match named with
+  | Prim (prim, args) -> Prim (prim, List.map (fun arg -> get env arg) args)
+  | Var x -> Var (get env x)
+  | Tuple (args) -> Tuple (List.map (fun arg -> get env arg) args)
+  | Get (record, pos) -> Get (get env record, pos)
+  | Closure (k, args) -> Closure (k, List.map (fun arg -> get env arg) args)
+
+and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
+  try
+    match cps with
+    | Let (var, named, expr) -> Let (get env var, inline_named named env, inline stack expr env conts)
+    | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
+    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack' @ stack)
+    | Return v -> begin
+      match stack with
+      | [] -> Return v (* ?? *)
+      | (k, env')::stack' -> Apply_cont (k, env', stack')
+    end
+    | Call (x, args, stack') -> Call (x, args, stack' @ stack)
+  with
+  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
+let rec inline_parent (cps : expr) (conts: cont): expr =
+  try
+    match cps with
+    | Let (var, named, expr) -> Let (var, named, inline_parent expr conts)
+    | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
+        inline stack' cont (List.map2 (fun arg' arg -> arg', arg) args' args) conts
+    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack')
+    | Return v -> Return v (* ?? *)
+    | Call (x, args, stack') -> Call (x, args, stack')
+  with
+  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
