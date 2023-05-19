@@ -338,6 +338,8 @@ and elim_unused_vars_cont (vars : int array) (conts : int array) (cps : cont) : 
     | End -> End
 ;;
 
+let get env arg = if has env arg then get env arg else arg
+
 let rec inline_named (named : named) (env : (var * var) list) =
   match named with
   | Prim (prim, args) -> Prim (prim, List.map (fun arg -> get env arg) args)
@@ -349,7 +351,7 @@ let rec inline_named (named : named) (env : (var * var) list) =
 and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
   try
     match cps with
-    | Let (var, named, expr) -> Let (get env var, inline_named named env, inline stack expr env conts)
+    | Let (var, named, expr) -> Let (var, inline_named named env, inline stack expr env conts)
     | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
     | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack' @ stack)
     | Return v -> begin
@@ -373,3 +375,9 @@ let rec inline_parent (cps : expr) (conts: cont): expr =
   with
   | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
 
+let rec inline_cont ks (cps : cont) (conts : cont): cont =
+  match cps with
+      | Let_cont (k', args', e1, e2) when List.mem k' ks -> Let_cont (k', args', inline_parent e1 conts, inline_cont ks e2 conts)
+      | Let_cont (k', args', e1, e2) -> Let_cont (k', args', e1, inline_cont ks e2 conts)
+      | End -> End
+  ;;

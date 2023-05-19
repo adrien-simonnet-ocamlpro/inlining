@@ -10,6 +10,10 @@ let show_ast = ref false
 let unused_vars = ref false
 let anon_fun filename = input_files := filename :: !input_files
 
+let inline_conts = ref ([] : int list)
+
+let inline k = inline_conts := k :: !inline_conts
+
 let speclist =
   [ "-verbose", Arg.Set verbose, "Output debug information"
   ; "-o", Arg.Set_string output_file, "Set output file name"
@@ -17,6 +21,7 @@ let speclist =
   ; "-clean", Arg.Set unused_vars, "Clean unused vars"
   ; "-eval", Arg.Set eval, "Eval CPS"
   ; "-ast", Arg.Set show_ast, "Show AST"
+  ; "-inline", Arg.Int inline, "Inline specified cont"
   ]
 ;;
 
@@ -42,6 +47,7 @@ let _ =
           then Cps.elim_unused_vars_cont (Array.make 1000 0) (Array.make 1000 0) cps2
           else cps2
         in
+        let cps3 = Cps.inline_cont !inline_conts cps3 cps3 in
         if !eval
         then (
           let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
