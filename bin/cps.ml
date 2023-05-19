@@ -9,7 +9,6 @@ type pointer = int
 type prim =
   | Add
   | Const of int
-  | Pointer of pointer
   | Print
 
 type named =
@@ -17,6 +16,7 @@ type named =
   | Var of var
   | Tuple of var list
   | Get of var * int
+  | Closure of pointer * var list
 
 and expr =
   | Let of var * named * expr
@@ -46,6 +46,7 @@ type 'a map = (var * 'a) list
 type value =
   | Int of int
   | Tuple of value list
+  | Closure of pointer * value list
 
 type env = value map
 
@@ -60,11 +61,11 @@ let rec sprintf_named2 named subs =
   | Var x -> gen_name x subs
   | Tuple (args) -> Printf.sprintf "[%s]" (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
   | Get (record, pos) -> Printf.sprintf "(List.nth %s %d)" (gen_name record subs) pos
+  | Closure (k, args) -> Printf.sprintf "(k%d, [%s])" k (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
 
 and sprintf_prim2 (prim : prim) args subs =
   match prim, args with
   | Const x, _ -> string_of_int x
-  | Pointer x, _ -> "k" ^ string_of_int x
   | Add, x1 :: x2 :: _ -> Printf.sprintf "%s + %s" (gen_name x1 subs) (gen_name x2 subs)
   | Print, x1 :: _ -> Printf.sprintf "print %s" (gen_name x1 subs)
   | _ -> failwith "invalid args"
@@ -143,7 +144,6 @@ and sprintf (cps : expr) subs : string =
 let rec interp_prim var (prim : prim) args (env : (var * value) list) =
   match prim, args with
   | Const x, _ -> [ var, Int x ]
-  | Pointer x, _ -> [ var, Int x ]
   | Add, x1 :: x2 :: _ ->
     (match (get env x1 : value) with
      | Int n1 ->
@@ -169,6 +169,7 @@ and interp_named var (named : named) (env : (var * value) list) =
     | Tuple (values) -> [var, List.nth values pos]
     | _ -> failwith "invalid type"
     end
+  | Closure (k, args) -> [var, Closure (k, List.map (fun arg -> get env arg) args)]
 
 and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
   try
@@ -186,8 +187,8 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
     | Return v -> get env v
     | Call (x, args, (k, args2)) -> begin
       match get env x with
-      | Int k' -> let args', cont, _ = Env.get_cont conts k' in
-         let v = interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args) conts in
+      | Closure (k', env') -> let args', cont, _ = Env.get_cont conts k' in
+         let v = interp cont ((List.hd args', (Tuple env'))::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args') args)) conts in
          let args2', cont'', _ = Env.get_cont conts k in
          interp cont'' ((List.nth args2' 0, v)::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args2') args2) ) conts
       | _ -> failwith ("invalid type")
@@ -212,7 +213,6 @@ let a_visite var cont visites = List.exists (fun (var', cont') -> var = var' && 
 let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
   match prim, args with
   | Const x, args' -> Prim (Const x, args')
-  | Pointer x, args' -> Prim (Pointer x, args')
   | Add, x1 :: x2 :: _ ->
     if has env x1
     then (
@@ -265,6 +265,7 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
     end else If (var, (kt, argst), (kf, argsf))
   | Return x -> Return x
   | Call (x, args, (k, args2)) -> Call (x, args, (k, args2))
+  | _ -> cps
   (*TODO*)
   and propagation_cont (cps : cont) (env: (var * value) list) (conts : cont) visites : cont =
   match cps with
