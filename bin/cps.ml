@@ -20,9 +20,9 @@ type named =
 
 and expr =
   | Let of var * named * expr
-  | Apply_cont of pointer * var list
-  | Call of var * var list * (pointer * var list)
-  | If of var * (pointer * var list) * (pointer * var list)
+  | Apply_cont of pointer * var list * (pointer * var list) list
+  | Call of var * var list * (pointer * var list) list
+  | If of var * (pointer * var list) * (pointer * var list) * (pointer * var list) list
   | Return of var
 
 type cont =
@@ -55,6 +55,12 @@ let gen_name id env =
   | Some (v, _) -> v ^ "_" ^ (string_of_int id)
   | None -> "_" ^ (string_of_int id)
 
+let rec print_args args subs =
+  match args with
+  | [] -> "()"
+  | [arg] -> gen_name arg subs
+  | arg::args' -> (gen_name arg subs) ^ " " ^ print_args args' subs
+
 let rec sprintf_named2 named subs =
   match named with
   | Prim (prim, args) -> sprintf_prim2 prim args subs
@@ -74,29 +80,18 @@ and sprintf (cps : expr) subs : string =
   match cps with
   | Let (var, named, expr) ->
     Printf.sprintf "\tlet %s = %s in\n%s" (gen_name var subs) (sprintf_named2 named subs) (sprintf expr subs)
-  | Apply_cont (k, args) ->
-    Printf.sprintf
-      "\tk%d%s"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-       else " ()")
-  | If (var, (kt, argst), (kf, argsf)) ->
-    Printf.sprintf
-      "\tif %s = 0 then k%d%s else k%d%s"
+  | Apply_cont (k, args, stack) ->
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "k%d%s" k (print_args args subs)) stack
+  | If (var, (kt, argst), (kf, argsf), stack) ->
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf
+      "if %s = 0 then k%d%s else k%d%s"
       (gen_name var subs)
       kt
-      (if List.length argst > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argst
-       else " ()")
+      (print_args argst subs)
       kf
-      (if List.length argsf > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" argsf
-       else " ()")
+      (print_args argsf subs)) stack
   | Return x -> "\t" ^ (gen_name x subs)
-  | Call (x, args, (k, args')) -> Printf.sprintf "\tk%d (%s %s)%s" k (gen_name x subs) (if List.length args > 0
-    then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-    else " ()") (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args')
+  | Call (x, args, stack) -> List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "(%s %s)" (gen_name x subs) (print_args args subs)) stack
 
   and sprintf_cont (cps : cont) subs : string =
   match cps with
@@ -171,26 +166,29 @@ and interp_named var (named : named) (env : (var * value) list) =
     end
   | Closure (k, args) -> [var, Closure (k, List.map (fun arg -> get env arg) args)]
 
-and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
+and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
   try
     match cps with
-    | Let (var, named, expr) -> interp expr (interp_named var named env @ env) conts
-    | Apply_cont (k, args) -> let args', cont, _ = Env.get_cont conts k in
-      interp cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
-    | If (var, (kt, argst), (kf, argsf)) ->
+    | Let (var, named, expr) -> interp stack expr (interp_named var named env @ env) conts
+    | Apply_cont (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
+      interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
+    | If (var, (kt, argst), (kf, argsf), stack') ->
       (match get env var with
        | Int n ->
          if n = 0
-         then interp (Apply_cont (kt, argst)) env conts
-         else interp (Apply_cont (kf, argsf)) env conts
+         then interp stack (Apply_cont (kt, argst, stack')) env conts
+         else interp stack (Apply_cont (kf, argsf, stack')) env conts
        | _ -> failwith "invalid type")
-    | Return v -> get env v
-    | Call (x, args, (k, args2)) -> begin
+    | Return v -> begin
+      match stack with
+      | [] -> get env v
+      | (k, env')::stack' -> let args2', cont'', _ = Env.get_cont conts k in
+      interp stack' cont'' ((List.hd args2', get env v)::(List.map2 (fun arg' arg -> arg', arg) (List.tl args2') env') ) conts
+    end
+    | Call (x, args, stack') -> begin
       match get env x with
       | Closure (k', env') -> let args', cont, _ = Env.get_cont conts k' in
-         let v = interp cont ((List.hd args', (Tuple env'))::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args') args)) conts in
-         let args2', cont'', _ = Env.get_cont conts k in
-         interp cont'' ((List.nth args2' 0, v)::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args2') args2) ) conts
+        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.hd args', (Tuple env'))::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args') args)) conts
       | _ -> failwith ("invalid type")
        end
   with
@@ -199,7 +197,7 @@ and interp (cps : expr) (env : env) (conts : (int * var list * expr * env) list)
 and interp_cont k (cps : cont) (conts : (int * var list * expr * env) list) env: value =
 match cps with
     | Let_cont (k', args', e1, e2) -> interp_cont k e2 ((k', args', e1, []) :: conts) env
-    | End -> let _, cont, _ = Env.get_cont conts k in interp cont env conts
+    | End -> let _, cont, _ = Env.get_cont conts k in interp [] cont env conts
 ;;
 
 
@@ -248,23 +246,23 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
     | Tuple values -> Let (var, Get (var', pos), propagation expr ((var, List.nth values pos)::env) conts visites)
     | _ -> failwith "invalid type"
   end else Let (var, Get (var', pos), propagation expr env conts visites)
-  | Apply_cont (k', args) -> if List.for_all (fun arg -> has env arg) args then
+  | Apply_cont (k', args, stack) -> if List.for_all (fun arg -> has env arg) args then
         let args', cont = get_cont conts k' in
         propagation cont (List.map2 (fun arg' arg -> arg', get env arg) args' args) conts visites
-      else Apply_cont (k', args)
-  | If (var, (kt, argst), (kf, argsf)) ->
+      else Apply_cont (k', args, stack)
+  | If (var, (kt, argst), (kf, argsf), stack) ->
     if has env var then begin
       match get env var with
       | Int 0 -> if List.for_all (fun arg -> has env arg) argst then
           let args, cont = get_cont conts kt in propagation cont (List.map2 (fun arg' arg -> arg', get env arg) argst args) conts visites
-        else Apply_cont (kt, argst)
+        else Apply_cont (kt, argst, stack)
       | Int _ -> if List.for_all (fun arg -> has env arg) argsf then
           let args, cont = get_cont conts kf in propagation cont (List.map2 (fun arg' arg -> arg', get env arg) argsf args) conts visites
-        else Apply_cont (kf, argsf)
+        else Apply_cont (kf, argsf, stack)
       | _ -> failwith "invalid type"
-    end else If (var, (kt, argst), (kf, argsf))
+    end else If (var, (kt, argst), (kf, argsf), stack)
   | Return x -> Return x
-  | Call (x, args, (k, args2)) -> Call (x, args, (k, args2))
+  | Call (x, args, stack) -> Call (x, args, stack)
   | _ -> cps
   (*TODO*)
   and propagation_cont (cps : cont) (env: (var * value) list) (conts : cont) visites : cont =
@@ -304,29 +302,30 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       let e1' = elim_unused_vars_named vars e1 in
       Let (var, e1', e2'))
     else e2'
-  | Apply_cont (k, args) ->
+  | Apply_cont (k, args, stack) ->
     Array.set conts k (Array.get vars k + 1);
     List.iter
       (fun arg ->
         Array.set vars arg (Array.get vars arg + 1))
       args;
-    Apply_cont (k, args)
-  | If (var, (kt, argst), (kf, argsf)) ->
+    Apply_cont (k, args, stack)
+  | If (var, (kt, argst), (kf, argsf), stack) ->
     Array.set vars var (Array.get vars var + 1);
     Array.set conts kt (Array.get vars kt + 1);
     Array.set conts kf (Array.get vars kf + 1);
-    If (var, (kt, argst), (kf, argsf))
+    If (var, (kt, argst), (kf, argsf), stack)
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x
-  | Call (x, args, (k, args2)) ->
+  | Call (x, args, stack) ->
+    List.iter (fun (_, args2) ->
     List.iter
     (fun arg ->
       Array.set vars arg (Array.get vars arg + 1)) args;
       List.iter
     (fun arg ->
-      Array.set vars arg (Array.get vars arg + 1)) args2;
-      Call (x, args, (k, args2))
+      Array.set vars arg (Array.get vars arg + 1)) args2) stack;
+      Call (x, args, stack)
 and elim_unused_vars_cont (vars : int array) (conts : int array) (cps : cont) : cont =
     match cps with
     | Let_cont (k', args', e1, e2) ->
