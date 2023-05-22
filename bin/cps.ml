@@ -46,7 +46,6 @@ type 'a map = (var * 'a) list
 type value =
   | Int of int
   | Tuple of value list
-  | Closure of pointer * value list
 
 type env = value map
 
@@ -140,7 +139,7 @@ and interp_named var (named : named) (env : (var * value) list) =
     | Tuple (values) -> [var, List.nth values pos]
     | _ -> failwith "invalid type"
     end
-  | Closure (k, args) -> [var, Closure (k, List.map (fun arg -> get env arg) args)]
+  | Closure (k, args) -> [var, Tuple [Int k; Tuple (List.map (fun arg -> get env arg) args)]]
 
 and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
 
@@ -163,8 +162,8 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
     end
     | Call (x, args, stack') -> begin
       match get env x with
-      | Closure (k', env') -> let args', cont, _ = Env.get_cont conts k' in
-        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.hd args', (Tuple env'))::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args') args)) conts
+      | Int k' -> let args', cont, _ = Env.get_cont conts k' in
+        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> arg', get env arg) args' args)) conts
       | _ -> failwith ("invalid type")
        end
 
@@ -221,22 +220,19 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
     | Tuple values -> Let (var, Get (var', pos), propagation expr ((var, List.nth values pos)::env) conts visites)
     | _ -> failwith "invalid type"
   end else Let (var, Get (var', pos), propagation expr env conts visites)
-  | Apply_cont (k', args, stack) -> if List.for_all (fun arg -> has env arg) args then
-        let args', cont = get_cont conts k' in
-        propagation cont (List.map2 (fun arg' arg -> arg', get env arg) args' args) conts visites
-      else Apply_cont (k', args, stack)
+  | Apply_cont (k', args, stack) -> Apply_cont (k', args, stack)
   | If (var, (kt, argst), (kf, argsf), stack) ->
     if has env var then begin
       match get env var with
-      | Int 0 -> if List.for_all (fun arg -> has env arg) argst then
-          let args, cont = get_cont conts kt in propagation cont (List.map2 (fun arg' arg -> arg', get env arg) argst args) conts visites
-        else Apply_cont (kt, argst, stack)
-      | Int _ -> if List.for_all (fun arg -> has env arg) argsf then
-          let args, cont = get_cont conts kf in propagation cont (List.map2 (fun arg' arg -> arg', get env arg) argsf args) conts visites
-        else Apply_cont (kf, argsf, stack)
+      | Int 0 -> Apply_cont (kt, argst, stack)
+      | Int _ -> Apply_cont (kf, argsf, stack)
       | _ -> failwith "invalid type"
     end else If (var, (kt, argst), (kf, argsf), stack)
   | Return x -> Return x
+  | Call (x, args, stack) when has env x -> begin
+    match get env x with
+    | Int k -> Apply_cont (k, (12345678::args), stack)
+    | _ -> failwith "invalid type" end
   | Call (x, args, stack) -> Call (x, args, stack)
   | _ -> cps
   (*TODO*)

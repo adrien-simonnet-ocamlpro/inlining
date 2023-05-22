@@ -58,10 +58,10 @@ let _ =
             | _ -> Printf.printf "fun\n"
           )
         )
-        else (* Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3 subs)) *)
+        else  (    (* Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3 subs)) *)
         Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Closure of (value -> value -> value) * value list\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get (Tuple vs) pos = List.nth vs pos\n\nlet call (Closure (k, env)) arg = k (Tuple env) arg\n\nlet rec ";
         Cps.pp_cont subs (Format.formatter_of_out_channel outchan) cps3);
-        Printf.fprintf outchan ";;\nk0 ()"
+        Printf.fprintf outchan ";;\nk0 ()")
     with
     | Parsing.Parse_error ->
       Printf.fprintf

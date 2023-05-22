@@ -194,7 +194,9 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let k = inc_conts () in
     let v1 = inc vars in
     let v2 = inc vars in
-    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k, [var]@fv0, expr, conts)) (v1::fv0) e2 v2 (Call (v1, (List.map (fun fv -> if Env.has3 substitutions fv then let fval = Env.get_var substitutions fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) [v2]), [(k, fv0)])) substitutions in
+    let v3 = inc vars in
+    let v4 = inc vars in
+    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k, [var]@fv0, expr, conts)) (v1::fv0) e2 v2 (Let (v3, Get (v1, 0), Let (v4, Get (v1, 1), Call (v3, (List.map (fun fv -> if Env.has3 substitutions fv then let fval = Env.get_var substitutions fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) [v4; v2]), [(k, fv0)])))) substitutions in
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 substitutions1 in
     cps2, substitutions2, fv2, conts2
 ;;
