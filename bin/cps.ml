@@ -57,84 +57,60 @@ let gen_name id env =
 
 let rec print_args args subs =
   match args with
-  | [] -> "()"
+  | [] -> ""
   | [arg] -> gen_name arg subs
   | arg::args' -> (gen_name arg subs) ^ " " ^ print_args args' subs
 
-let rec sprintf_named2 named subs =
-  match named with
-  | Prim (prim, args) -> sprintf_prim2 prim args subs
-  | Var x -> gen_name x subs
-  | Tuple (args) -> Printf.sprintf "[%s]" (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
-  | Get (record, pos) -> Printf.sprintf "(List.nth %s %d)" (gen_name record subs) pos
-  | Closure (k, args) -> Printf.sprintf "(k%d, [%s])" k (List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs) ^ ";") "" args)
+let rec pp_args subs empty fmt args =
+  match args with
+  | [] -> Format.fprintf fmt empty
+  | [arg] -> Format.fprintf fmt "%s" (gen_name arg subs)
+  | arg::args' -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args subs empty) args'
 
-and sprintf_prim2 (prim : prim) args subs =
+let rec pp_prim subs fmt (prim : prim) args =
   match prim, args with
-  | Const x, _ -> string_of_int x
-  | Add, x1 :: x2 :: _ -> Printf.sprintf "%s + %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Print, x1 :: _ -> Printf.sprintf "print %s" (gen_name x1 subs)
-  | _ -> failwith "invalid args"
+  | Const x, _ -> Format.fprintf fmt "Int %d" x
+  | Add, x1 :: x2 :: _ -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Print, x1 :: _ -> Format.fprintf fmt "Printf.printf \"%%s\" %s" (gen_name x1 subs)
+  | _ -> failwith "invalid args"  
 
-and sprintf (cps : expr) subs : string =
+and pp_named subs fmt named =
+match named with
+| Prim (prim, args) -> pp_prim subs fmt prim args
+| Var x -> Format.fprintf fmt "%s" (gen_name x subs)
+| Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args subs "") args
+| Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
+| Closure (k, args) -> Format.fprintf fmt "Closure (k%d, [%a])" k (pp_args subs "") args
+
+and pp_expr subs fmt (cps : expr) : unit =
   match cps with
   | Let (var, named, expr) ->
-    Printf.sprintf "\tlet %s = %s in\n%s" (gen_name var subs) (sprintf_named2 named subs) (sprintf expr subs)
-  | Apply_cont (k, args, stack) ->
-    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "k%d%s" k (print_args args subs)) stack
-  | If (var, (kt, argst), (kf, argsf), stack) ->
+    Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
+  | Apply_cont (k, args, stack) -> let s =
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "k%d %s" k (print_args args subs)) stack
+  in Format.fprintf fmt "%s" s
+    | If (var, (kt, argst), (kf, argsf), stack) -> let s =
     List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf
-      "if %s = 0 then k%d%s else k%d%s"
+      "if %s = Int 0 then k%d %s else k%d %s"
       (gen_name var subs)
       kt
       (print_args argst subs)
       kf
       (print_args argsf subs)) stack
-  | Return x -> "\t" ^ (gen_name x subs)
-  | Call (x, args, stack) -> List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "(%s %s)" (gen_name x subs) (print_args args subs)) stack
-
-  and sprintf_cont (cps : cont) subs : string =
+    in Format.fprintf fmt "%s" s
+  | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
+  | Call (x, args, stack) -> let s = List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "(call %s %s)" (gen_name x subs) (print_args args subs)) stack
+  in Format.fprintf fmt "%s" s
+  
+  and pp_cont subs fmt (cps : cont) : unit =
   match cps with
   | Let_cont (k, args, e1, Let_cont (k', args', e1', e2')) ->
-    Printf.sprintf
-      "k%d%s =\n%s\nand %s"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-       else " ()")
-      (sprintf e1 subs)
-      (sprintf_cont (Let_cont (k', args', e1', e2')) subs)
+    Format.fprintf fmt "k%d %a =\n%a\nand %a" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) (Let_cont (k', args', e1', e2'))
   | Let_cont (k, args, e1, End) ->
-    Printf.sprintf
-      "k%d%s =\n%s\n"
-      k
-      (if List.length args > 0
-        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-        else " ()")
-      (sprintf e1 subs)
-  | End -> "()"
+    Format.fprintf fmt "k%d %a =\n%a\n" k (pp_args subs "()") args (pp_expr subs) e1
+  | End -> Format.fprintf fmt "()"
 
-  and sprintf_prog (cps : cont) subs : string =
-  match cps with
-  | Let_cont (k, args, e1, Let_cont (k', args', e1', e2')) ->
-    Printf.sprintf
-      "let rec k%d%s =\n%s\nand %s"
-      k
-      (if List.length args > 0
-       then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-       else " ()")
-      (sprintf e1 subs)
-      (sprintf_cont (Let_cont (k', args', e1', e2')) subs)
-  | Let_cont (k, args, e1, End) ->
-    Printf.sprintf
-      "\nlet k%d%s =\n%s\n;;"
-      k
-      (if List.length args > 0
-        then List.fold_left (fun acc s -> acc ^ " " ^ (gen_name s subs)) "" args
-        else " ()")
-      (sprintf e1 subs)
-  | End -> "()"
-;;
+let print_prog subs e = pp_cont subs Format.std_formatter e
 
 let rec interp_prim var (prim : prim) args (env : (var * value) list) =
   match prim, args with
@@ -167,7 +143,7 @@ and interp_named var (named : named) (env : (var * value) list) =
   | Closure (k, args) -> [var, Closure (k, List.map (fun arg -> get env arg) args)]
 
 and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
-  try
+
     match cps with
     | Let (var, named, expr) -> interp stack expr (interp_named var named env @ env) conts
     | Apply_cont (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
@@ -191,8 +167,7 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
         interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.hd args', (Tuple env'))::(List.map2 (fun arg' arg -> arg', get env arg) (List.tl args') args)) conts
       | _ -> failwith ("invalid type")
        end
-  with
-  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
 
 and interp_cont k (cps : cont) (conts : (int * var list * expr * env) list) env: value =
 match cps with
@@ -349,7 +324,7 @@ let rec inline_named (named : named) (env : (var * var) list) =
   | Closure (k, args) -> Closure (k, List.map (fun arg -> get env arg) args)
 
 and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
-  try
+
     match cps with
     | Let (var, named, expr) -> Let (var, inline_named named env, inline stack expr env conts)
     | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
@@ -360,11 +335,10 @@ and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) li
       | (k, env')::stack' -> Apply_cont (k, env', stack')
     end
     | Call (x, args, stack') -> Call (x, args, stack' @ stack)
-  with
-  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
 
 let rec inline_parent (cps : expr) (conts: cont): expr =
-  try
+
     match cps with
     | Let (var, named, expr) -> Let (var, named, inline_parent expr conts)
     | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
@@ -372,8 +346,7 @@ let rec inline_parent (cps : expr) (conts: cont): expr =
     | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack')
     | Return v -> Return v (* ?? *)
     | Call (x, args, stack') -> Call (x, args, stack')
-  with
-  | Failure str -> failwith (Printf.sprintf "%s\n%s" str (sprintf cps []))
+
 
 let rec inline_cont ks (cps : cont) (conts : cont): cont =
   match cps with
