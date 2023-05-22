@@ -79,7 +79,7 @@ match named with
 | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
 | Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
-| Closure (k, args) -> Format.fprintf fmt "Closure (k%d, [%a])" k (pp_args subs "") args
+| Closure (k, args) -> Format.fprintf fmt "Tuple [Function k%d; Tuple [%a]]" k (pp_args subs "") args
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with
@@ -201,25 +201,27 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
   | Print, _ :: _ -> Prim (Print, args)
   | _ -> failwith "invalid args"
 
+  and propagation_named (named : named) var (env : (var * value) list) : named * env =
+    match named with
+    | Var var' -> Var var', if has env var' then [(var, get env var')] else []
+    | Prim (prim, args) -> begin let named' = propagation_prim prim args env in
+      match named' with 
+      | Prim (Const x, []) -> Prim (Const x, []), [(var, Int x)]
+      | _ -> named', []
+      end
+    | Tuple vars -> if List.for_all (fun arg -> has env arg) vars then
+        Tuple vars, [(var, Tuple (List.map (fun var' -> get env var') vars))] else Tuple vars, []
+    | Get (var', pos) -> if has env var' then begin
+      match get env var' with
+      | Tuple values -> Get (var', pos), [(var, List.nth values pos)]
+      | _ -> failwith "invalid type"
+    end else Get (var', pos), []
+    | Closure (k, vars) -> if List.for_all (fun arg -> has env arg) vars then
+      Closure (k, vars), [(var, Tuple [Int k; Tuple (List.map (fun var' -> get env var') vars)])] else Tuple vars, []
+
 and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : expr =
   match cps with
-  | Let (var, Var var', expr) -> Let (var, Var var', propagation expr (if has env var' then (var, get env var')::env else env) conts visites)
-  | Let (var, Prim (prim, args), expr) ->
-    (match propagation_prim prim args env with
-     | Var _ -> propagation (*replace_var var var' expr*) expr env conts visites
-     | Prim (Const x, []) ->
-       Let (var, Prim (Const x, []), propagation expr ((var, Int x) :: env) conts visites)
-     | Prim (prim, args) -> Let (var, Prim (prim, args), propagation expr env conts visites)
-     (*TODO*)
-     | _ -> cps)
-  | Let (var, Tuple vars, expr) -> if List.for_all (fun arg -> has env arg) vars then
-      Let (var, Tuple vars, propagation expr ((var, Tuple (List.map (fun var' -> get env var') vars))::env) conts visites)
-    else Let (var, Tuple vars, propagation expr env conts visites)
-  | Let (var, Get (var', pos), expr) -> if has env var' then begin
-    match get env var' with
-    | Tuple values -> Let (var, Get (var', pos), propagation expr ((var, List.nth values pos)::env) conts visites)
-    | _ -> failwith "invalid type"
-  end else Let (var, Get (var', pos), propagation expr env conts visites)
+  | Let (var, named, expr) -> let named', env' = propagation_named named var env in Let (var, named', propagation expr (env'@env) conts visites)
   | Apply_cont (k', args, stack) -> Apply_cont (k', args, stack)
   | If (var, (kt, argst), (kf, argsf), stack) ->
     if has env var then begin
@@ -231,24 +233,20 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
   | Return x -> Return x
   | Call (x, args, stack) when has env x -> begin
     match get env x with
-    | Int k -> Apply_cont (k, (12345678::args), stack)
+    | Int k -> Apply_cont (k, args, stack)
     | _ -> failwith "invalid type" end
   | Call (x, args, stack) -> Call (x, args, stack)
-  | _ -> cps
   (*TODO*)
   and propagation_cont (cps : cont) (env: (var * value) list) (conts : cont) visites : cont =
   match cps with
   | Let_cont (k', args', e1, e2) ->
-    let e1' = propagation e1 env conts visites in
+    let e1' = propagation e1 [] conts visites in
     let e2' = propagation_cont e2 env conts visites in
-    (*(match e1' with
-     | Apply_cont (k, [ arg ]) when [ arg ] = args' ->
-       propagation_cont (replace_cont_cont k' k e2') env conts visites
-     | _ -> *)Let_cont (k', args', e1', e2')
+    Let_cont (k', args', e1', e2')
   | End -> End
 ;;
 
-let rec elim_unused_vars_named (vars : int array) (named : named)
+let rec elim_unused_vars_named (vars : int array) conts (named : named)
   : named
   =
   match named with
@@ -261,8 +259,16 @@ let rec elim_unused_vars_named (vars : int array) (named : named)
     | Var x ->
       Array.set vars x (Array.get vars x + 1);
       Var x
-  (*TODO*)
-  | _ -> named
+  | Tuple args -> List.iter
+  (fun arg ->
+    Array.set vars arg (Array.get vars arg + 1))
+  args; Tuple args
+  | Closure (k, args) -> List.iter
+  (fun arg ->
+    Array.set vars arg (Array.get vars arg + 1))
+  args; Array.set conts k (Array.get conts k + 1); Closure (k, args)
+  | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
+
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
   match cps with
@@ -270,11 +276,11 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     let e2' = elim_unused_vars vars conts e2 in
     if Array.get vars var > 0
     then (
-      let e1' = elim_unused_vars_named vars e1 in
+      let e1' = elim_unused_vars_named vars conts e1 in
       Let (var, e1', e2'))
     else e2'
   | Apply_cont (k, args, stack) ->
-    Array.set conts k (Array.get vars k + 1);
+    Array.set conts k (Array.get conts k + 1);
     List.iter
       (fun arg ->
         Array.set vars arg (Array.get vars arg + 1))
@@ -282,8 +288,8 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     Apply_cont (k, args, stack)
   | If (var, (kt, argst), (kf, argsf), stack) ->
     Array.set vars var (Array.get vars var + 1);
-    Array.set conts kt (Array.get vars kt + 1);
-    Array.set conts kf (Array.get vars kf + 1);
+    Array.set conts kt (Array.get conts kt + 1);
+    Array.set conts kf (Array.get conts kf + 1);
     If (var, (kt, argst), (kf, argsf), stack)
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
@@ -297,15 +303,15 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     (fun arg ->
       Array.set vars arg (Array.get vars arg + 1)) args2) stack;
       Call (x, args, stack)
-and elim_unused_vars_cont (vars : int array) (conts : int array) (cps : cont) : cont =
+and elim_unused_vars_cont (conts : int array) (cps : cont) : cont * int array =
     match cps with
     | Let_cont (k', args', e1, e2) ->
-      let e2' = elim_unused_vars_cont vars conts e2 in
-      if Array.get conts k' > 0
-      then (
-        let e1' = elim_unused_vars vars conts e1 in
-        Let_cont (k', args', e1', e2'))
-      else e2'
+      let e2', _ = elim_unused_vars_cont conts e2 in
+      let e1' = elim_unused_vars (Array.make 1000 0) conts e1 in Let_cont (k', args', e1', e2'), conts
+    | End -> End, conts
+and elim_unused_conts (conts : int array) (cps : cont) : cont =
+    match cps with
+    | Let_cont (k', args', e1, e2) -> if Array.get conts k' > 0 then Let_cont (k', args', e1, elim_unused_conts conts e2) else elim_unused_conts conts e2
     | End -> End
 ;;
 
@@ -328,7 +334,7 @@ and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) li
     | Return v -> begin
       match stack with
       | [] -> Return v (* ?? *)
-      | (k, env')::stack' -> Apply_cont (k, env', stack')
+      | (k, env')::stack' -> Apply_cont (k, v::env', stack')
     end
     | Call (x, args, stack') -> Call (x, args, stack' @ stack)
 

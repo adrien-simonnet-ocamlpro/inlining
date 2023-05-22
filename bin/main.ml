@@ -44,10 +44,15 @@ let _ =
         let cps2 = if !prop then Cps.propagation_cont cont' [] cont' [] else cont' in
         let cps3 =
           if !unused_vars
-          then Cps.elim_unused_vars_cont (Array.make 1000 0) (Array.make 1000 0) cps2
+          then let cps, _ = Cps.elim_unused_vars_cont (Array.make 1000 0) cps2 in cps
           else cps2
         in
         let cps3 = Cps.inline_cont !inline_conts cps3 cps3 in
+        let cps3 =
+          if !unused_vars
+          then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cps.elim_unused_vars_cont (conts) cps3 in Cps.elim_unused_conts conts cps
+          else cps3
+        in
         if !eval
         then (
           let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
@@ -59,7 +64,7 @@ let _ =
           )
         )
         else  (    (* Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3 subs)) *)
-        Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Closure of (value -> value -> value) * value list\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get (Tuple vs) pos = List.nth vs pos\n\nlet call (Closure (k, env)) arg = k (Tuple env) arg\n\nlet rec ";
+        Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get (Tuple vs) pos = List.nth vs pos\n\nlet call (Function k) arg = k arg\n\nlet rec ";
         Cps.pp_cont subs (Format.formatter_of_out_channel outchan) cps3);
         Printf.fprintf outchan ";;\nk0 ()")
     with
