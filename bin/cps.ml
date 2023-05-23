@@ -6,6 +6,16 @@ type var = int
 
 type pointer = int
 
+type address = int
+
+type return_adress =
+| Direct of address
+| Indirect of var
+
+type frame = pointer * var list
+
+type stack = frame list
+
 type prim =
   | Add
   | Const of int
@@ -20,9 +30,9 @@ type named =
 
 and expr =
   | Let of var * named * expr
-  | Apply_cont of pointer * var list * (pointer * var list) list
-  | Call of var * var list * (pointer * var list) list
-  | If of var * (pointer * var list) * (pointer * var list) * (pointer * var list) list
+  | Apply_cont of pointer * var list * stack
+  | Call of var * var list * stack
+  | If of var * (pointer * var list) * (pointer * var list) * stack
   | Return of var
 
 type cont =
@@ -56,7 +66,7 @@ let gen_name id env =
 
 let rec print_args args subs =
   match args with
-  | [] -> ""
+  | [] -> "()"
   | [arg] -> gen_name arg subs
   | arg::args' -> (gen_name arg subs) ^ " " ^ print_args args' subs
 
