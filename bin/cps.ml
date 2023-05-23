@@ -227,7 +227,7 @@ let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
       | _ -> failwith "invalid type"
     end else Get (var', pos), []
     | Closure (k, vars) -> if List.for_all (fun arg -> has env arg) vars then
-      Closure (k, vars), [(var, Tuple [Int k; Tuple (List.map (fun var' -> get env var') vars)])] else Tuple vars, []
+      Closure (k, vars), [(var, Tuple [Int k; Tuple (List.map (fun var' -> get env var') vars)])] else Closure (k, vars), []
 
 and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : expr =
   match cps with
@@ -305,13 +305,10 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     Array.set vars x (Array.get vars x + 1);
     Return x
   | Call (x, args, stack) ->
-    List.iter (fun (_, args2) ->
-    List.iter
-    (fun arg ->
-      Array.set vars arg (Array.get vars arg + 1)) args;
-      List.iter
-    (fun arg ->
-      Array.set vars arg (Array.get vars arg + 1)) args2) stack;
+    Array.set vars x (Array.get vars x + 1);
+    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
       Call (x, args, stack)
 and elim_unused_vars_cont (conts : int array) (cps : cont) : cont * int array =
     match cps with
