@@ -12,6 +12,32 @@ type 'var expr =
   | App of 'var expr * 'var expr
   | Prim of Cps.prim * 'var expr list
   | If of 'var expr * 'var expr * 'var expr
+(*
+  type ('var, 'e) expr' =
+  | Var of 'var
+  | Let of 'var * 'e * 'e
+  | Fun of 'var * 'e
+  | App of 'e * 'e
+  | Prim of Cps.prim * 'e list
+  | If of 'e * 'e * 'e
+
+type 'var expr = T of ('var, 'var expr) expr'
+
+type ('var, 'info) expr' =
+  | Var of 'var
+  | Let of 'var * 'var expr * 'var expr
+  | Fun of 'var * 'var expr
+  | App of 'var expr * 'var expr
+  | Prim of Cps.prim * 'var expr list
+  | If of 'var expr * 'var expr * 'var expr
+
+  and ('var, 'info) expr = {
+info : 'info;
+expr : ('var, 'info) expr'
+
+  }
+  and ('var, 'info) expr = expr'
+*)
 
 (* let rec sprintf_prim (prim : prim) args =
   match prim, args with
@@ -101,9 +127,7 @@ let get_subs env var =
        ^ " ].")
 ;;
 
-let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list)
-  : Cps.expr * (string * int) list * int list * Cps.cont
-  =
+let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
     let k1 = inc_conts () in
@@ -112,8 +136,6 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let cps1, substitutions1, fv, conts1 =
       to_cps conts [] e v2 (Return (v2)) []
     in
-    Env.print_subs substitutions1;
-    Env.print_fv fv;
     let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
     let fv =  (List.filter (fun fv' -> fv' != v5) fv) in
     let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, cps1) fv in

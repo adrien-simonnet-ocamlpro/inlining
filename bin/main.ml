@@ -39,8 +39,6 @@ let _ =
       else (
         let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
-        Env.print_subs subs;
-        Env.print_fv fv;
         let cps2 = if !prop then Cps.propagation_cont cont' [] cont' [] else cont' in
         let cps3 =
           if !unused_vars
@@ -55,18 +53,18 @@ let _ =
         in
         if !eval
         then (
-          let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
+          let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
           let r = Cps.interp_cont 0 cps3 [] init in
           (
             match r with
-            | Int i -> Printf.printf "%d\n" i
-            | _ -> Printf.printf "fun\n"
+            | Int i -> Printf.fprintf outchan "%d\n" i
+            | _ -> Printf.fprintf outchan "fun\n"
           )
         )
         else  (    (* Printf.fprintf outchan "%s;;\n%!" (Cps.sprintf cps3 subs)) *)
-        Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get (Tuple vs) pos = List.nth vs pos\n\nlet call (Function k) arg = k arg\n\nlet rec ";
-        Cps.pp_cont subs (Format.formatter_of_out_channel outchan) cps3);
-        Printf.fprintf outchan ";;\nk0 ()")
+        Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get (Tuple vs) pos = List.nth vs pos\n\nlet call (Function k) = k\n\nlet rec ";
+        Cps.pp_cont subs (Format.formatter_of_out_channel outchan) cps3;
+        Printf.fprintf outchan ";;\nk0 ()"))
     with
     | Parsing.Parse_error ->
       Printf.fprintf
