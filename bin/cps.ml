@@ -343,7 +343,7 @@ and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) li
     | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack' @ stack)
     | Return v -> begin
       match stack with
-      | [] -> Return v (* ?? *)
+      | [] -> assert false (* ?? *)
       | (k, env')::stack' -> Apply_cont (k, v::env', stack')
     end
     | Call (x, args, stack') -> Call (x, args, stack' @ stack)
@@ -356,7 +356,7 @@ let rec inline_parent (cps : expr) (conts: cont): expr =
     | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
         inline stack' cont (List.map2 (fun arg' arg -> arg', arg) args' args) conts
     | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack')
-    | Return v -> Return v (* ?? *)
+    | Return _ -> assert false (* ?? *)
     | Call (x, args, stack') -> Call (x, args, stack')
 
 
