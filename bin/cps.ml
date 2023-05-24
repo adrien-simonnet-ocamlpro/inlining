@@ -59,6 +59,13 @@ type value =
 
 type env = value map
 
+type value_domain =
+  | Int_domain of Int_domain.t
+  | Tuple_domain of value_domain list
+  | Pointer_domain of Pointer_domain.t
+
+type env_domain = value_domain map
+
 let gen_name id env =
   match Env.get_name id env with
   | Some (v, _) -> v ^ "_" ^ (string_of_int id)
@@ -192,62 +199,64 @@ let _ = function
 let vis var cont visites = (var, cont)::visites
 let a_visite var cont visites = List.exists (fun (var', cont') -> var = var' && cont = cont') visites
 
-let rec propagation_prim (prim : prim) args (env : (var * value) list) : named =
+let rec propagation_prim (prim : prim) args (_ : env_domain) : named =
   match prim, args with
   | Const x, args' -> Prim (Const x, args')
-  | Add, x1 :: x2 :: _ ->
+  | Add, _ :: _ :: _ ->(*
     if has env x1
     then (
-      match (get env x1 : value) with
-      | Int n1 ->
+      match get env x1 with
+      | Int_domain n1 ->
         if has env x2
         then (
           match get env x2 with
-          | Int n2 -> Prim (Const (n1 + n2), [])
+          | Int_domain n2 -> Prim (Const (n1 + n2), [])
           | _ -> failwith "invalid type")
         else Prim (Add, args)
       | _ -> failwith "invalid type")
-    else Prim (Add, args)
+    else *)Prim (Add, args)
   | Print, _ :: _ -> Prim (Print, args)
   | _ -> failwith "invalid args"
 
-  and propagation_named (named : named) var (env : (var * value) list) : named * env =
+  and propagation_named (named : named) var (env : env_domain) : named * env_domain =
     match named with
     | Var var' -> Var var', if has env var' then [(var, get env var')] else []
     | Prim (prim, args) -> begin let named' = propagation_prim prim args env in
       match named' with 
-      | Prim (Const x, []) -> Prim (Const x, []), [(var, Int x)]
+      | Prim (Const x, []) -> Prim (Const x, []), [(var, Int_domain (Int_domain.singleton x))]
       | _ -> named', []
       end
     | Tuple vars -> if List.for_all (fun arg -> has env arg) vars then
-        Tuple vars, [(var, Tuple (List.map (fun var' -> get env var') vars))] else Tuple vars, []
+        Tuple vars, [(var, Tuple_domain (List.map (fun var' -> get env var') vars))] else Tuple vars, []
     | Get (var', pos) -> if has env var' then begin
       match get env var' with
-      | Tuple values -> Get (var', pos), [(var, List.nth values pos)]
+      | Tuple_domain values -> Get (var', pos), [(var, List.nth values pos)]
       | _ -> failwith "invalid type"
     end else Get (var', pos), []
     | Closure (k, vars) -> if List.for_all (fun arg -> has env arg) vars then
-      Closure (k, vars), [(var, Tuple [Int k; Tuple (List.map (fun var' -> get env var') vars)])] else Closure (k, vars), []
+      Closure (k, vars), [(var, Tuple_domain [Pointer_domain (Pointer_domain.singleton k);
+                          Tuple_domain (List.map (fun var' -> get env var') vars)])]
+      else Closure (k, vars), []
 
-and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : expr =
+and propagation (cps : expr) (env: env_domain) (conts : cont) visites : expr =
   match cps with
   | Let (var, named, expr) -> let named', env' = propagation_named named var env in Let (var, named', propagation expr (env'@env) conts visites)
   | Apply_cont (k', args, stack) -> Apply_cont (k', args, stack)
   | If (var, (kt, argst), (kf, argsf), stack) ->
     if has env var then begin
       match get env var with
-      | Int 0 -> Apply_cont (kt, argst, stack)
-      | Int _ -> Apply_cont (kf, argsf, stack)
+      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> Apply_cont (kt, argst, stack)
+      | Int_domain _ -> Apply_cont (kf, argsf, stack)
       | _ -> failwith "invalid type"
     end else If (var, (kt, argst), (kf, argsf), stack)
   | Return x -> Return x
   | Call (x, args, stack) when has env x -> begin
     match get env x with
-    | Int k -> Apply_cont (k, args, stack)
+    | Pointer_domain k -> if Pointer_domain.is_singleton k then Apply_cont (Pointer_domain.get_singleton k, args, stack) else Call (x, args, stack)
     | _ -> failwith "invalid type" end
   | Call (x, args, stack) -> Call (x, args, stack)
-  (*TODO*)
-  and propagation_cont (cps : cont) (env: (var * value) list) (conts : cont) visites : cont =
+
+and propagation_cont (cps : cont) (env: env_domain) (conts : cont) visites : cont =
   match cps with
   | Let_cont (k', args', e1, e2) ->
     let e1' = propagation e1 [] conts visites in
@@ -255,6 +264,80 @@ and propagation (cps : expr) (env: (var * value) list) (conts : cont) visites : 
     Let_cont (k', args', e1', e2')
   | End -> End
 ;;
+
+
+let map_args (args: var list) (env: env_domain) = List.map (fun arg -> get env arg) args
+
+let map_stack (stack: stack) (env: env_domain) = List.map (fun (k'', args') -> k'', map_args args' env) stack
+
+let analysis_prim (prim : prim) args (_ : env_domain) : value_domain =
+  match prim, args with
+  | Const x, _ -> Int_domain (Int_domain.singleton x)
+  | Add, _ :: _ :: _ ->(*
+    if has env x1
+    then (
+      match get env x1 with
+      | Int_domain n1 ->
+        if has env x2
+        then (
+          match get env x2 with
+          | Int_domain n2 -> Prim (Const (n1 + n2), [])
+          | _ -> failwith "invalid type")
+        else Prim (Add, args)
+      | _ -> failwith "invalid type")
+    else *)Int_domain (Int_domain.top)
+  | Print, _ :: _ -> Int_domain (Int_domain.top)
+  | _ -> failwith "invalid args"
+
+let analysis_named (named : named) (env : env_domain) : value_domain =
+  match named with
+  | Var var' -> get env var'
+  | Prim (prim, args) -> analysis_prim prim args env
+  | Tuple vars -> Tuple_domain (map_args vars env)
+  | Get (var', pos) -> begin
+      match get env var' with
+      | Tuple_domain values -> List.nth values pos
+      | _ -> failwith "invalid type"
+    end
+  | Closure (k, vars) -> Tuple_domain [Pointer_domain (Pointer_domain.singleton k); Tuple_domain (map_args vars env)]
+
+let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) (env: (address * value_domain) list) : (pointer * value_domain list * ((pointer * value_domain list) list)) list =
+  match cps with
+  | Let (var, named, expr) -> let value = analysis_named named env in analysis_cont expr stack ((var, value)::env)
+  | Apply_cont (k', args, stack) -> [k', map_args args env, map_stack stack env]
+  | If (var, (kt, argst), (kf, argsf), stack) -> 
+    if has env var then begin
+      match get env var with
+      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> [kt, map_args argst env, map_stack stack env]
+      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i != 0 -> [kf, map_args argsf env, map_stack stack env]
+      | Int_domain _ -> [kt, map_args argst env, map_stack stack env; kf, map_args argsf env, map_stack stack env]
+      | _ -> failwith "invalid type"
+    end else [kt, map_args argst env, map_stack stack env; kf, map_args argsf env, map_stack stack env]
+  | Return x -> begin match stack with
+      | [] -> assert false
+      | (k, args)::stack' -> [k, (get env x)::args, stack']
+    end
+  | Call (x, args, stack) -> begin
+    match get env x with
+    | Pointer_domain d -> List.map (fun k -> k, map_args args env, map_stack stack env) (Pointer_domain.to_list d)
+    | _ -> failwith "invalid type" end
+
+
+let join_env (old_env: value_domain list) (new_env: value_domain list) = List.map2 (fun o n ->
+  match o, n with
+  | Pointer_domain p1, Pointer_domain p2 -> Pointer_domain (Pointer_domain.join p1 p2)
+  | Int_domain d1, Int_domain d2 -> Int_domain (Int_domain.join d1 d2)
+  | _ -> o) old_env new_env
+
+let rec analysis (conts: (pointer * value_domain list * ((pointer * value_domain list) list)) list) (prog: cont) (map) =
+  match conts with
+  | [] -> map
+  | (k, env, stack)::conts' -> if has map k then 
+      let old_env = get map k in
+      let new_env = join_env old_env env in
+      if new_env = old_env then analysis conts' prog map else let _, cont = get_cont prog k in let next_conts = analysis_cont cont stack [] in analysis (conts'@next_conts) prog (map)
+    else let _, cont = get_cont prog k in let next_conts = analysis_cont cont stack [] in analysis (conts'@next_conts) prog (map)
+
 
 let rec elim_unused_vars_named (vars : int array) conts (named : named)
   : named
