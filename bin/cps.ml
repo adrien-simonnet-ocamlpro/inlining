@@ -246,8 +246,9 @@ and propagation (cps : expr) (env: env_domain) (conts : cont) : expr =
 
 and propagation_cont (cps : cont) (conts : cont) map : cont =
   match cps with
-  | Let_cont (k', args', e1, e2) ->
-    let e1' = propagation e1 (map_values args' (Analysis.find k' map)) conts in
+  | Let_cont (k', args', e1, e2) -> let e1' = if Analysis.mem k' map then
+    let env = (Analysis.find k' map) in
+    propagation e1 (map_values args' env) conts else e1 in
     let e2' = propagation_cont e2 conts map in
     Let_cont (k', args', e1', e2')
   | End -> End
@@ -284,22 +285,22 @@ let analysis_named (named : named) (env : env_domain) : value_domain =
 let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) (env: (address * value_domain) list) : (pointer * value_domain list * ((pointer * value_domain list) list)) list =
   match cps with
   | Let (var, named, expr) -> let value = analysis_named named env in analysis_cont expr stack ((var, value)::env)
-  | Apply_cont (k', args, stack) -> [k', map_args args env, map_stack stack env]
-  | If (var, (kt, argst), (kf, argsf), stack) -> 
+  | Apply_cont (k', args, stack') -> [k', map_args args env, (map_stack stack' env)@stack]
+  | If (var, (kt, argst), (kf, argsf), stack') -> 
     if has env var then begin
       match get env var with
-      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> [kt, map_args argst env, map_stack stack env]
-      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i != 0 -> [kf, map_args argsf env, map_stack stack env]
-      | Int_domain _ -> [kt, map_args argst env, map_stack stack env; kf, map_args argsf env, map_stack stack env]
+      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> [kt, map_args argst env, (map_stack stack' env)@stack]
+      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i != 0 -> [kf, map_args argsf env, (map_stack stack' env)@stack]
+      | Int_domain _ -> [kt, map_args argst env, (map_stack stack' env)@stack; kf, map_args argsf env, (map_stack stack' env)@stack]
       | _ -> failwith "invalid type"
-    end else [kt, map_args argst env, map_stack stack env; kf, map_args argsf env, map_stack stack env]
+    end else [kt, map_args argst env, (map_stack stack' env)@stack; kf, map_args argsf env, (map_stack stack' env)@stack]
   | Return x -> begin match stack with
       | [] -> []
       | (k, args)::stack' -> [k, (get env x)::args, stack']
     end
-  | Call (x, args, stack) -> begin
+  | Call (x, args, stack') -> begin
     match get env x with
-    | Pointer_domain d -> List.map (fun k -> k, map_args args env, map_stack stack env) (Pointer_domain.to_list d)
+    | Pointer_domain d -> List.map (fun k -> k, map_args args env, (map_stack stack' env)@stack) (Pointer_domain.to_list d)
     | _ -> failwith "invalid type" end
 
 
@@ -383,6 +384,8 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       Let (var, e1', e2'))
     else e2'
   | Apply_cont (k, args, stack) ->
+    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set conts k (Array.get conts k + 1);
     List.iter
       (fun arg ->
@@ -390,6 +393,8 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       args;
     Apply_cont (k, args, stack)
   | If (var, (kt, argst), (kf, argsf), stack) ->
+    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set vars var (Array.get vars var + 1);
     Array.set conts kt (Array.get conts kt + 1);
     Array.set conts kf (Array.get conts kf + 1);
