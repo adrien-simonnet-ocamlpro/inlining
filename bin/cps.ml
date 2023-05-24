@@ -121,10 +121,10 @@ and pp_expr subs fmt (cps : expr) : unit =
   and pp_cont subs fmt (cps : cont) : unit =
   match cps with
   | Let_cont (k, args, e1, Let_cont (k', args', e1', e2')) ->
-    Format.fprintf fmt "k%d %a =\n%a\nand %a" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) (Let_cont (k', args', e1', e2'))
+    Format.fprintf fmt "k%d %a =\n%a\nand %a%!" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) (Let_cont (k', args', e1', e2'))
   | Let_cont (k, args, e1, End) ->
-    Format.fprintf fmt "k%d %a =\n%a\n" k (pp_args subs "()") args (pp_expr subs) e1
-  | End -> Format.fprintf fmt "()"
+    Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_args subs "()") args (pp_expr subs) e1
+  | End -> Format.fprintf fmt "()%!"
 
 let print_prog subs e = pp_cont subs Format.std_formatter e
 
@@ -315,11 +315,13 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) 
     | _ -> failwith "invalid type" end
 
 
-let join_env (old_env: value_domain list) (new_env: value_domain list) = List.map2 (fun o n ->
-  match o, n with
-  | Pointer_domain p1, Pointer_domain p2 -> Pointer_domain (Pointer_domain.join p1 p2)
-  | Int_domain d1, Int_domain d2 -> Int_domain (Int_domain.join d1 d2)
-  | _ -> o) old_env new_env
+let rec join_values v1 v2 = match v1, v2 with
+| Pointer_domain p1, Pointer_domain p2 -> Pointer_domain (Pointer_domain.join p1 p2)
+| Int_domain d1, Int_domain d2 -> Int_domain (Int_domain.join d1 d2)
+| Tuple_domain values1, Tuple_domain values2 -> Tuple_domain (join_env values1 values2)
+| _ -> assert false
+
+and join_env (old_env: value_domain list) (new_env: value_domain list): value_domain list = List.map2 join_values old_env new_env
 
 let map_values args values = List.map2 (fun arg value -> arg, value) args values
 
@@ -344,7 +346,7 @@ let rec analysis (conts: (pointer * value_domain list * ((pointer * value_domain
       let next_conts = analysis_cont cont stack (map_values args env) in
       analysis (conts'@next_conts) prog (Analysis.add k env map)
 
-let start_analysis prog = analysis [0, [], []] prog (Analysis.empty)
+let start_analysis prog args = analysis [0, args, []] prog (Analysis.empty)
 
 let rec pp_value_domain fmt = function
 | Int_domain d ->  Int_domain.pp fmt d
