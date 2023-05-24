@@ -39,6 +39,8 @@ let _ =
       else (
         let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
+        let analysis = Cps.start_analysis cont' in
+        Cps.pp_analysis (Format.std_formatter) analysis;
         let cps2 = if !prop then Cps.propagation_cont cont' [] cont' [] else cont' in
         let cps3 =
           if !unused_vars

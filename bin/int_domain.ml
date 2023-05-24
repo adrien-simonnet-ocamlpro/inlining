@@ -17,3 +17,7 @@ let get_singleton = function
 let join d1 d2 = match d1, d2 with
 | Singleton i, Singleton j when i = j -> Singleton i
 | _, _ -> Z
+
+let pp fmt = function
+| Z -> Format.fprintf fmt "Z"
+| Singleton i -> Format.fprintf fmt "%d" i
