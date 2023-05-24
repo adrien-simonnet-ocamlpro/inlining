@@ -12,4 +12,4 @@ let join = Pointer.union
 
 let to_list = Pointer.elements
 
-let pp fmt = Pointer.iter (fun k -> Format.fprintf fmt "k%d " k)
+let pp fmt d = Format.fprintf fmt "{ "; Pointer.iter (fun k -> Format.fprintf fmt "k%d " k) d; Format.fprintf fmt "}"
