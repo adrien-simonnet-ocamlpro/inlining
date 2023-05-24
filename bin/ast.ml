@@ -127,6 +127,8 @@ let get_subs env var =
        ^ " ].")
 ;;
 
+let remove_var fvs var = List.filter (fun fv -> not (fv = var)) fvs
+
 let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
@@ -139,16 +141,16 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
     let fv =  (List.filter (fun fv' -> fv' != v5) fv) in
     let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, cps1) fv in
-        Let (var, Closure (k1, fv), expr), substitutions1 @ substitutions, (List.filter (fun fv' -> fv' != var) fv) @ fv0, (Let_cont (k1, [v1; v5], body, conts1))
+        Let (var, Closure (k1, fv), expr), substitutions1 @ substitutions, (remove_var (fv @ fv0) var), (Let_cont (k1, [v1; v5], body, conts1))
   (*
       let var = x in (expr var fv...)
   *)
   | Var x ->
     if Env.has substitutions x
-    then Let (var, Var (get_subs substitutions x), expr), substitutions, List.filter (fun fv' -> fv' != var) fv0, conts
+    then Let (var, Var (get_subs substitutions x), expr), substitutions, (remove_var fv0 var), conts
     else (
       let v1 = inc vars in
-      Let (var, Var v1, expr), ( x, v1 )::substitutions, v1::(List.filter (fun fv' -> fv' != var) fv0), conts)
+      Let (var, Var v1, expr), ( x, v1 )::substitutions, v1::(remove_var fv0 var), conts)
   
   (*
       let v1 = e1 in
@@ -163,7 +165,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       (fun (expr', substitutions', fv', conts') (var, e) ->
         let cps1, substitutions1, fv1, conts1 = to_cps conts' fv' e var expr' substitutions' in
         cps1, substitutions1, fv1, conts1)
-      (Let (var, Prim (prim, List.map (fun (var, _) -> var) vars), expr), substitutions, fv0, conts)
+      (Let (var, Prim (prim, List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars)@(remove_var fv0 var), conts)
       vars
 
     (*
@@ -218,6 +220,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let v2 = inc vars in
     let v3 = inc vars in
     let v4 = inc vars in
+    let fv0 = remove_var fv0 var in
     let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k, [var]@fv0, expr, conts)) (v1::fv0) e2 v2 (Let (v3, Get (v1, 0), Let (v4, Get (v1, 1), Call (v3, (List.map (fun fv -> if Env.has3 substitutions fv then let fval = Env.get_var substitutions fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) [v4; v2]), [(k, fv0)])))) substitutions in
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 substitutions1 in
     cps2, substitutions2, fv2, conts2
