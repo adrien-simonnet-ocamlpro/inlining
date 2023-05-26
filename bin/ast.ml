@@ -116,20 +116,35 @@ let get_subs env var =
 
 let remove_var fvs var = List.filter (fun fv -> not (fv = var)) fvs
 
-let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
+let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
     let k1 = inc_conts () in
+    let k2 = inc_conts () in
     let v1 = inc vars in
     let v2 = inc vars in
     let cps1, substitutions1, fv, conts1 =
       to_cps conts [] e v2 (Return (v2)) []
     in
+    begin match recursive with
+    | None -> begin
     let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
     let fv =  (List.filter (fun fv' -> fv' != v5) fv) in
-    let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, cps1) fv in
-        Let (var, Closure (k1, fv), expr), substitutions1 @ substitutions, (remove_var (fv @ fv0) var), (Let_cont (k1, [v1; v5], body, conts1))
-  (*
+    let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, Apply_cont (k2, v5::fv, [])) fv in
+        Let (var, Closure (k1, fv), expr), substitutions1 @ substitutions, (remove_var (fv @ fv0) var), (Let_cont (k1, [v1; v5], body, Let_cont (k2, v5::fv, cps1, conts1)))
+    end
+    | Some var' -> begin
+      let v6 = if Env.has substitutions1 var' then Env.get substitutions1 var' else inc vars in
+
+      let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
+    let fv =  (List.filter (fun fv' -> fv' != v5 && fv' != v6) fv) in
+    let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, Let (v6, Closure (k1, fv), Apply_cont (k2, v6::v5::fv, []))) fv in
+        Let (var, Closure (k1, fv), expr), substitutions1 @ substitutions,  (remove_var (fv @ fv0) var), (Let_cont (k1, [v1; v5], body, Let_cont (k2, v6::v5::fv, cps1, conts1)))
+    end
+  end
+
+  
+        (*
       let var = x in (expr var fv...)
   *)
   | Var x ->
@@ -173,8 +188,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
     let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
     let s = (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1) in
-    Env.print_subs s;
-    let cps2, substitutions2, fv2, conts2 = to_cps conts1 fv1 e1 v1 cps1 s in
+    let cps2, substitutions2, fv2, conts2 = to_cps ~recursive:(Some var') conts1 fv1 e1 v1 cps1 s in
     cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
 
 
