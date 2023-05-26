@@ -4,6 +4,7 @@ let usage_msg = "cps [-prop] [-clean] [-eval] [-ast] <file1> [<file2>] ... -o <o
 let verbose = ref false
 let input_files = ref []
 let output_file = ref ""
+let analysis = ref false
 let prop = ref false
 let eval = ref false
 let show_ast = ref false
@@ -17,7 +18,8 @@ let inline k = inline_conts := k :: !inline_conts
 let speclist =
   [ "-verbose", Arg.Set verbose, "Output debug information"
   ; "-o", Arg.Set_string output_file, "Set output file name"
-  ; "-prop", Arg.Set prop, "Const propagation"
+  ; "-analysis", Arg.Set analysis, "Analysis"
+  ; "-prop", Arg.Set prop, "Propagation"
   ; "-clean", Arg.Set unused_vars, "Clean unused vars"
   ; "-eval", Arg.Set eval, "Eval CPS"
   ; "-ast", Arg.Set show_ast, "Show AST"
