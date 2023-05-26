@@ -85,21 +85,7 @@ let sprintf e = Format.asprintf "%a" pp_expr e
   let fmt = Format.formatter_of_buffer buf in 
   print_expr fmt "%a" pp_expr e *)
 
-let rec replace_var var new_var (ast : 'var expr) : 'var expr =
-  match ast with
-  | Fun (x, e) when x = var -> Fun (x, e)
-  | Fun (x, e) -> Fun (x, replace_var var new_var e)
-  | Var x when x = var -> Var new_var
-  | Var x -> Var x
-  | Prim (prim, args) ->
-    Prim (prim, List.map (fun arg -> replace_var var new_var arg) args)
-  | Let (var', e1, e2) when var' = var -> Let (var', replace_var var new_var e1, e2)
-  | Let (var', e1, e2) ->
-    Let (var', replace_var var new_var e1, replace_var var new_var e2)
-  | If (cond, t, f) ->
-    If (replace_var var new_var cond, replace_var var new_var t, replace_var var new_var f)
-  | App (e1, e2) -> App (replace_var var new_var e1, replace_var var new_var e2)
-;;
+
 
 let vars = ref 0
 let conts = ref 0
