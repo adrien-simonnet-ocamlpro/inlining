@@ -8,6 +8,7 @@ type prim =
 type 'var expr =
   | Var of 'var
   | Let of 'var * 'var expr * 'var expr
+  | Let_rec of 'var * 'var expr * 'var expr
   | Fun of 'var * 'var expr
   | App of 'var expr * 'var expr
   | Prim of Cps.prim * 'var expr list
@@ -165,6 +166,19 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
 
     (*
+       let rec v1 = e1 in
+       let var = e2 in expr var fv0...
+    *)
+  | Let_rec (var', e1, e2) ->
+    let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
+    let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
+    let s = (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1) in
+    Env.print_subs s;
+    let cps2, substitutions2, fv2, conts2 = to_cps conts1 fv1 e1 v1 cps1 s in
+    cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
+
+
+    (*
        let v1 = cond in
        let k1 fv1 =
         let var = t in expr
@@ -234,6 +248,12 @@ let rec alpha_conversion (fvs: (var * Cps.var) list) (ast : 'var expr) (substitu
   =
   match ast with
   | Let (var, e1, e2) ->
+    let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
+    let var', substitutions'' = add_subs substitutions' var in
+    let fvs'' = add_fv fvs' (var, var') in
+    let e2', substitutions''', fvs''' = alpha_conversion fvs'' e2 substitutions'' in
+    Let (get_subst substitutions'' var, e1', e2'), substitutions''', unfree fvs''' var
+  | Let_rec (var, e1, e2) ->
     let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
     let var', substitutions'' = add_subs substitutions' var in
     let fvs'' = add_fv fvs' (var, var') in

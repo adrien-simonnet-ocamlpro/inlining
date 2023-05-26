@@ -32,6 +32,7 @@ rule jetons = parse
 | "->" { FLECHE }
 
 | "let" { LET }
+| "rec" { REC }
 | "=" { EGAL }
 | "in" { IN }
 

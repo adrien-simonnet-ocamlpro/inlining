@@ -19,7 +19,7 @@
 
 %token FUN /*FIX*/ FLECHE
 
-%token LET IN EGAL
+%token LET REC IN EGAL
 
 //%token REF EXCLAMATION DEUX_POINTS_EGAL
 
@@ -75,6 +75,7 @@ terme :
 | e1 = terme e2 = terme %prec app { Ast.App (e1, e2) }
 
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
+| LET REC i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let_rec (i, e1, e2) }
 
 /*| REF terme { Ast.Ref $2 }
 | EXCLAMATION terme { Ast.Deref $2 }
