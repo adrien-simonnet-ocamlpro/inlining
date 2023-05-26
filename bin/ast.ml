@@ -116,6 +116,20 @@ let get_subs env var =
 
 let remove_var fvs var = List.filter (fun fv -> not (fv = var)) fvs
 
+let has_fv fv fvs = List.mem fv fvs
+
+let rec has_free_subs var subs fvs =
+  match subs with
+  | [] -> false
+  | (var', sub)::_ when var = var' && has_fv sub fvs -> true
+  | _::subs' -> has_free_subs var subs' fvs
+
+let rec get_free_subs var subs fvs =
+  match subs with
+  | [] -> assert false
+  | (var', sub)::_ when var = var' && has_fv sub fvs -> sub
+  | _::subs' -> get_free_subs var subs' fvs
+
 let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
