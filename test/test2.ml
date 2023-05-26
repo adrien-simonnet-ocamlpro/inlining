@@ -1,3 +1,1 @@
-let machin = 0 in
-let truc = g 0 in
-machin
+let rec f = fun x -> (let a = (print x) in (if x then 0 else (f (x + 1)))) in f 3
