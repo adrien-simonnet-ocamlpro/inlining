@@ -13,7 +13,7 @@ rule jetons = parse
 
 | ['0'-'9']+ as integer  { NAT (int_of_string integer) }
 | "+" { PLUS }
-(*| "-" { MOINS }*)
+| "-" { MOINS }
 
 | "print" { PRINT }
 

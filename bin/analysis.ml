@@ -60,6 +60,11 @@ let analysis_prim (prim : prim) args (env : env_domain) : value_domain =
       | Int_domain _, Int_domain _ -> Int_domain (Int_domain.top)
       | _ -> failwith "invalid type"
     end
+  | Sub, x1 :: x2 :: _ -> begin match get env x1, get env x2 with
+    | Int_domain d1, Int_domain d2 when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)))
+    | Int_domain _, Int_domain _ -> Int_domain (Int_domain.top)
+    | _ -> failwith "invalid type"
+  end
   | Print, _ :: _ -> Int_domain (Int_domain.top)
   | _ -> failwith "invalid args"
 

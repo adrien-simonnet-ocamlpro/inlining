@@ -7,7 +7,7 @@
 //%token ACCOLADE_OUVRANTE ACCOLADE_FERMANTE
 
 %token<int> NAT
-%token PLUS /*MOINS*/
+%token PLUS MOINS
 
 %token PRINT
 
@@ -37,6 +37,7 @@
 %nonassoc FLECHE
 %nonassoc NAT
 %nonassoc IDENT
+%left MOINS
 %left PLUS
 %left app
 %left PRINT
@@ -55,7 +56,7 @@ terme :
 
 | NAT { Ast.Prim (Cps.Const $1, []) }
 | e1 = terme PLUS e2 = terme { Ast.Prim (Cps.Add, [e1; e2]) }
-/*| terme MOINS terme { Ast.Sub ($1, $3) }*/
+| e1 = terme MOINS e2 = terme { Ast.Prim (Cps.Sub, [e1; e2]) }
 
 | PRINT e = terme { Ast.Prim (Cps.Print, [e]) }
 

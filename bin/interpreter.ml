@@ -27,6 +27,13 @@ let rec interp_prim var (prim : prim) args (env : (var * value) list) =
         | Int n2 -> [ var, Int (n1 + n2) ]
         | _ -> failwith "invalid type")
      | _ -> failwith "invalid type")
+  | Sub, x1 :: x2 :: _ ->
+      (match (get env x1 : value) with
+       | Int n1 ->
+         (match get env x2 with
+          | Int n2 -> [ var, Int (n1 - n2) ]
+          | _ -> failwith "invalid type")
+       | _ -> failwith "invalid type")
   | Print, x1 :: _ ->
     (match (get env x1 : value) with
      | Int n ->

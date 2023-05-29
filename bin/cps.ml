@@ -18,6 +18,7 @@ type stack = frame list
 
 type prim =
   | Add
+  | Sub
   | Const of int
   | Print
 
