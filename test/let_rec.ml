@@ -1,0 +1,1 @@
+let rec f = fun x -> if x then 0 else (x + (f (x - 1))) in (f 4)
