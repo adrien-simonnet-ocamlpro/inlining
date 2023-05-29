@@ -51,7 +51,7 @@ match cont with
 | Let_cont (_, _, _, e2) -> get_cont e2 k
 | End -> failwith "cont not found"
 
-
+type 'a map = (var * 'a) list
 
 
 
@@ -119,131 +119,10 @@ and pp_expr subs fmt (cps : expr) : unit =
 
 let print_prog subs e = pp_cont subs Format.std_formatter e
 
-
-
-let _ = function
-| Int i -> Prim (Const i, [])
-| _ -> failwith "not implemented"
-
-let vis var cont visites = (var, cont)::visites
-let a_visite var cont visites = List.exists (fun (var', cont') -> var = var' && cont = cont') visites
-
-
-
 let map_values args values = List.map2 (fun arg value -> arg, value) args values
 
 
 
 
 
-let rec elim_unused_vars_named (vars : int array) conts (named : named)
-  : named
-  =
-  match named with
-  | Prim (prim, args) ->
-    List.iter
-      (fun arg ->
-        Array.set vars arg (Array.get vars arg + 1))
-      args;
-    Prim (prim, args)
-    | Var x ->
-      Array.set vars x (Array.get vars x + 1);
-      Var x
-  | Tuple args -> List.iter
-  (fun arg ->
-    Array.set vars arg (Array.get vars arg + 1))
-  args; Tuple args
-  | Closure (k, args) -> List.iter
-  (fun arg ->
-    Array.set vars arg (Array.get vars arg + 1))
-  args; Array.set conts k (Array.get conts k + 1); Closure (k, args)
-  | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
 
-
-and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
-  match cps with
-  | Let (var, e1, e2) ->
-    let e2' = elim_unused_vars vars conts e2 in
-    if Array.get vars var > 0
-    then (
-      let e1' = elim_unused_vars_named vars conts e1 in
-      Let (var, e1', e2'))
-    else e2'
-  | Apply_cont (k, args, stack) ->
-    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
-    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
-    Array.set conts k (Array.get conts k + 1);
-    List.iter
-      (fun arg ->
-        Array.set vars arg (Array.get vars arg + 1))
-      args;
-    Apply_cont (k, args, stack)
-  | If (var, (kt, argst), (kf, argsf), stack) ->
-    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
-    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
-    Array.set vars var (Array.get vars var + 1);
-    Array.set conts kt (Array.get conts kt + 1);
-    Array.set conts kf (Array.get conts kf + 1);
-    If (var, (kt, argst), (kf, argsf), stack)
-  | Return x ->
-    Array.set vars x (Array.get vars x + 1);
-    Return x
-  | Call (x, args, stack) ->
-    Array.set vars x (Array.get vars x + 1);
-    List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
-    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
-    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
-      Call (x, args, stack)
-and elim_unused_vars_cont (conts : int array) (cps : cont) : cont * int array =
-    match cps with
-    | Let_cont (k', args', e1, e2) ->
-      let e2', _ = elim_unused_vars_cont conts e2 in
-      let e1' = elim_unused_vars (Array.make 1000 0) conts e1 in Let_cont (k', args', e1', e2'), conts
-    | End -> End, conts
-and elim_unused_conts (conts : int array) (cps : cont) : cont =
-    match cps with
-    | Let_cont (k', args', e1, e2) -> if Array.get conts k' > 0 then Let_cont (k', args', e1, elim_unused_conts conts e2) else elim_unused_conts conts e2
-    | End -> End
-;;
-
-let get env arg = if has env arg then get env arg else arg
-
-let rec inline_named (named : named) (env : (var * var) list) =
-  match named with
-  | Prim (prim, args) -> Prim (prim, List.map (fun arg -> get env arg) args)
-  | Var x -> Var (get env x)
-  | Tuple (args) -> Tuple (List.map (fun arg -> get env arg) args)
-  | Get (record, pos) -> Get (get env record, pos)
-  | Closure (k, args) -> Closure (k, List.map (fun arg -> get env arg) args)
-
-and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
-
-    match cps with
-    | Let (var, named, expr) -> Let (var, inline_named named env, inline stack expr env conts)
-    | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
-    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack' @ stack)
-    | Return v -> begin
-      match stack with
-      | [] -> assert false (* ?? *)
-      | (k, env')::stack' -> Apply_cont (k, v::env', stack')
-    end
-    | Call (x, args, stack') -> Call (x, args, stack' @ stack)
-
-
-let rec inline_parent (cps : expr) (conts: cont): expr =
-
-    match cps with
-    | Let (var, named, expr) -> Let (var, named, inline_parent expr conts)
-    | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
-        inline stack' cont (List.map2 (fun arg' arg -> arg', arg) args' args) conts
-    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack')
-    | Return _ -> assert false (* ?? *)
-    | Call (x, args, stack') -> Call (x, args, stack')
-
-
-let rec inline_cont ks (cps : cont) (conts : cont): cont =
-  match cps with
-      | Let_cont (k', args', e1, e2) when List.mem k' ks -> Let_cont (k', args', inline_parent e1 conts, inline_cont ks e2 conts)
-      | Let_cont (k', args', e1, e2) -> Let_cont (k', args', e1, inline_cont ks e2 conts)
-      | End -> End
-  ;;

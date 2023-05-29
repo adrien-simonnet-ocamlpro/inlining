@@ -4,7 +4,7 @@ type value =
 
 type var = Cps.var
 
-type 'a map = (var * 'a) list
+type 'a map = 'a Cps.map
 
 type env = value map
 

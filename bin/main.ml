@@ -46,13 +46,13 @@ let _ =
         let cps2 = if !prop then Propagation.propagation_cont cont' cont' analysis else cont' in
         let cps3 =
           if !unused_vars
-          then let cps, _ = Cps.elim_unused_vars_cont (Array.make 1000 0) cps2 in cps
+          then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 1000 0) cps2 in cps
           else cps2
         in
-        let cps3 = if List.length !inline_conts > 0 then Cps.inline_cont !inline_conts cps3 cps3 else cps3 in
+        let cps3 = if List.length !inline_conts > 0 then Inliner.inline_cont !inline_conts cps3 cps3 else cps3 in
         let cps3 =
           if !unused_vars
-          then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cps.elim_unused_vars_cont (conts) cps3 in Cps.elim_unused_conts conts cps
+          then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cleaner.elim_unused_vars_cont (conts) cps3 in Cleaner.elim_unused_conts conts cps
           else cps3
         in
         if !eval
