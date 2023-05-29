@@ -64,6 +64,7 @@ let rec pp_expr fmt = function
   | Var x -> Format.fprintf fmt "%s" x
   | Prim (Const x, _) -> Format.fprintf fmt "%d" x
   | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" pp_expr x1 pp_expr x2
+  | Prim (Sub, x1 :: x2 :: _) -> Format.fprintf fmt "(%a - %a)" pp_expr x1 pp_expr x2
   | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" pp_expr x1
   | Let (var, e1, e2) ->
     Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
@@ -319,6 +320,7 @@ let rec pp_expr_int subs fmt = function
   | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
   | Prim (Const x, _) -> Format.fprintf fmt "%d" x
   | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" (pp_expr_int subs) x1 (pp_expr_int subs) x2
+  | Prim (Sub, x1 :: x2 :: _) -> Format.fprintf fmt "(%a - %a)" (pp_expr_int subs) x1 (pp_expr_int subs) x2
   | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" (pp_expr_int subs) x1
   | Let (var, e1, e2) ->
     Format.fprintf fmt "(let %s = %a in\n%a)" (gen_name var subs) (pp_expr_int subs) e1 (pp_expr_int subs) e2

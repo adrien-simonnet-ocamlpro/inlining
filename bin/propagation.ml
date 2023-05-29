@@ -22,6 +22,11 @@ let rec propagation_prim (prim : prim) args (env : env_domain) : named * value_d
     | Int_domain _, Int_domain _ -> Prim (Add, x1 :: x2 :: args'), Int_domain (Int_domain.top)
     | _ -> failwith "invalid type"
   end
+  | Sub, x1 :: x2 :: args' -> begin match get env x1, get env x2 with
+    | Int_domain d1, Int_domain d2 when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> let x = ((Int_domain.get_singleton d1) - Int_domain.get_singleton d2) in Prim (Const x, []), Int_domain (Int_domain.singleton x)
+    | Int_domain _, Int_domain _ -> Prim (Add, x1 :: x2 :: args'), Int_domain (Int_domain.top)
+    | _ -> failwith "invalid type"
+  end
   | Print, _ :: _ -> Prim (Print, args), Int_domain (Int_domain.top)
   | _ -> failwith "invalid args"
 

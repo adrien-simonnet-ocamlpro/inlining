@@ -79,6 +79,7 @@ let rec pp_prim subs fmt (prim : prim) args =
   match prim, args with
   | Const x, _ -> Format.fprintf fmt "Int %d" x
   | Add, x1 :: x2 :: _ -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Sub, x1 :: x2 :: _ -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
   | Print, x1 :: _ -> Format.fprintf fmt "Printf.printf \"%%s\" %s" (gen_name x1 subs)
   | _ -> failwith "invalid args"  
 
