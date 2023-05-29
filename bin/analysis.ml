@@ -50,7 +50,9 @@ let rec cherche_periode periode liste =
   | [] -> false
   | l::liste' -> cherche_motif (periode@[l]) liste' || cherche_periode (periode@[l]) liste'
 
-let join_stack old_stack new_stack = if cherche_periode [] new_stack then old_stack else new_stack
+let map = List.map (fun (k, _) -> k)
+
+let join_stack old_stack new_stack = if cherche_periode [] (map new_stack) then old_stack else new_stack
 
 let analysis_prim (prim : prim) args (env : env_domain) : value_domain =
   match prim, args with
@@ -111,8 +113,13 @@ let rec join_values v1 v2 = match v1, v2 with
 and join_env (old_env: value_domain list) (new_env: value_domain list): value_domain list = List.map2 join_values old_env new_env
 
 
-
-
+let has3 env var = List.exists (fun (var', _) -> map var = map var') env
+let get3 env var =
+  let map = List.map (fun (k, _) -> k) in
+  match List.find_opt (fun (var', _) -> map var = map var') env with
+  | Some (_, v) -> v
+  | None -> assert false
+;;
 
 let rec analysis (conts: (pointer * value_domain list * ((pointer * value_domain list) list)) list) (prog: cont) (map: ((((address * value_domain list) list) * value_domain list) list) Analysis.t) : (value_domain list) Analysis.t =
   match conts with
@@ -120,8 +127,8 @@ let rec analysis (conts: (pointer * value_domain list * ((pointer * value_domain
   | (k, env, stack)::conts' ->
     if Analysis.mem k map then 
       let old_context = Analysis.find k map in
-      if has old_context stack then
-        let old_env = get2 old_context stack in
+      if has3 old_context stack then
+        let old_env = get3 old_context stack in
         let new_env = join_env old_env env in
         if new_env = old_env
           then analysis conts' prog map
