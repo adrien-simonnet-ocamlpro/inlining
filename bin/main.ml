@@ -57,8 +57,8 @@ let _ =
         in
         if !eval
         then (
-          let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Cps.Int i)) fv in
-          let r = Cps.interp_cont 0 cps3 [] init in
+          let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
+          let r = Interpreter.interp_cont 0 cps3 [] init in
           (
             match r with
             | Int i -> Printf.fprintf outchan "%d\n" i
