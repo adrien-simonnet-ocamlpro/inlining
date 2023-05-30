@@ -19,7 +19,7 @@
 
 %token FUN /*FIX*/ FLECHE
 
-%token LET REC IN EGAL
+%token LET REC AND IN EGAL
 
 //%token REF EXCLAMATION DEUX_POINTS_EGAL
 
@@ -75,8 +75,12 @@ terme :
 /*| FIX PARENTHESE_OUVRANTE IDENT FLECHE terme PARENTHESE_FERMANTE { Ast.Fix ($3, $5) }*/
 | e1 = terme e2 = terme %prec app { Ast.App (e1, e2) }
 
+| LET REC bindings = bindings IN e2 = terme { Ast.Let_rec (bindings, e2) }
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
-| LET REC i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let_rec (i, e1, e2) }
+
+bindings :
+| i = IDENT EGAL e1 = terme { [i, e1] }
+| i = IDENT EGAL e1 = terme AND bindings = bindings { (i, e1)::bindings }
 
 /*| REF terme { Ast.Ref $2 }
 | EXCLAMATION terme { Ast.Deref $2 }

@@ -8,7 +8,7 @@ type prim =
 type 'var expr =
   | Var of 'var
   | Let of 'var * 'var expr * 'var expr
-  | Let_rec of 'var * 'var expr * 'var expr
+  | Let_rec of ('var * 'var expr) list * 'var expr
   | Fun of 'var * 'var expr
   | App of 'var expr * 'var expr
   | Prim of Cps.prim * 'var expr list
@@ -195,17 +195,38 @@ let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) va
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 (List.filter (fun (_, v) -> not (v = v1)) substitutions1) in
     cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
 
+
+(*
+    | Let_rec (bindings, e2) ->
+      let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
+
+      let v1s = List.map (fun (var', _) -> if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars) bindings in
+      let s = List.map2 (fun (var', _) v1 -> (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1)) bindings v1s in
+
+
+
+      let fold conts (_, Fun (x, e)) = let v2 = inc vars in to_cps conts [] e v2 (Return (v2)) [] in
+      let x = List.fold_left fold (conts, []) bindings in
+
+
+
+      
+
+      
+      let cps2, substitutions2, fv2, conts2 = to_cps ~recursive:(Some var') conts1 fv1 e1 v1 cps1 s in
+      cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
+*)
     (*
        let rec v1 = e1 in
        let var = e2 in expr var fv0...
     *)
-  | Let_rec (var', e1, e2) ->
+  | Let_rec ([var', e1], e2) ->
     let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
     let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
     let s = (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1) in
     let cps2, substitutions2, fv2, conts2 = to_cps ~recursive:(Some var') conts1 fv1 e1 v1 cps1 s in
     cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
-
+    | Let_rec (_, _) -> assert false
 
     (*
        let v1 = cond in
@@ -282,12 +303,13 @@ let rec alpha_conversion (fvs: (var * Cps.var) list) (ast : 'var expr) (substitu
     let fvs'' = add_fv fvs' (var, var') in
     let e2', substitutions''', fvs''' = alpha_conversion fvs'' e2 substitutions'' in
     Let (get_subst substitutions'' var, e1', e2'), substitutions''', unfree fvs''' var
-  | Let_rec (var, e1, e2) ->
+  | Let_rec ([var, e1], e2) ->
     let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
     let var', substitutions'' = add_subs substitutions' var in
     let fvs'' = add_fv fvs' (var, var') in
     let e2', substitutions''', fvs''' = alpha_conversion fvs'' e2 substitutions'' in
-    Let (get_subst substitutions'' var, e1', e2'), substitutions''', unfree fvs''' var
+    Let_rec ([get_subst substitutions'' var, e1'], e2'), substitutions''', unfree fvs''' var
+    | Let_rec (_, _) -> assert false
   | Var var -> if has_subst fvs var then Var (get_subst fvs var), substitutions, fvs else let var', substitutions = add_subs substitutions var in Var (var'), substitutions, add_fv fvs (var, var')
   | Prim (prim, exprs) ->
     let exprs''', substitutions''', fvs''' = List.fold_left (fun (expr', substitutions', fvs') expr ->
@@ -324,6 +346,8 @@ let rec pp_expr_int subs fmt = function
   | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" (pp_expr_int subs) x1
   | Let (var, e1, e2) ->
     Format.fprintf fmt "(let %s = %a in\n%a)" (gen_name var subs) (pp_expr_int subs) e1 (pp_expr_int subs) e2
+  | Let_rec ([var, e1], e2) ->
+    Format.fprintf fmt "(let rec %s = %a in\n%a)" (gen_name var subs) (pp_expr_int subs) e1 (pp_expr_int subs) e2
   | If (cond, t, f) ->
     Format.fprintf fmt "(if %a = 0 then %a else %a)" (pp_expr_int subs) cond (pp_expr_int subs) t (pp_expr_int subs) f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" (pp_expr_int subs) e1 (pp_expr_int subs) e2
