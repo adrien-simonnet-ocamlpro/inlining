@@ -131,6 +131,10 @@ let rec get_free_subs var subs fvs =
   | (var', sub)::_ when var = var' && has_fv sub fvs -> sub
   | _::subs' -> get_free_subs var subs' fvs
 
+module FreeVars = Set.Make (Int)
+
+let join_fv fv1 fv2 = FreeVars.elements (FreeVars.union (FreeVars.of_list fv1) (FreeVars.of_list fv2))
+
 let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
@@ -253,17 +257,27 @@ let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) va
     let k3 = inc_conts () in
     let cps2, substitutions2, fv2, conts2 = to_cps (Let_cont (k0, var :: fv0, expr, conts)) fv0 e2 v2 (Apply_cont (k0, v2 :: fv0, [])) [] in
     let cps3, substitutions3, fv3, conts3 = to_cps conts2 fv0 e3 v3 (Apply_cont (k0, v3 :: fv0, [])) [] in
-    let fv2' = List.filter (fun fv -> not (Env.has3 substitutions2 fv) || not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2 in
-    let fv3' = List.filter (fun fv -> not (Env.has3 substitutions3 fv) || not (Env.has_var substitutions (Env.get_var substitutions3 fv))) fv3 in
+    
+    let _ = List.filter (fun fv -> not (Env.has3 substitutions2 fv) || not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2 in
+    let _ = List.filter (fun fv -> not (Env.has3 substitutions3 fv) || not (Env.has_var substitutions (Env.get_var substitutions3 fv))) fv3 in
+
+    let fv2'' = List.map (fun fv -> Env.get_var substitutions2 fv) (List.filter (fun fv -> Env.has3 substitutions2 fv && not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2) in
+    let fv3'' = List.map (fun fv -> Env.get_var substitutions3 fv) (List.filter (fun fv -> Env.has3 substitutions3 fv && not (Env.has_var substitutions (Env.get_var substitutions3 fv))) fv3) in
+
+    let substitutions' = List.fold_left (fun substitutions' fv -> if Env.has substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (fv2'' @ fv3'') in
+
+      let fv2'''' = (List.map (fun fv -> if Env.has3 substitutions2 fv then let fval = Env.get_var substitutions2 fv in Env.get_value substitutions' fval else fv) fv2) in
+      let fv3'''' = (List.map (fun fv -> if Env.has3 substitutions3 fv then let fval = Env.get_var substitutions3 fv in Env.get_value substitutions' fval else fv) fv3) in
+
     let cps1, substitutions1, fv1, conts1 =
       to_cps (Let_cont
-      (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) fv0
+      (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) (join_fv fv2'''' fv3'''')
         e1
         v1
-        (If (v1, (k2, (List.map (fun fv -> if Env.has3 substitutions2 fv then let fval = Env.get_var substitutions2 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) fv2)), (k3, (List.map (fun fv -> if Env.has3 substitutions3 fv then let fval = Env.get_var substitutions3 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) fv3)), []))
-        substitutions
+        (If (v1, (k2, fv2''''), (k3, fv3''''), []))
+        (substitutions' @ substitutions)
     in
-    cps1, substitutions2 @ substitutions3 @ substitutions1, fv2' @ fv3' @ fv1, conts1
+    cps1, substitutions2 @ substitutions3 @ substitutions1, fv1, conts1
   (*
         let v1 = e1 in
         let v2 = e2 in
