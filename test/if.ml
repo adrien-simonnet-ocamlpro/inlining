@@ -1,1 +1,1 @@
-if (let x = x in x) then (let x = x in x) else (let x = x in x)
+fun x -> if x then x else x
