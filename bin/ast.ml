@@ -210,6 +210,34 @@ let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) va
 
 
 
+    (*
+          let env = fvs_1 ∪ ... ∪ fvs_n
+          let var1 = Closure (f1, env) in
+          ...
+          let varn = Closure (fn, env) in
+          e2
+        and f1 env arg1 =
+          let var1_1 = Closure (f1, env) in
+          ...
+          let varn_1 = Closure (fn, env) in
+          let fv1_1 = Get_env (env, fv1_1_index) in
+          ...
+          let fvm_1 = Get_env (env, fvm_1_index) in
+          f1_impl arg1 var1_1 ... varn_1 fv1_1 ... fvn_1
+        and f1_impl arg1 var1_1 ... varn_1 fv1_1 ... fvn_1 =
+          expr1
+        ...
+        and fn env argn =
+          let var1_n = Closure (f1, env) in
+          ...
+          let varn_n = Closure (fn, env) in
+          let fv1_n = Get_env (env, fv1_n_index) in
+          ...
+          let fvm_n = Get_env (env, fvm_n_index) in
+          f1_impl argn var1_n ... varn_n fv1_n ... fvm_n
+        and fn_impl argn var1_n ... varn_n fv1_n ... fvm_n =
+          exprn
+    *)
     | Let_rec (bindings, e2) ->
       let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
 
@@ -264,14 +292,14 @@ let rec to_cps ?(recursive = (None : var option)) conts fv0 (ast : 'var expr) va
 
     (*
         let v1 = e1 in
-        if v1 then k2 fv2 else k3 fv3
-      and k2 fv2 =
+        if v1 then k2 fv1_2 ... fvn_2 else k3 fv1_3 ... fvm_3
+      and k2 fv1_2 ... fvn_2 =
         let v2 = e2 in
-        k0 v2::fv0
-      and k3 fv3 =
+        k0 v2 fv1 ... fvi
+      and k3 fv1_3 ... fvm_3 =
         let v3 = e3 in
-        k0 v3::fv0
-      and k0 var::fv0 =
+        k0 v3 fv1 ... fvi
+      and k0 var fv1 ... fvi =
         expr
     *)
     | If (e1, e2, e3) ->
