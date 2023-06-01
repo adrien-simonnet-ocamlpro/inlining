@@ -68,9 +68,9 @@ let gen_name id env =
   | Some (v, _) -> v ^ "_" ^ (string_of_int id)
   | None -> "_" ^ (string_of_int id)
 
-let rec print_args args subs =
+let rec print_args ?(empty="()") args subs =
   match args with
-  | [] -> "()"
+  | [] -> empty
   | [arg] -> gen_name arg subs
   | arg::args' -> (gen_name arg subs) ^ " " ^ print_args args' subs
 
@@ -85,7 +85,7 @@ let rec pp_prim subs fmt (prim : prim) args =
   | Const x, _ -> Format.fprintf fmt "Int %d" x
   | Add, x1 :: x2 :: _ -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
   | Sub, x1 :: x2 :: _ -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Print, x1 :: _ -> Format.fprintf fmt "Printf.printf \"%%s\" %s" (gen_name x1 subs)
+  | Print, x1 :: _ -> Format.fprintf fmt "print %s" (gen_name x1 subs)
   | _ -> failwith "invalid args"  
 
 and pp_named subs fmt named =
@@ -95,7 +95,7 @@ match named with
 | Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
 (*TODO*)
-| Closure (k, env) -> Format.fprintf fmt "Tuple [Function k%d; %s]" k (gen_name env subs)
+| Closure (k, env) -> Format.fprintf fmt "Closure (Function k%d, %s)" k (gen_name env subs)
 | Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args subs "") args
 | Tag x -> Format.fprintf fmt "Tag %d" x
 
@@ -104,10 +104,10 @@ and pp_expr subs fmt (cps : expr) : unit =
   | Let (var, named, expr) ->
     Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
   | Apply_cont (k, args, stack) -> let s =
-    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "k%d %s" k (print_args args subs)) stack
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf "k%d %s" k (print_args args subs)) stack
   in Format.fprintf fmt "%s" s
     | If (var, (kt, argst), (kf, argsf), stack) -> let s =
-    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf
       "if %s = Int 0 then k%d %s else k%d %s"
       (gen_name var subs)
       kt
@@ -116,7 +116,7 @@ and pp_expr subs fmt (cps : expr) : unit =
       (print_args argsf subs)) stack
     in Format.fprintf fmt "%s" s
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
-  | Call (x, args, stack) -> let s = List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args args' subs)) (Printf.sprintf "(call %s %s)" (gen_name x subs) (print_args args subs)) stack
+  | Call (x, args, stack) -> let s = List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf "(call %s %s)" (gen_name x subs) (print_args args subs)) stack
   in Format.fprintf fmt "%s" s
   
   and pp_cont subs fmt (cps : cont) : unit =
