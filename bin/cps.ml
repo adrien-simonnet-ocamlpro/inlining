@@ -8,6 +8,8 @@ type pointer = int
 
 type address = int
 
+type tag = int
+
 type return_adress =
 | Direct of address
 | Indirect of var
@@ -27,7 +29,10 @@ type named =
   | Var of var
   | Tuple of var list
   | Get of var * int
-  | Closure of pointer * var list
+  | Closure of pointer * var
+  
+  | Environment of var list
+  | Tag of tag
 
 and expr =
   | Let of var * named * expr
@@ -89,7 +94,10 @@ match named with
 | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
 | Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
-| Closure (k, args) -> Format.fprintf fmt "Tuple [Function k%d; Tuple [%a]]" k (pp_args subs "") args
+(*TODO*)
+| Closure (k, env) -> Format.fprintf fmt "Tuple [Function k%d; %s]" k (gen_name env subs)
+| Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args subs "") args
+| Tag x -> Format.fprintf fmt "Tag %d" x
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with

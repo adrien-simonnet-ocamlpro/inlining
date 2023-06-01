@@ -52,7 +52,10 @@ and interp_named var (named : named) (env : (var * value) list) =
     | Tuple (values) -> [var, List.nth values pos]
     | _ -> failwith "invalid type"
     end
-  | Closure (k, args) -> [var, Tuple [Int k; Tuple (List.map (fun arg -> get env arg) args)]]
+  | Closure (k, x) -> [var, Tuple [Int k; get env x]]
+  (*TODO*)
+  | Environment args -> [var, Tuple (List.map (fun arg -> get env arg) args)]
+  | Tag x -> [ var, Int x ]
 
 and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
 

@@ -39,8 +39,10 @@ and propagation_named (named : named) (env : env_domain) : named * value_domain 
       | Tuple_domain values -> Get (var', pos), List.nth values pos
       | _ -> failwith "invalid type"
       end
-    | Closure (k, vars) -> Closure (k, vars), Tuple_domain [Pointer_domain (Pointer_domain.singleton k); Tuple_domain (List.map (fun var' -> get env var') vars)]
-
+    | Closure (k, var') -> Closure (k, var'), Tuple_domain [Pointer_domain (Pointer_domain.singleton k); get env var']
+    (*TODO*)
+    | Environment vars -> Tuple vars, Tuple_domain (List.map (fun var' -> get env var') vars)
+    | Tag x -> Tag x, Int_domain (Int_domain.singleton x)
 
 and propagation (cps : expr) (env: env_domain) (conts : cont) : expr =
   match cps with

@@ -22,12 +22,14 @@ let rec elim_unused_vars_named (vars : int array) conts (named : named)
   (fun arg ->
     Array.set vars arg (Array.get vars arg + 1))
   args; Tuple args
-  | Closure (k, args) -> List.iter
+  | Closure (k, arg) -> Array.set vars arg (Array.get vars arg + 1); Array.set conts k (Array.get conts k + 1); Closure (k, arg)
+  | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
+  (*TODO*)
+  | Environment args -> List.iter
   (fun arg ->
     Array.set vars arg (Array.get vars arg + 1))
-  args; Array.set conts k (Array.get conts k + 1); Closure (k, args)
-  | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
-
+  args; Environment args
+  | Tag x -> Tag x
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
   match cps with

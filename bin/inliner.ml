@@ -20,7 +20,10 @@ let rec inline_named (named : named) (env : (var * var) list) : named =
   | Var x -> Var (get env x)
   | Tuple (args) -> Tuple (List.map (fun arg -> get env arg) args)
   | Get (record, pos) -> Get (get env record, pos)
-  | Closure (k, args) -> Closure (k, List.map (fun arg -> get env arg) args)
+  | Closure (k, x) -> Closure (k, get env x)
+  (*TODO*)
+  | Environment args -> Environment (List.map (fun arg -> get env arg) args)
+  | Tag x -> Tag x
 
 and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
 

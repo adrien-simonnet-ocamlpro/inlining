@@ -78,9 +78,12 @@ let analysis_named (named : named) (env : env_domain) : value_domain =
   | Get (var', pos) -> begin
       match get env var' with
       | Tuple_domain values -> List.nth values pos
-      | _ -> failwith "invalid type"
+      | _ -> assert false
     end
-  | Closure (k, vars) -> Tuple_domain [Pointer_domain (Pointer_domain.singleton k); Tuple_domain (map_args vars env)]
+  | Closure (k, var') -> Tuple_domain [Pointer_domain (Pointer_domain.singleton k); get env var']
+  (* TODO *)
+  | Environment vars -> Tuple_domain (map_args vars env)
+  | Tag x -> Int_domain (Int_domain.singleton x)
 
 let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) (env: (address * value_domain) list) : (pointer * value_domain list * ((pointer * value_domain list) list)) list =
   match cps with
