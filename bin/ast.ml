@@ -258,7 +258,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
           let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, (find fv' fvs)), cps')) (0, Apply_cont (k2, v6s@(v5::fv), [])) fv in
           
           let kv6 = List.map2 (fun v6 (_, k1, _, _, _, _) -> (v6, k1)) v6s closures2 in
-          let body' = List.fold_left (fun body (v6, k1) -> let v3 = inc vars in Cps.Let (v3, Prim (Const k1, []), Cps.Let (v6, Cps.Tuple [v3; v1], body))) body kv6 in
+          let body' = List.fold_left (fun body (v6, k1) -> let v3 = inc vars in Cps.Let (v3, Prim (Const k1, []), Cps.Let (v6, Cps.Closure (k1, v1), body))) body kv6 in
 
             Cps.Let (env, Environment fvs, Cps.Let (var', Closure (k1, env), expr)), substitutions1 @ substitutions,  (remove_var (fv @ fv0) var), (Cps.Let_cont (k1, [v1; v5], body', Let_cont (k2, v6s@(v5::fv), cps1, conts1)))
       
