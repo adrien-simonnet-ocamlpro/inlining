@@ -5,6 +5,10 @@ type prim =
   | Const of int
   | Print
 
+type match_pattern =
+| Int of int
+| Joker
+
 type 'var expr =
   | Var of 'var
   | Let of 'var * 'var expr * 'var expr
@@ -13,6 +17,7 @@ type 'var expr =
   | App of 'var expr * 'var expr
   | Prim of Cps.prim * 'var expr list
   | If of 'var expr * 'var expr * 'var expr
+  | Match of 'var expr * (match_pattern * 'var expr) list
 (*
   type ('var, 'e) expr' =
   | Var of 'var
@@ -134,6 +139,8 @@ let rec get_free_subs var subs fvs =
 module FreeVars = Set.Make (Int)
 
 let join_fv fv1 fv2 = FreeVars.elements (FreeVars.union (FreeVars.of_list fv1) (FreeVars.of_list fv2))
+let join_fvs fvs = List.fold_left (fun fvs fv -> join_fv fvs fv) [] fvs
+
 
 exception Failure of string
 
@@ -336,6 +343,45 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k, var::fv0, expr, conts)) (v1::fv0) e2 v2 (Let (pointer, Get (v1, 0), Let (env, Get (v1, 1), Call (pointer, [env; v2], [(k, fv0)])))) substitutions in
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var fv1 v1) e1 v1 cps1 substitutions1 in
     cps2, substitutions2, fv2, conts2
+
+  | Match (expr', matchs) ->
+    let fv0 = remove_var fv0 var in
+      let k_return = inc_conts () in
+      let conts = Cps.Let_cont (k_return, var :: fv0, expr, conts) in
+      let kdefault, substitutions3, kargs, conts3 =
+      if List.exists (fun (t, _) -> match t with
+      | Joker -> true | _ -> false) matchs then 
+
+        let _, expr' = List.find (fun (t, _) -> match t with
+        | Joker -> true | _ -> false) matchs in
+        let k = inc_conts () in
+        let v2 = inc vars in
+        let cps1, substitutions1, fv, conts1 =
+          to_cps conts fv0 expr' v2 (Apply_cont (k_return, v2::fv0, [])) []
+        in k, substitutions1, fv, Cps.Let_cont (k, fv, cps1, conts1)
+
+      else let k = inc_conts () in k, [], [], Let_cont (k, [], Let (0, Prim (Const (-1), []), Let (1, Prim (Print, [0]), Apply_cont (k_return, 1::fv0, []))), conts) in
+      
+      let matchs' = List.filter (fun (t, _) -> match t with
+      | Int _ -> true | Joker -> false) matchs in
+
+      let conts3, matchs'' = List.fold_left (fun (conts3, matchs''') (pattern, e) -> begin
+        match pattern with
+        | Int n ->
+         let k' = inc_conts () in
+         let v2 = inc vars in
+         let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) [] in
+         Cps.Let_cont (k', fv, cps1, conts1), (n, k', fv, substitutions1)::matchs'''
+         
+         | _ -> (conts3, matchs''')
+      end) (conts3, []) matchs' in
+
+      (* FVS NOT IMPLEMENTED *)
+      let matchs'' = List.rev matchs'' in
+      let matchs'''' = List.map (fun (n, k', fv, _) -> (n, k', fv)) matchs'' in
+
+      let var_match = inc vars in
+      to_cps conts3 kargs expr' var_match (If (var_match, matchs'''', (kdefault, kargs), [])) substitutions3
 ;;
 
 
@@ -392,6 +438,7 @@ let rec alpha_conversion (fvs: (var * Cps.var) list) (ast : 'var expr) (substitu
     let e1', substitutions', fvs' = alpha_conversion fvs e1 substitutions in
     let e2', substitutions'', fvs'' = alpha_conversion fvs' e2 substitutions' in
     App (e1', e2'), substitutions'', fvs''
+  | _ -> assert false
 ;;
 
 let gen_name id env =

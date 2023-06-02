@@ -37,6 +37,13 @@ rule jetons = parse
 | "=" { EGAL }
 | "in" { IN }
 
+| "match" { MATCH }
+| "with" { WITH }
+
+| "type" { TYPE }
+| "of" { OF }
+| "|" { BARRE }
+
 (*| "ref" { REF }
 | "!" { EXCLAMATION }
 | ":=" { DEUX_POINTS_EGAL }*)
@@ -44,6 +51,8 @@ rule jetons = parse
 (*| ":" { DEUX_POINTS }
 | "," { VIRGULE }
 | "." { POINT }*)
+
+| "_" { JOKER }
 
 | ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as identificateur { IDENT (identificateur) }
 

@@ -21,6 +21,14 @@
 
 %token LET REC AND IN EGAL
 
+%token MATCH WITH
+
+%token JOKER
+
+%token TYPE OF
+
+%token BARRE
+
 //%token REF EXCLAMATION DEUX_POINTS_EGAL
 
 //%token DEUX_POINTS VIRGULE POINT
@@ -77,6 +85,16 @@ terme :
 
 | LET REC bindings = bindings IN e2 = terme { Ast.Let_rec (bindings, e2) }
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
+
+| MATCH e = terme WITH ps = patterns { Ast.Match (e, ps) }
+
+patterns :
+| BARRE p = pattern FLECHE e = terme { [p, e] }
+| BARRE p = pattern FLECHE e = terme ps = patterns { (p, e)::ps }
+
+pattern :
+| n = NAT { Ast.Int n }
+| JOKER { Ast.Joker }
 
 bindings :
 | i = IDENT EGAL e1 = terme { [i, e1] }
