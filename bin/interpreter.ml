@@ -63,13 +63,15 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
     | Let (var, named, expr) -> interp stack expr (interp_named var named env @ env) conts
     | Apply_cont (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
       interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
-    | If (var, (kt, argst), (kf, argsf), stack') ->
-      (match get env var with
-       | Int n ->
-         if n = 0
-         then interp stack (Apply_cont (kt, argst, stack')) env conts
-         else interp stack (Apply_cont (kf, argsf, stack')) env conts
-       | _ -> failwith "invalid type")
+    | If (var, matchs, (kf, argsf), stack') -> begin
+        match get env var with
+        | Int n -> begin
+          match List.find_opt (fun (n', _, _) -> n = n') matchs with
+          | Some (_, k, args) -> interp stack (Apply_cont (k, args, stack')) env conts
+          | None -> interp stack (Apply_cont (kf, argsf, stack')) env conts
+          end
+        | _ -> failwith "invalid type"
+      end
     | Return v -> begin
       match stack with
       | [] -> get env v

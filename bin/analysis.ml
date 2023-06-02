@@ -89,14 +89,17 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) 
   match cps with
   | Let (var, named, expr) -> let value = analysis_named named env in analysis_cont expr stack ((var, value)::env)
   | Apply_cont (k', args, stack') -> [k', map_args args env, (join_stack stack ((map_stack stack' env)@stack))]
-  | If (var, (kt, argst), (kf, argsf), stack') -> 
+  | If (var, matchs, (kf, argsf), stack') -> 
     if has env var then begin
       match get env var with
-      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> [kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack))]
-      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i != 0 -> [kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack))]
-      | Int_domain _ -> [kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack)); kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack))]
+      | Int_domain i when Int_domain.is_singleton i -> begin
+        match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
+        | Some (_, k, args) -> [k, map_args args env, (join_stack stack ((map_stack stack' env)@stack))]
+        | None -> [kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack))]
+        end
+      | Int_domain _ -> (kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack)))::(List.map (fun (_, kt, argst) -> kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack))) matchs)
       | _ -> failwith "invalid type"
-    end else [kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack)); kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack))]
+    end else (kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack)))::(List.map (fun (_, kt, argst) -> kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack))) matchs)
   | Return x -> begin match stack with
       | [] -> []
       | (k, args)::stack' -> [k, (get env x)::args, stack']

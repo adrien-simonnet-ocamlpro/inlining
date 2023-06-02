@@ -314,7 +314,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       let fv2'''' = (List.map (fun fv -> if Env.has3 substitutions2 fv then let fval = Env.get_var substitutions2 fv in Env.get_value substitutions' fval else fv) fv2) in
       let fv3'''' = (List.map (fun fv -> if Env.has3 substitutions3 fv then let fval = Env.get_var substitutions3 fv in Env.get_value substitutions' fval else fv) fv3) in
 
-    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) (v1::(join_fv fv2'''' fv3'''')) e1 v1 (If (v1, (k2, fv2''''), (k3, fv3''''), [])) (substitutions' @ substitutions)
+    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) (v1::(join_fv fv2'''' fv3'''')) e1 v1 (If (v1, [(0, k3, fv3'''')], (k2, fv2''''), [])) (substitutions' @ substitutions)
     in
     cps1, substitutions1 @ substitutions2 @ substitutions3, fv1, conts1
   (*

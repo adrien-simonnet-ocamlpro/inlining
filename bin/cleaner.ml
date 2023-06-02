@@ -49,13 +49,13 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
         Array.set vars arg (Array.get vars arg + 1))
       args;
     Apply_cont (k, args, stack)
-  | If (var, (kt, argst), (kf, argsf), stack) ->
+  | If (var, matchs, (kf, argsf), stack) ->
     List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set vars var (Array.get vars var + 1);
-    Array.set conts kt (Array.get conts kt + 1);
+    List.iter (fun (_, kt, _) -> Array.set conts kt (Array.get conts kt + 1)) matchs;
     Array.set conts kf (Array.get conts kf + 1);
-    If (var, (kt, argst), (kf, argsf), stack)
+    If (var, matchs, (kf, argsf), stack)
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x

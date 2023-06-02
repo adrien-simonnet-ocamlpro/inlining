@@ -30,7 +30,7 @@ and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) li
     match cps with
     | Let (var, named, expr) -> Let (var, inline_named named env, inline stack expr env conts)
     | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
-    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack' @ stack)
+    | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack' @ stack)
     | Return v -> begin
       match stack with
       | [] -> assert false (* ?? *)
@@ -45,7 +45,7 @@ let rec inline_parent (cps : expr) (conts: cont): expr =
     | Let (var, named, expr) -> Let (var, named, inline_parent expr conts)
     | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
         inline stack' cont (List.map2 (fun arg' arg -> arg', arg) args' args) conts
-    | If (var, (kt, argst), (kf, argsf), stack') -> If (var, (kt, argst), (kf, argsf), stack')
+    | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack')
     | Return _ -> assert false (* ?? *)
     | Call (x, args, stack') -> Call (x, args, stack')
 

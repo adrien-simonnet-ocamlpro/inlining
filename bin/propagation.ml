@@ -48,13 +48,17 @@ and propagation (cps : expr) (env: env_domain) (conts : cont) : expr =
   match cps with
   | Let (var, named, expr) -> let named', value = propagation_named named env in Let (var, named', propagation expr ((var, value)::env) conts)
   | Apply_cont (k', args, stack) -> Apply_cont (k', args, stack)
-  | If (var, (kt, argst), (kf, argsf), stack) ->
+  | If (var, matchs, (kf, argsf), stack) ->
     if has env var then begin
       match get env var with
-      | Int_domain i when Int_domain.is_singleton i && Int_domain.get_singleton i = 0 -> Apply_cont (kt, argst, stack)
-      | Int_domain _ -> Apply_cont (kf, argsf, stack)
+      | Int_domain i when Int_domain.is_singleton i -> begin
+        match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
+        | Some (_, k, args) -> Apply_cont (k, args, stack)
+        | None -> Apply_cont (kf, argsf, stack)
+        end
+      | Int_domain _ -> If (var, matchs, (kf, argsf), stack)
       | _ -> failwith "invalid type"
-    end else If (var, (kt, argst), (kf, argsf), stack)
+    end else If (var, matchs, (kf, argsf), stack)
   | Return x -> Return x
   | Call (x, args, stack) when has env x -> begin
     match get env x with

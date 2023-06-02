@@ -38,7 +38,7 @@ and expr =
   | Let of var * named * expr
   | Apply_cont of pointer * var list * stack
   | Call of var * var list * stack
-  | If of var * (pointer * var list) * (pointer * var list) * stack
+  | If of var * (int * pointer * var list) list * (pointer * var list) * stack
   | Return of var
 
 type cont =
@@ -106,12 +106,11 @@ and pp_expr subs fmt (cps : expr) : unit =
   | Apply_cont (k, args, stack) -> let s =
     List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf "k%d %s" k (print_args args subs)) stack
   in Format.fprintf fmt "%s" s
-    | If (var, (kt, argst), (kf, argsf), stack) -> let s =
+    | If (var, matchs, (kf, argsf), stack) -> let s =
     List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf
-      "if %s = Int 0 then k%d %s else k%d %s"
+      "match %s with%s | _ -> k%d %s"
       (gen_name var subs)
-      kt
-      (print_args argst subs)
+      (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Printf.sprintf "| Int %d -> k%d %s " n kt (print_args argst subs))) " " matchs)
       kf
       (print_args argsf subs)) stack
     in Format.fprintf fmt "%s" s
