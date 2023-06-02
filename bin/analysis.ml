@@ -94,7 +94,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) 
       match get env var with
       | Int_domain i when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, k, args) -> [k, map_args args env, (join_stack stack ((map_stack stack' env)@stack))]
+        | Some (_, kt, argst) -> [kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack))]
         | None -> [kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack))]
         end
       | Int_domain _ -> (kf, map_args argsf env, (join_stack stack ((map_stack stack' env)@stack)))::(List.map (fun (_, kt, argst) -> kt, map_args argst env, (join_stack stack ((map_stack stack' env)@stack))) matchs)

@@ -67,7 +67,7 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
         match get env var with
         | Int n -> begin
           match List.find_opt (fun (n', _, _) -> n = n') matchs with
-          | Some (_, k, args) -> interp stack (Apply_cont (k, args, stack')) env conts
+          | Some (_, kt, argst) -> interp stack (Apply_cont (kt, argst, stack')) env conts
           | None -> interp stack (Apply_cont (kf, argsf, stack')) env conts
           end
         | _ -> failwith "invalid type"

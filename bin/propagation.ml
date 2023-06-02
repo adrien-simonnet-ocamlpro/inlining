@@ -53,7 +53,7 @@ and propagation (cps : expr) (env: env_domain) (conts : cont) : expr =
       match get env var with
       | Int_domain i when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, k, args) -> Apply_cont (k, args, stack)
+        | Some (_, kt, argst) -> Apply_cont (kt, argst, stack)
         | None -> Apply_cont (kf, argsf, stack)
         end
       | Int_domain _ -> If (var, matchs, (kf, argsf), stack)
