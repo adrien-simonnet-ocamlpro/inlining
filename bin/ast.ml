@@ -149,6 +149,12 @@ let rec find x lst =
     | [] -> raise (Failure "Not Found")
     | h :: t -> if x = h then 0 else 1 + find x t
 
+let has_var_name = Env.has_var
+let get_var_name = Env.get_var
+
+let has_var_id = Env.has_value
+let get_var_id = Env.get_value
+
 let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
   | Fun (x, e) ->
@@ -161,7 +167,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       to_cps conts [] e v2 (Return (v2)) []
     in
 
-    let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
+    let v5 = if has_var_name substitutions1 x then get_var_id substitutions1 x else inc vars in
     let fv =  (List.filter (fun fv' -> fv' != v5) fv) in
     let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, Apply_cont (k2, v5::fv, [])) fv in
       Let (env, Environment fv, (Let (var, Closure (k1, env), expr))), substitutions1 @ substitutions, (remove_var (fv @ fv0) var), (Let_cont (k1, [v1; v5], body, Let_cont (k2, v5::fv, cps1, conts1)))
@@ -171,7 +177,7 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       expr
   *)
   | Var x ->
-    if Env.has substitutions x
+    if has_var_name substitutions x
     then Let (var, Var (get_subs substitutions x), expr), substitutions, (remove_var fv0 var), conts
     else (
       let v1 = inc vars in
@@ -200,9 +206,9 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     *)
   | Let (var', e1, e2) ->
     let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
-    let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
+    let v1 = if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars in
     let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var fv1 v1) e1 v1 cps1 (List.filter (fun (_, v) -> not (v = v1)) substitutions1) in
-    cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
+    cps2, (if has_var_name substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
 
 
 
@@ -237,11 +243,11 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     | Let_rec (bindings, e2) ->
       let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
 
-      let v1s = List.map (fun (var', _) -> if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars) bindings in
+      let v1s = List.map (fun (var', _) -> if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars) bindings in
       let fv1 = List.fold_left (fun fvs fv -> remove_var fvs fv) fv1 v1s in
       let substitutions1 = List.fold_left (fun substitutions1' v1' -> (List.filter (fun (_, v) -> not (v = v1')) substitutions1')) substitutions1 v1s in
       
-      (*let s = List.map2 (fun (var', _) v1 -> (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1)) bindings v1s in*)
+      (*let s = List.map2 (fun (var', _) v1 -> (if has_var_name substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1)) bindings v1s in*)
 
 
       let fold (conts, acc) (_, x) = begin match x with | Fun (x, e) -> let v2 = inc vars in
@@ -252,8 +258,8 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
 
 
       let closures2 = List.map2 (fun v1 (x, cps1, substitutions1, fv1) ->
-        let v6s = List.map (fun (var', _) -> if Env.has substitutions1 var' then Env.get substitutions1 var' else inc vars) bindings in
-        let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
+        let v6s = List.map (fun (var', _) -> if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars) bindings in
+        let v5 = if has_var_name substitutions1 x then get_var_id substitutions1 x else inc vars in
         let fv = (List.filter (fun fv' -> fv' != v5 && not (List.mem fv' v6s)) fv1) in v1, inc_conts (), cps1, v6s, v5, fv) v1s closures in
 
       let fvs = List.fold_left (fun fvs' (_, _, _, _, _, fv') -> join_fv fvs' fv') [] closures2 in
@@ -280,10 +286,10 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     *)
   (*| Let_rec ([var', e1], e2) ->
     let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
-    let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
-    let s = (if Env.has_var substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1) in
+    let v1 = if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars in
+    let s = (if has_var_name substitutions1 var' then substitutions1 else add_subs substitutions1 var' v1) in
     let cps2, substitutions2, fv2, conts2 = to_cps ~recursive:(Some var') conts1 fv1 e1 v1 cps1 s in
-    cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
+    cps2, (if has_var_name substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
     | Let_rec (_, _) -> assert false*)
 
     (*
@@ -307,23 +313,23 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let k0 = inc_conts () in
     let k2 = inc_conts () in
     let k3 = inc_conts () in
-    let cps2, substitutions2, fv2, conts2 = to_cps (Let_cont (k0, var :: fv0, expr, conts)) fv0 e2 v2 (Apply_cont (k0, v2 :: fv0, [])) [] in
-    let cps3, substitutions3, fv3, conts3 = to_cps conts2 fv0 e3 v3 (Apply_cont (k0, v3 :: fv0, [])) [] in
+    let cps2, substitutions_e2, fv2, conts2 = to_cps (Let_cont (k0, var :: fv0, expr, conts)) fv0 e2 v2 (Apply_cont (k0, v2 :: fv0, [])) [] in
+    let cps3, substitutions_e3, fv3, conts3 = to_cps conts2 fv0 e3 v3 (Apply_cont (k0, v3 :: fv0, [])) [] in
     
-    let _ = List.filter (fun fv -> not (Env.has3 substitutions2 fv) || not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2 in
-    let _ = List.filter (fun fv -> not (Env.has3 substitutions3 fv) || not (Env.has_var substitutions (Env.get_var substitutions3 fv))) fv3 in
+    (* Var names in branchs that are not substitued in the beginning of If statement (free variables). *)
+    let free_variable_names_e2 = List.map (fun fv -> get_var_name substitutions_e2 fv) (List.filter (fun fv -> has_var_id substitutions_e2 fv && not (has_var_name substitutions (get_var_name substitutions_e2 fv))) fv2) in
+    let free_variable_names_e3 = List.map (fun fv -> get_var_name substitutions_e3 fv) (List.filter (fun fv -> has_var_id substitutions_e3 fv && not (has_var_name substitutions (get_var_name substitutions_e3 fv))) fv3) in
 
-    let fv2'' = List.map (fun fv -> Env.get_var substitutions2 fv) (List.filter (fun fv -> Env.has3 substitutions2 fv && not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2) in
-    let fv3'' = List.map (fun fv -> Env.get_var substitutions3 fv) (List.filter (fun fv -> Env.has3 substitutions3 fv && not (Env.has_var substitutions (Env.get_var substitutions3 fv))) fv3) in
+    (* Substitution of free variables. *)
+    let substitutions_e2_e3 = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (free_variable_names_e2 @ free_variable_names_e3) in
 
-    let substitutions' = List.fold_left (fun substitutions' fv -> if Env.has substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (fv2'' @ fv3'') in
+    (* Substitued free variables. *)
+    let free_variables_e2 = (List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in get_var_id substitutions_e2_e3 fval else fv) fv2) in
+    let free_variables_e3 = (List.map (fun fv -> if has_var_id substitutions_e3 fv then let fval = get_var_name substitutions_e3 fv in get_var_id substitutions_e2_e3 fval else fv) fv3) in
 
-      let fv2'''' = (List.map (fun fv -> if Env.has3 substitutions2 fv then let fval = Env.get_var substitutions2 fv in Env.get_value substitutions' fval else fv) fv2) in
-      let fv3'''' = (List.map (fun fv -> if Env.has3 substitutions3 fv then let fval = Env.get_var substitutions3 fv in Env.get_value substitutions' fval else fv) fv3) in
-
-    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) (v1::(join_fv fv2'''' fv3'''')) e1 v1 (If (v1, [(0, k3, fv3'''')], (k2, fv2''''), [])) (substitutions' @ substitutions)
+    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k2, fv2, cps2, Let_cont (k3, fv3, cps3, conts3))) (v1::(join_fv free_variables_e2 free_variables_e3)) e1 v1 (If (v1, [(0, k3, free_variables_e3)], (k2, free_variables_e2), [])) (substitutions_e2_e3 @ substitutions)
     in
-    cps1, substitutions1 @ substitutions2 @ substitutions3, fv1, conts1
+    cps1, substitutions1 @ substitutions_e2 @ substitutions_e3, fv1, conts1
   (*
         let v1 = e1 in
         let v2 = e2 in
@@ -348,7 +354,8 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
     let fv0 = remove_var fv0 var in
       let k_return = inc_conts () in
       let conts = Cps.Let_cont (k_return, var :: fv0, expr, conts) in
-      let kdefault, substitutions3, kargs, conts3 =
+      
+      let kdefault, substitutions_default, free_variables_default, conts3 =
       if List.exists (fun (t, _) -> match t with
       | Joker -> true | _ -> false) matchs then 
 
@@ -377,10 +384,24 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       end) conts3 matchs' in
 
       (* FVS NOT IMPLEMENTED *)
-      let matchs'''' = List.map (fun (n, k', fv, _) -> (n, k', fv)) matchs'' in
+
+      (* Var names in branchs that are not substitued in the beginning of Match statement (free variables). *)
+      let free_variable_names_branchs = List.map (fun (n, k, fv2, substitutions2) -> n, k, fv2, List.map (fun fv -> get_var_name substitutions2 fv) (List.filter (fun fv -> has_var_id substitutions2 fv && not (has_var_name substitutions (get_var_name substitutions2 fv))) fv2), substitutions2) matchs''
+      in
+      let free_variable_names_default = List.map (fun fv -> get_var_name substitutions_default fv) (List.filter (fun fv -> has_var_id substitutions_default fv && not (has_var_name substitutions (get_var_name substitutions_default fv))) free_variables_default)
+    in
+
+
+      (* Substitution of free variables. *)
+      let substitutions_branchs = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (List.concat ((List.map (fun (_, _, _, fv2, _) -> fv2) free_variable_names_branchs)) @ free_variable_names_default) in
+
+      (* Substitued free variables. *)
+      let free_variables_branchs = List.map (fun (n, k, fv2, _, substitutions_e2) -> n, k, List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in get_var_id substitutions_branchs fval else fv) fv2) free_variable_names_branchs in
+      let free_variables_default = List.map (fun fv -> if has_var_id substitutions_default fv then let fval = get_var_name substitutions_default fv in get_var_id substitutions_branchs fval else fv) free_variables_default in
+
 
       let var_match = inc vars in
-      to_cps conts3 kargs expr' var_match (If (var_match, matchs'''', (kdefault, kargs), [])) substitutions3
+      to_cps conts3 ((List.fold_left (fun acc (_,_,fv) -> acc@fv) free_variables_default free_variables_branchs)) expr' var_match (If (var_match, free_variables_branchs, (kdefault, free_variables_default), [])) substitutions_branchs
 ;;
 
 
