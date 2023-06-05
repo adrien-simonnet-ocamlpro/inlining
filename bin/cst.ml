@@ -18,6 +18,7 @@ type 'var expr =
   | Prim of Cps.prim * 'var expr list
   | If of 'var expr * 'var expr * 'var expr
   | Match of 'var expr * (match_pattern * 'var expr) list
+  | Match_pattern of 'var expr * (int * 'var list * 'var expr) list * 'var expr
 (*
   type ('var, 'e) expr' =
   | Var of 'var
@@ -402,7 +403,62 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
 
       let var_match = inc vars in
       to_cps conts3 ((List.fold_left (fun acc (_,_,fv) -> acc@fv) free_variables_default free_variables_branchs)) expr' var_match (If (var_match, free_variables_branchs, (kdefault, free_variables_default), [])) substitutions_branchs
-;;
+
+      | Match_pattern (expr', matchs, default) ->
+        let var_match = inc vars in
+
+        let fv0 = remove_var fv0 var in
+          let k_return = inc_conts () in
+          let conts = Cps.Let_cont (k_return, var :: fv0, expr, conts) in
+          
+          let kdefault, substitutions_default, free_variables_default, conts3 =
+
+    
+            let expr' = default in
+            let k = inc_conts () in
+            let v2 = inc vars in
+            let cps1, substitutions1, fv, conts1 =
+              to_cps conts fv0 expr' v2 (Apply_cont (k_return, v2::fv0, [])) []
+            in k, substitutions1, fv, Cps.Let_cont (k, fv, cps1, conts1) in
+              
+          let matchs' = matchs in
+    
+          let conts3, matchs'' = List.fold_left_map (fun conts3 (n, payload_values, e) -> begin
+
+             let k' = inc_conts () in
+             let v2 = inc vars in
+
+             let payload_substitutions = List.map (fun var -> var, inc vars) payload_values in
+             let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) payload_substitutions in
+
+             let branch_expr_with_payload = List.fold_left (fun cps ((_, pos), (_, substition)) -> Cps.Let (substition, Get (var_match, pos), cps)) cps1 (List.combine (List.mapi (fun i v -> v, i) payload_values) payload_substitutions) in
+
+             Let_cont (k', var_match::fv, branch_expr_with_payload, conts1), (n, k', fv, substitutions1)
+
+          end) conts3 matchs' in
+    
+          (* FVS NOT IMPLEMENTED *)
+    
+          (* Var names in branchs that are not substitued in the beginning of Match statement (free variables). *)
+          let free_variable_names_branchs = List.map (fun (n, k, fv2, substitutions2) -> n, k, fv2, List.map (fun fv -> get_var_name substitutions2 fv) (List.filter (fun fv -> has_var_id substitutions2 fv && not (has_var_name substitutions (get_var_name substitutions2 fv))) fv2), substitutions2) matchs''
+          in
+          let free_variable_names_default = List.map (fun fv -> get_var_name substitutions_default fv) (List.filter (fun fv -> has_var_id substitutions_default fv && not (has_var_name substitutions (get_var_name substitutions_default fv))) free_variables_default)
+        in
+    
+    
+          (* Substitution of free variables. *)
+          let substitutions_branchs = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (List.concat ((List.map (fun (_, _, _, fv2, _) -> fv2) free_variable_names_branchs)) @ free_variable_names_default) in
+    
+          (* Substitued free variables. *)
+          let free_variables_branchs = List.map (fun (n, k, fv2, _, substitutions_e2) -> n, k, var_match::(List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in get_var_id substitutions_branchs fval else fv) fv2)) free_variable_names_branchs in
+          let free_variables_default = List.map (fun fv -> if has_var_id substitutions_default fv then let fval = get_var_name substitutions_default fv in get_var_id substitutions_branchs fval else fv) free_variables_default in
+    
+    
+          to_cps conts3 ((List.fold_left (fun acc (_,_,fv) -> acc@fv) free_variables_default free_variables_branchs)) expr' var_match (If (var_match, free_variables_branchs, (kdefault, free_variables_default), [])) substitutions_branchs
+    
+
+
+    ;;
 
 
 let add_subs subs var = List.length subs, ( var, List.length subs )::subs

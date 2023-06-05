@@ -20,7 +20,9 @@ type 'var expr =
   | Prim of Cps.prim * 'var expr list
   | If of 'var expr * 'var expr * 'var expr
   | Match of 'var expr * (match_pattern * 'var expr) list
-(*
+  | Match_pattern of 'var expr * (match_pattern * 'var expr) list
+
+  (*
   type ('var, 'e) expr' =
   | Var of 'var
   | Let of 'var * 'e * 'e
@@ -103,7 +105,7 @@ let rec pattern_to_cst pattern: Cst.match_pattern =
   | Deconstructor _ -> Joker
   | Joker _ -> Joker
 
-and expr_to_cst (expr: var expr) (constructors: (int) Constructors.t): Cst.var Cst.expr =
+and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst.expr =
   match expr with
   | Fun (x, e) -> Fun (x, expr_to_cst e constructors)
   | Var x -> Var x
@@ -114,4 +116,19 @@ and expr_to_cst (expr: var expr) (constructors: (int) Constructors.t): Cst.var C
   | App (e1, e2) -> App (expr_to_cst e1 constructors, expr_to_cst e2 constructors)
   | Let_rec (bindings, e) -> Let_rec (List.map (fun (x, e') -> x, expr_to_cst e' constructors) bindings, expr_to_cst e constructors)
   | Match (x, branchs) -> Match (expr_to_cst x constructors, (List.map (fun (x, e') -> pattern_to_cst x, expr_to_cst e' constructors)) branchs)
+  | Match_pattern (x, branchs) -> 
+    let default_expr = if List.exists (fun (t, _) -> match t with | Joker _ -> true | _ -> false) branchs then 
+
+      let _, default_expr = List.find (fun (t, _) -> match t with
+        | Joker _ -> true | _ -> false) branchs in default_expr
+
+      else Var "MATCH FAILURE" in
+    
+    let branchs = List.map (fun (pattern, e') -> begin match pattern with
+    | Deconstructor (constructor_name, payload_values) -> let pattern_index = Constructors.find constructor_name constructors in pattern_index, payload_values, expr_to_cst e' constructors
+    | _ -> assert false
+    end) (List.filter (fun (pattern, _) -> match pattern with | Deconstructor _ -> true | _ -> false) branchs) in
+    
+
+    Match_pattern (expr_to_cst x constructors, branchs, expr_to_cst default_expr constructors)
 ;;
