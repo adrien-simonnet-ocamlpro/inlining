@@ -19,6 +19,7 @@ type 'var expr =
   | If of 'var expr * 'var expr * 'var expr
   | Match of 'var expr * (match_pattern * 'var expr) list
   | Match_pattern of 'var expr * (int * 'var list * 'var expr) list * 'var expr
+  | Tuple of 'var expr list
 (*
   type ('var, 'e) expr' =
   | Var of 'var
@@ -406,6 +407,9 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
 
       | Match_pattern (expr', matchs, default) ->
         let var_match = inc vars in
+        let var_match_index = inc vars in
+        let var_payload = inc vars in
+
 
         let fv0 = remove_var fv0 var in
           let k_return = inc_conts () in
@@ -431,9 +435,9 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
              let payload_substitutions = List.map (fun var -> var, inc vars) payload_values in
              let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) payload_substitutions in
 
-             let branch_expr_with_payload = List.fold_left (fun cps ((_, pos), (_, substition)) -> Cps.Let (substition, Get (var_match, pos), cps)) cps1 (List.combine (List.mapi (fun i v -> v, i) payload_values) payload_substitutions) in
+             let branch_expr_with_payload = List.fold_left (fun cps ((_, pos), (_, substition)) -> Cps.Let (substition, Get (var_payload, pos), cps)) cps1 (List.combine (List.mapi (fun i v -> v, i) payload_values) payload_substitutions) in
 
-             Let_cont (k', var_match::fv, branch_expr_with_payload, conts1), (n, k', fv, substitutions1)
+             Let_cont (k', var_payload::fv, branch_expr_with_payload, conts1), (n, k', fv, substitutions1)
 
           end) conts3 matchs' in
     
@@ -450,12 +454,20 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
           let substitutions_branchs = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_subs substitutions' fv (inc vars)) [] (List.concat ((List.map (fun (_, _, _, fv2, _) -> fv2) free_variable_names_branchs)) @ free_variable_names_default) in
     
           (* Substitued free variables. *)
-          let free_variables_branchs = List.map (fun (n, k, fv2, _, substitutions_e2) -> n, k, var_match::(List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in get_var_id substitutions_branchs fval else fv) fv2)) free_variable_names_branchs in
+          let free_variables_branchs = List.map (fun (n, k, fv2, _, substitutions_e2) -> n, k, List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in get_var_id substitutions_branchs fval else fv) fv2) free_variable_names_branchs in
           let free_variables_default = List.map (fun fv -> if has_var_id substitutions_default fv then let fval = get_var_name substitutions_default fv in get_var_id substitutions_branchs fval else fv) free_variables_default in
     
+
+
+          to_cps conts3 ((List.fold_left (fun acc (_,_,fv) -> acc@fv) free_variables_default free_variables_branchs)) expr' var_match (Cps.Let (var_match_index, Get (var_match, 0), (Cps.Let (var_payload, Get (var_match, 1), If (var_match_index, List.map (fun (n, k, fvs) -> n, k, var_payload::fvs) free_variables_branchs, (kdefault, free_variables_default), []))))) substitutions_branchs
     
-          to_cps conts3 ((List.fold_left (fun acc (_,_,fv) -> acc@fv) free_variables_default free_variables_branchs)) expr' var_match (If (var_match, free_variables_branchs, (kdefault, free_variables_default), [])) substitutions_branchs
-    
+          | Tuple args -> let vars = List.map (fun arg -> inc vars, arg) args in
+          List.fold_left
+            (fun (expr', substitutions', fv', conts') (var, e) ->
+              let cps1, substitutions1, fv1, conts1 = to_cps conts' fv' e var expr' substitutions' in
+              cps1, substitutions1, fv1, conts1)
+            (Let (var, Tuple (List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars)@(remove_var fv0 var), conts)
+            vars
 
 
     ;;

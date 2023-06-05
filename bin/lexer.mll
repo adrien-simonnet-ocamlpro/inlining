@@ -37,7 +37,8 @@ rule jetons = parse
 | "=" { EGAL }
 | "in" { IN }
 
-| "match" { MATCH }
+| "match_int" { MATCH }
+| "match" { MATCH_PATTERN }
 | "with" { WITH }
 
 | "type" { TYPE }
@@ -48,12 +49,13 @@ rule jetons = parse
 | "!" { EXCLAMATION }
 | ":=" { DEUX_POINTS_EGAL }*)
 
-(*| ":" { DEUX_POINTS }
+| ":" { DEUX_POINTS }
 | "," { VIRGULE }
-| "." { POINT }*)
+| "." { POINT }
 
 | "_" { JOKER }
 
+| ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as identificateur { CONSTRUCTOR_NAME (identificateur) }
 | ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as identificateur { IDENT (identificateur) }
 
 | [' ' '\t' '\n' '\r'] { jetons lexbuf }

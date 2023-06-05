@@ -11,8 +11,9 @@ type match_pattern =
 | Joker of string
 
 type 'var expr =
+  | Type of 'var * ('var * 'var) list * 'var expr
   | Var of 'var
-  | Constructor of string
+  | Constructor of string * ('var expr list)
   | Let of 'var * 'var expr * 'var expr
   | Let_rec of ('var * 'var expr) list * 'var expr
   | Fun of 'var * 'var expr
@@ -109,7 +110,7 @@ and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst
   match expr with
   | Fun (x, e) -> Fun (x, expr_to_cst e constructors)
   | Var x -> Var x
-  | Constructor str -> Prim (Const (Constructors.find str constructors), [])
+  | Constructor (str, exprs) -> let index = Constructors.find str constructors in Tuple [Prim (Const index, []); Tuple (List.map (fun expr -> expr_to_cst expr constructors) exprs)]
   | Prim (prim, args) -> Prim (prim, List.map (fun e' -> expr_to_cst e' constructors) args)
   | Let (var, e1, e2) -> Let (var, expr_to_cst e1 constructors, expr_to_cst e2 constructors)
   | If (cond, t, f) -> If (expr_to_cst cond constructors, expr_to_cst t constructors, expr_to_cst f constructors)
@@ -122,7 +123,7 @@ and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst
       let _, default_expr = List.find (fun (t, _) -> match t with
         | Joker _ -> true | _ -> false) branchs in default_expr
 
-      else Var "MATCH FAILURE" in
+      else Var "match_failure" in
     
     let branchs = List.map (fun (pattern, e') -> begin match pattern with
     | Deconstructor (constructor_name, payload_values) -> let pattern_index = Constructors.find constructor_name constructors in pattern_index, payload_values, expr_to_cst e' constructors
@@ -131,4 +132,8 @@ and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst
     
 
     Match_pattern (expr_to_cst x constructors, branchs, expr_to_cst default_expr constructors)
+
+
+    | Type (_, constructors', expr) -> expr_to_cst expr (List.fold_left (fun constructors'' ((constructor_name, _), index) -> Constructors.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors'))
+
 ;;

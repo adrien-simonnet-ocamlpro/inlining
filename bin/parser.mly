@@ -16,12 +16,13 @@
 %token IFZERO /*IFEMPTY*/ THEN ELSE WHILE
 
 %token<string> IDENT
+%token<string> CONSTRUCTOR_NAME
 
 %token FUN /*FIX*/ FLECHE
 
 %token LET REC AND IN EGAL
 
-%token MATCH WITH
+%token MATCH MATCH_PATTERN WITH
 
 %token JOKER
 
@@ -31,7 +32,7 @@
 
 //%token REF EXCLAMATION DEUX_POINTS_EGAL
 
-//%token DEUX_POINTS VIRGULE POINT
+%token DEUX_POINTS VIRGULE POINT
 
 %token EOF
 
@@ -78,15 +79,27 @@ terme :
 /*| IFEMPTY terme THEN terme ELSE terme { Ast.Ifempty ($2, $4, $6) }*/
 
 | i = IDENT { Ast.Var i }
+| constructor_name = CONSTRUCTOR_NAME { Ast.Constructor (constructor_name, []) }
+| constructor_name = CONSTRUCTOR_NAME expr = terme { Ast.Constructor (constructor_name, [expr]) }
+| constructor_name = CONSTRUCTOR_NAME PARENTHESE_OUVRANTE payload = payload_expr PARENTHESE_FERMANTE { Ast.Constructor (constructor_name, payload) }
 
 | FUN args = arguments { args }
 /*| FIX PARENTHESE_OUVRANTE IDENT FLECHE terme PARENTHESE_FERMANTE { Ast.Fix ($3, $5) }*/
 | e1 = terme e2 = terme %prec app { Ast.App (e1, e2) }
 
+| TYPE i = IDENT EGAL constructors = constructors IN expr = terme { Ast.Type (i, constructors, expr) }
+
 | LET REC bindings = bindings IN e2 = terme { Ast.Let_rec (bindings, e2) }
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
 
 | MATCH e = terme WITH ps = patterns { Ast.Match (e, ps) }
+| MATCH_PATTERN e = terme WITH ps = patterns { Ast.Match_pattern (e, ps) }
+
+constructors :
+| BARRE constructor_name = CONSTRUCTOR_NAME { [constructor_name, ""] }
+| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = IDENT { [constructor_name, constructor_type] }
+| BARRE constructor_name = CONSTRUCTOR_NAME constructors = constructors { (constructor_name, "")::constructors }
+| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = IDENT constructors = constructors { (constructor_name, constructor_type)::constructors }
 
 patterns :
 | BARRE p = pattern FLECHE e = terme { [p, e] }
@@ -95,7 +108,18 @@ patterns :
 pattern :
 | n = NAT { Ast.Int n }
 | i = IDENT { Ast.Joker i }
+| constructor_name = CONSTRUCTOR_NAME { Ast.Deconstructor (constructor_name, []) }
+| constructor_name = CONSTRUCTOR_NAME ident = IDENT { Ast.Deconstructor (constructor_name, [ident]) }
+| constructor_name = CONSTRUCTOR_NAME PARENTHESE_OUVRANTE payload = payload PARENTHESE_FERMANTE { Ast.Deconstructor (constructor_name, payload) }
 | JOKER { Ast.Joker "_" }
+
+payload :
+| ident = IDENT { [ident] }
+| ident = IDENT VIRGULE payload = payload { ident::payload }
+
+payload_expr :
+| expr = terme { [expr] }
+| expr = terme VIRGULE payload = payload_expr { expr::payload }
 
 bindings :
 | i = IDENT EGAL e1 = terme { [i, e1] }
