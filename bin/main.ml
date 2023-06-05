@@ -36,10 +36,11 @@ let _ =
     let source = Lexing.from_channel entree in
     try
       let ast = Parser.programme Lexer.jetons source in
+      let cst = Ast.expr_to_cst ast (Ast.Constructors.empty) in
       if !show_ast     
-      then let ast', subs, _ = Ast.alpha_conversion [] ast [] in Ast.print_expr_int ast' subs
+      then let ast', subs, _ = Cst.alpha_conversion [] cst [] in Cst.print_expr_int ast' subs
       else (
-        let cps, subs, fv, cont = Ast.to_cps (Cps.End) [] ast 0 (Return 0) [] in
+        let cps, subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
         let cps2 = if !prop then let analysis = Analysis.start_analysis cont' (List.map (fun _ -> Analysis.Int_domain (Int_domain.top)) fv) in
         Analysis.pp_analysis (Format.std_formatter) analysis; Propagation.propagation_cont cont' cont' analysis else cont' in

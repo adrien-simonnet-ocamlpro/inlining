@@ -94,7 +94,8 @@ patterns :
 
 pattern :
 | n = NAT { Ast.Int n }
-| JOKER { Ast.Joker }
+| i = IDENT { Ast.Joker i }
+| JOKER { Ast.Joker "_" }
 
 bindings :
 | i = IDENT EGAL e1 = terme { [i, e1] }
