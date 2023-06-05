@@ -365,19 +365,18 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
       let matchs' = List.filter (fun (t, _) -> match t with
       | Int _ -> true | Joker -> false) matchs in
 
-      let conts3, matchs'' = List.fold_left (fun (conts3, matchs''') (pattern, e) -> begin
+      let conts3, matchs'' = List.fold_left_map (fun conts3 (pattern, e) -> begin
         match pattern with
         | Int n ->
          let k' = inc_conts () in
          let v2 = inc vars in
          let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) [] in
-         Cps.Let_cont (k', fv, cps1, conts1), (n, k', fv, substitutions1)::matchs'''
+         Cps.Let_cont (k', fv, cps1, conts1), (n, k', fv, substitutions1)
          
-         | _ -> (conts3, matchs''')
-      end) (conts3, []) matchs' in
+         | _ -> assert false
+      end) conts3 matchs' in
 
       (* FVS NOT IMPLEMENTED *)
-      let matchs'' = List.rev matchs'' in
       let matchs'''' = List.map (fun (n, k', fv, _) -> (n, k', fv)) matchs'' in
 
       let var_match = inc vars in
