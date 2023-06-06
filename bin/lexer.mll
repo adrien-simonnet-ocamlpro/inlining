@@ -44,6 +44,7 @@ rule jetons = parse
 | "type" { TYPE }
 | "of" { OF }
 | "|" { BARRE }
+| "*" { ASTERISQUE }
 
 (*| "ref" { REF }
 | "!" { EXCLAMATION }

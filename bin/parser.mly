@@ -28,6 +28,8 @@
 
 %token TYPE OF
 
+%token ASTERISQUE
+
 %token BARRE
 
 //%token REF EXCLAMATION DEUX_POINTS_EGAL
@@ -87,7 +89,7 @@ terme :
 /*| FIX PARENTHESE_OUVRANTE IDENT FLECHE terme PARENTHESE_FERMANTE { Ast.Fix ($3, $5) }*/
 | e1 = terme e2 = terme %prec app { Ast.App (e1, e2) }
 
-| TYPE i = IDENT EGAL constructors = constructors IN expr = terme { Ast.Type (i, constructors, expr) }
+| TYPE i = IDENT EGAL constructors = constructors expr = terme { Ast.Type (i, constructors, expr) }
 
 | LET REC bindings = bindings IN e2 = terme { Ast.Let_rec (bindings, e2) }
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
@@ -97,9 +99,16 @@ terme :
 
 constructors :
 | BARRE constructor_name = CONSTRUCTOR_NAME { [constructor_name, ""] }
-| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = IDENT { [constructor_name, constructor_type] }
+| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = constructor_type { [constructor_name, constructor_type] }
 | BARRE constructor_name = CONSTRUCTOR_NAME constructors = constructors { (constructor_name, "")::constructors }
-| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = IDENT constructors = constructors { (constructor_name, constructor_type)::constructors }
+| BARRE constructor_name = CONSTRUCTOR_NAME OF constructor_type = constructor_type constructors = constructors { (constructor_name, constructor_type)::constructors }
+
+constructor_type :
+| t = ttype { t }
+| t = ttype ASTERISQUE constructor_type = constructor_type { t ^ "*" ^ constructor_type }
+
+ttype :
+| ident = IDENT { ident }
 
 patterns :
 | BARRE p = pattern FLECHE e = terme { [p, e] }
