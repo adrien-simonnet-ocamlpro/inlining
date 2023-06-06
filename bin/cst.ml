@@ -472,10 +472,13 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
              let k' = inc_conts () in
              let v2 = inc vars in
 
-             let payload_substitutions = List.map (fun var -> var, inc vars) payload_values in
-             let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) payload_substitutions in
+             let cps1, substitutions1, fv, conts1 = to_cps conts3 (v2::fv0) e v2 (Apply_cont (k_return, v2::fv0, [])) [] in
 
-             let branch_expr_with_payload = List.fold_left (fun cps ((_, pos), (_, substition)) -> Cps.Let (substition, Get (var_payload, pos), cps)) cps1 (List.combine (List.mapi (fun i v -> v, i) payload_values) payload_substitutions) in
+             let payload_substitutions = List.map (fun payload_value -> if has_var_name substitutions1 payload_value then get_var_id substitutions1 payload_value else inc vars) payload_values in
+
+             let fv = List.filter (fun fv' -> not (List.mem fv' payload_substitutions)) fv in
+
+             let branch_expr_with_payload = List.fold_left (fun cps ((_, pos), substition) -> Cps.Let (substition, Get (var_payload, pos), cps)) cps1 (List.combine (List.mapi (fun i v -> v, i) payload_values) payload_substitutions) in
 
              Let_cont (k', var_payload::fv, branch_expr_with_payload, conts1), (n, k', fv, substitutions1)
 
