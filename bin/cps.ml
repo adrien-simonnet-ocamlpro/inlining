@@ -33,6 +33,7 @@ type named =
   
   | Environment of var list
   | Tag of tag
+  | Constructor of int * var
 
 and expr =
   | Let of var * named * expr
@@ -74,11 +75,11 @@ let rec print_args ?(empty="()") args subs =
   | [arg] -> gen_name arg subs
   | arg::args' -> (gen_name arg subs) ^ " " ^ print_args args' subs
 
-let rec pp_args subs empty fmt args =
+let rec pp_args ?(split=" ") subs empty fmt args =
   match args with
   | [] -> Format.fprintf fmt empty
   | [arg] -> Format.fprintf fmt "%s" (gen_name arg subs)
-  | arg::args' -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args subs empty) args'
+  | arg::args' -> Format.fprintf fmt "%s%s%a" (gen_name arg subs) split (pp_args subs empty) args'
 
 let rec pp_prim subs fmt (prim : prim) args =
   match prim, args with
@@ -92,12 +93,13 @@ and pp_named subs fmt named =
 match named with
 | Prim (prim, args) -> pp_prim subs fmt prim args
 | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
-| Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args subs "") args
+| Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split:"; " subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
 (*TODO*)
 | Closure (k, env) -> Format.fprintf fmt "Closure (Function k%d, %s)" k (gen_name env subs)
-| Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args subs "") args
+| Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args ~split:"; " subs "") args
 | Tag x -> Format.fprintf fmt "Tag %d" x
+| Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, %s)" tag (gen_name env subs)
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with

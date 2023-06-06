@@ -43,6 +43,7 @@ and propagation_named (named : named) (env : env_domain) : named * value_domain 
     (*TODO*)
     | Environment vars -> Tuple vars, Tuple_domain (List.map (fun var' -> get env var') vars)
     | Tag x -> Tag x, Int_domain (Int_domain.singleton x)
+    | Constructor (tag, environment_id) -> Constructor (tag, environment_id), Tuple_domain [Pointer_domain (Pointer_domain.singleton tag); get env environment_id]
 
 and propagation (cps : expr) (env: env_domain) (conts : cont) : expr =
   match cps with

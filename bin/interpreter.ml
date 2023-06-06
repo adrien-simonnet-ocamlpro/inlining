@@ -56,6 +56,7 @@ and interp_named var (named : named) (env : (var * value) list) =
   (*TODO*)
   | Environment args -> [var, Tuple (List.map (fun arg -> get env arg) args)]
   | Tag x -> [ var, Int x ]
+  | Constructor (tag, environment_id) -> [var, Tuple [Int tag; get env environment_id]]
 
 and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
 

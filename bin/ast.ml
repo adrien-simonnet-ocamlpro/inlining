@@ -110,7 +110,7 @@ and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst
   match expr with
   | Fun (x, e) -> Fun (x, expr_to_cst e constructors)
   | Var x -> Var x
-  | Constructor (str, exprs) -> let index = Constructors.find str constructors in Tuple [Prim (Const index, []); Tuple (List.map (fun expr -> expr_to_cst expr constructors) exprs)]
+  | Constructor (str, exprs) -> let index = Constructors.find str constructors in Constructor (index, List.map (fun expr -> expr_to_cst expr constructors) exprs)
   | Prim (prim, args) -> Prim (prim, List.map (fun e' -> expr_to_cst e' constructors) args)
   | Let (var, e1, e2) -> Let (var, expr_to_cst e1 constructors, expr_to_cst e2 constructors)
   | If (cond, t, f) -> If (expr_to_cst cond constructors, expr_to_cst t constructors, expr_to_cst f constructors)

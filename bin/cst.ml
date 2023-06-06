@@ -20,6 +20,8 @@ type 'var expr =
   | Match of 'var expr * (match_pattern * 'var expr) list
   | Match_pattern of 'var expr * (int * 'var list * 'var expr) list * 'var expr
   | Tuple of 'var expr list
+  | Constructor of int * 'var expr list
+
 (*
   type ('var, 'e) expr' =
   | Var of 'var
@@ -512,6 +514,14 @@ let rec to_cps conts fv0 (ast : 'var expr) var (expr : Cps.expr) (substitutions 
             (Let (var, Tuple (List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars)@(remove_var fv0 var), conts)
             vars
 
+            | Constructor (tag, args) -> let env_variable = inc vars in
+              let vars = List.map (fun arg -> inc vars, arg) args in
+          List.fold_left
+            (fun (expr', substitutions', fv', conts') (var, e) ->
+              let cps1, substitutions1, fv1, conts1 = to_cps conts' fv' e var expr' substitutions' in
+              cps1, substitutions1, fv1, conts1)
+              (Let (env_variable, Environment (List.map (fun (var, _) -> var) vars), (Let (var, Constructor (tag, env_variable), expr))), substitutions, (List.map (fun (var, _) -> var) vars)@(remove_var fv0 var), conts)
+            vars
 
     ;;
 

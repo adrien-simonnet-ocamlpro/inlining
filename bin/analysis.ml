@@ -84,6 +84,7 @@ let analysis_named (named : named) (env : env_domain) : value_domain =
   (* TODO *)
   | Environment vars -> Tuple_domain (map_args vars env)
   | Tag x -> Int_domain (Int_domain.singleton x)
+  | Constructor (tag, environment_id) -> Tuple_domain [Int_domain (Int_domain.singleton tag); get env environment_id]
 
 let rec analysis_cont (cps: expr) (stack: ((pointer * value_domain list) list)) (env: (address * value_domain) list) : (pointer * value_domain list * ((pointer * value_domain list) list)) list =
   match cps with

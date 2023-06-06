@@ -30,6 +30,7 @@ let rec elim_unused_vars_named (vars : int array) conts (named : named)
     Array.set vars arg (Array.get vars arg + 1))
   args; Environment args
   | Tag x -> Tag x
+  | Constructor (tag, environment_id) -> Array.set vars tag (Array.get vars tag + 1); Constructor (tag, environment_id)
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
   match cps with

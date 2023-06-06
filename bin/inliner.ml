@@ -24,6 +24,7 @@ let rec inline_named (named : named) (env : (var * var) list) : named =
   (*TODO*)
   | Environment args -> Environment (List.map (fun arg -> get env arg) args)
   | Tag x -> Tag x
+  | Constructor (tag, environment_id) -> Constructor (tag, get env environment_id)
 
 and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
 
