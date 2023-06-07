@@ -79,7 +79,7 @@ let rec pp_args ?(split=" ") subs empty fmt args =
   match args with
   | [] -> Format.fprintf fmt empty
   | [arg] -> Format.fprintf fmt "%s" (gen_name arg subs)
-  | arg::args' -> Format.fprintf fmt "%s%s%a" (gen_name arg subs) split (pp_args subs empty) args'
+  | arg::args' -> Format.fprintf fmt "%s%s%a" (gen_name arg subs) split (pp_args ~split subs empty) args'
 
 let rec pp_prim subs fmt (prim : prim) args =
   match prim, args with
