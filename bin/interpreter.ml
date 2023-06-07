@@ -25,21 +25,21 @@ let rec interp_prim var (prim : prim) args (env : (var * value) list) =
      | Int n1 ->
        (match get env x2 with
         | Int n2 -> [ var, Int (n1 + n2) ]
-        | _ -> failwith "invalid type")
-     | _ -> failwith "invalid type")
+        | _ -> assert false)
+     | _ -> assert false)
   | Sub, x1 :: x2 :: _ ->
       (match (get env x1 : value) with
        | Int n1 ->
          (match get env x2 with
           | Int n2 -> [ var, Int (n1 - n2) ]
-          | _ -> failwith "invalid type")
-       | _ -> failwith "invalid type")
+          | _ -> assert false)
+       | _ -> assert false)
   | Print, x1 :: _ ->
     (match (get env x1 : value) with
      | Int n ->
        Printf.printf "%d\n" n;
        []
-     | _ -> failwith "invalid type")
+     | _ -> assert false)
   | _ -> failwith "invalid args"
 
 and interp_named var (named : named) (env : (var * value) list) =
@@ -50,7 +50,7 @@ and interp_named var (named : named) (env : (var * value) list) =
   | Get (record, pos) -> begin
     match get env record with
     | Tuple (values) -> [var, List.nth values pos]
-    | _ -> failwith "invalid type"
+    | _ -> assert false
     end
   | Closure (k, x) -> [var, Tuple [Int k; get env x]]
   (*TODO*)
@@ -71,7 +71,7 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
           | Some (_, kt, argst) -> interp stack (Apply_cont (kt, argst, stack')) env conts
           | None -> interp stack (Apply_cont (kf, argsf, stack')) env conts
           end
-        | _ -> failwith "invalid type"
+        | _ -> assert false
       end
     | Return v -> begin
       match stack with
