@@ -53,9 +53,9 @@
 %left app
 %left PRINT
 
-%start <string Ast.expr> programme
+%start <Ast.expr> programme
 
-%type <string Ast.expr> terme
+%type <Ast.expr> terme
 
 %%
 

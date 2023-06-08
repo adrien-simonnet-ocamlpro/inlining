@@ -38,7 +38,7 @@ let _ =
       let ast = Parser.programme Lexer.jetons source in
       let cst = Ast.expr_to_cst ast (Ast.Constructors.empty) in
       if !show_ast     
-      then let ast', subs, _ = Cst.alpha_conversion [] cst [] in Cst.print_expr_int ast' subs
+      then Ast.print_expr ast
       else (
         let cps, subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
