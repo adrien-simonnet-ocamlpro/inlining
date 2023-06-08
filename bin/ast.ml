@@ -123,7 +123,7 @@ and expr_to_cst (expr: var expr) (constructors: int Constructors.t): Cst.var Cst
       let _, default_expr = List.find (fun (t, _) -> match t with
         | Joker _ -> true | _ -> false) branchs in default_expr
 
-      else Var "match_failure" in
+      else Prim (Print, [Prim (Const 123456789, [])]) in
     
     let branchs = List.map (fun (pattern, e') -> begin match pattern with
     | Deconstructor (constructor_name, payload_values) -> let pattern_index = Constructors.find constructor_name constructors in pattern_index, payload_values, expr_to_cst e' constructors
