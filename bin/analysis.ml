@@ -219,4 +219,4 @@ and pp_env empty fmt args =
 let pp_allocations fmt (allocations: value_domain Allocations.t) =
   Allocations.iter (fun i v -> Format.fprintf fmt "%d: %a\n" i pp_value_domain v) allocations
 
-let pp_analysis fmt (map: (value_domain Allocations.t * Values.t list) Analysis.t) = Format.fprintf fmt "Analysis:\n"; Analysis.iter (fun k (allocations, env) -> Format.fprintf fmt "%d: Allocations: %a\nArguments: %a\n" k pp_allocations allocations (pp_env "") env) map
+let pp_analysis fmt (map: (value_domain Allocations.t * Values.t list) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, env) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k (pp_env "") env pp_allocations allocations) map
