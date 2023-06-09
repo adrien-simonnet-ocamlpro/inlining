@@ -42,8 +42,8 @@ let _ =
       else (
         let cps, subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in
-        let cps2 = if !prop then let analysis = Analysis.start_analysis cont' (List.map (fun _ -> Analysis.Int_domain (Int_domain.top)) fv) in
-        Analysis.pp_analysis (Format.std_formatter) analysis; Propagation.propagation_cont cont' cont' analysis else cont' in
+        let cps2 = if !prop then let analysis = Analysis.start_analysis cont' [] in
+        Analysis.pp_analysis (Format.std_formatter) analysis; cont' (*Propagation.propagation_cont cont' cont' analysis*) else cont' in
         let cps3 =
           if !unused_vars
           then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 1000 0) cps2 in cps

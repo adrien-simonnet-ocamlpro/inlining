@@ -11,5 +11,6 @@ let get_singleton set = Pointer.min_elt set
 let join = Pointer.union
 
 let to_list = Pointer.elements
+let of_list = Pointer.of_list
 
 let pp fmt d = Format.fprintf fmt "{ "; Pointer.iter (fun k -> Format.fprintf fmt "k%d " k) d; Format.fprintf fmt "}"
