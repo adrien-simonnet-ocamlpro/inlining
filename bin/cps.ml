@@ -40,20 +40,37 @@ and expr =
 
 type cont =
 | Let_cont of pointer * var list * expr * cont
+| Let_clos of pointer * var list * var list * expr * cont
 | End
 
 let rec has_cont cont k =
   match cont with
   | Let_cont (k', _, _, _) when k = k' -> true
   | Let_cont (_, _, _, e2) -> has_cont e2 k
+  | Let_clos (_, _, _, _, e2) -> has_cont e2 k
   | End -> false
 
 let rec get_cont cont k =
 match cont with
 | Let_cont (k', args, e1, _) when k = k' -> args, e1
 | Let_cont (_, _, _, e2) -> get_cont e2 k
+| Let_clos (_, _, _, _, e2) -> get_cont e2 k
 | End -> failwith "cont not found"
 
+let rec has_clos cont k =
+  match cont with
+  | Let_clos (k', _, _, _, _) when k = k' -> true
+  | Let_clos (_, _, _, _, e2) -> has_clos e2 k
+  | Let_cont (_, _, _, e2) -> has_clos e2 k
+  | End -> false
+
+let rec get_clos cont k =
+  match cont with
+  | Let_clos (k', env, args, e1, _) when k = k' -> env, args, e1
+  | Let_clos (_, _, _, _, e2) -> get_clos e2 k
+  | Let_cont (_, _, _, e2) -> get_clos e2 k
+  | End -> failwith "clos not found"
+  
 type 'a map = (var * 'a) list
 
 
@@ -118,15 +135,27 @@ and pp_expr subs fmt (cps : expr) : unit =
   
   and pp_cont subs fmt (cps : cont) : unit =
   match cps with
-  | Let_cont (k, args, e1, Let_cont (k', args', e1', e2')) ->
-    Format.fprintf fmt "k%d %a =\n%a\nand %a%!" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) (Let_cont (k', args', e1', e2'))
   | Let_cont (k, args, e1, End) ->
     Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_args subs "()") args (pp_expr subs) e1
+  | Let_cont (k, args, e1, cont) ->
+    Format.fprintf fmt "k%d %a =\n%a\nand %a%!" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) cont
+  | Let_clos (k, env, args, e1, End) ->
+    Format.fprintf fmt "k%d [%a] %a =\n%a\n%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1
+  | Let_clos (k, env, args, e1, cont) ->
+    Format.fprintf fmt "k%d [%a] %a =\n%a\nand %a%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) cont
   | End -> Format.fprintf fmt "()%!"
 
 let print_prog subs e = pp_cont subs Format.std_formatter e
 
 let map_values args values = List.map2 (fun arg value -> arg, value) args values
+
+let vars = ref 10000000
+
+let inc vars =
+  vars := !vars + 1;
+  !vars
+;;
+
 
 let named_to_asm (named : named) : Asm.named =
   match named with
@@ -142,16 +171,21 @@ let named_to_asm (named : named) : Asm.named =
 
 let rec expr_to_asm (cps : expr) : Asm.expr =
     match cps with
-    | Let (var, Closure (k, environment_id), expr) -> Let (1000000, Pointer k, Let (1000001, Tuple environment_id, Let (var, Tuple [1000000; 1000001], expr_to_asm expr)))
-    | Let (var, Constructor (tag, environment_id), expr) -> Let (1000000, Prim (Const tag, []), Let (var, Tuple [1000000; environment_id], expr_to_asm expr))
+    | Let (var, Closure (k, environment_id), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Pointer k, Let (v2, Tuple environment_id, Let (var, Tuple [v1; v2], expr_to_asm expr)))
+    | Let (var, Constructor (tag, environment_id), expr) -> let v1 = inc vars in Let (v1, Prim (Const tag, []), Let (var, Tuple [v1; environment_id], expr_to_asm expr))
     | Let (var, named, expr) -> Let (var, named_to_asm named, expr_to_asm expr)
     | Apply_cont (k, args, stack) -> Apply_cont (k, args, stack)
     | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
     | Return v -> Return v
-    | Call (x, args, stack) -> Call (x, args, stack)
+    | Call (x, args, stack) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Get (x, 0), Let (v2, Get (x, 1), Call (v1, v2::args, stack)))
 
 let rec cont_to_asm (cps : cont) : Asm.cont =
   match cps with
       | Let_cont (k', args', e1, e2) -> Let_cont (k', args', expr_to_asm e1, cont_to_asm e2)
+      | Let_clos (k', body_free_variables, args', e1, e2) -> begin
+          let environment_id = inc vars in
+          let _, body = List.fold_left (fun (pos, cps') body_free_variable -> pos + 1, Asm.Let (body_free_variable, Asm.Get (environment_id, pos), cps')) (0, (expr_to_asm e1)) body_free_variables in
+          Let_cont (k', environment_id::args', body, cont_to_asm e2)
+        end
       | End -> End
   ;;

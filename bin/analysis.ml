@@ -39,6 +39,7 @@ let get2 env var =
 ;;
 
 let get_cont = Cps.get_cont
+let get_clos = Cps.get_clos
 
 let map_values = Cps.map_values
 
@@ -106,6 +107,10 @@ let map_args2 (args: var list) (env: (address * Values.t) list) = List.map (fun 
 
 let map_stack2 (stack: stack) (env) = List.map (fun (k'', args') -> k'', map_args2 args' env) stack
 
+type cont_type =
+| Cont of int
+| Clos of int * Values.t list
+
 let analysis_named (named : named) (env: (address * Values.t) list) (allocations: value_domain Allocations.t) : value_domain =
   match named with
   | Var var' -> get env var' allocations
@@ -134,37 +139,37 @@ let add_alloc var new_value map = Allocations.update var (fun value -> begin
     | None -> Some new_value
   end) map
 
-let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): (pointer * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list =
+let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): (cont_type * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list =
   match cps with
   | Let (var, named, expr) -> begin
       let value = analysis_named named env allocations in
       analysis_cont expr stack ((var, Values.singleton var)::env) (add_alloc var value allocations)
     end
-  | Apply_cont (k', args, stack') -> [k', map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+  | Apply_cont (k', args, stack') -> [Cont k', map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
   | If (var, matchs, (kf, argsf), stack') -> 
     if has env var then begin
       match get env var allocations with
       | Int_domain i when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
-        | None -> [kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | None -> [Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
         end
-      | Int_domain _ -> (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+      | Int_domain _ -> (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
       | Pointer_domain i when Pointer_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Pointer_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
-        | None -> [kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | None -> [Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
         end
-      | Pointer_domain _ -> (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+      | Pointer_domain _ -> (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
       | _ -> assert false
-    end else (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+    end else (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
   | Return x -> begin match stack with
       | [] -> []
-      | (k, args)::stack' -> [k, (Env.get2 env x)::args, stack', allocations]
+      | (k, args)::stack' -> [Cont k, (Env.get2 env x)::args, stack', allocations]
     end
   | Call (x, args, stack') -> begin
     match get env x allocations with
-    | Pointer_domain d -> List.map (fun k -> k, map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) (Pointer_domain.to_list d)
+    | Closure_domain clos -> List.map (fun (k, env') -> Clos (k, env'), map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) (Closures.bindings clos)
     | _ -> assert false end
 
 
@@ -177,10 +182,10 @@ let get3 env var allocations =
   | None -> assert false
 ;;
 
-let rec analysis (conts: (pointer * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * Values.t list) list) Analysis.t) : (value_domain Allocations.t * Values.t list) Analysis.t =
+let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * Values.t list) list) Analysis.t) : (value_domain Allocations.t * Values.t list) Analysis.t =
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> if acc = [] then allocations, new_env else Allocations.union (fun _ value1 value2 -> Some (join_values value1 value2)) allocs allocations,  List.map2 Values.union acc new_env) (Allocations.empty, []) contexts) map
-  | (k, env, stack, allocations)::conts' ->
+  | (Cont k, env, stack, allocations)::conts' ->
     if Analysis.mem k map then 
       let old_context = Analysis.find k map in
       if has3 old_context stack allocations then
@@ -199,8 +204,28 @@ let rec analysis (conts: (pointer * Values.t list * ((pointer * Values.t list) l
       let args, cont = get_cont prog k in
       let next_conts = analysis_cont cont stack (map_values args env) allocations in
       analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
+  | (Clos (k, clos_env), env, stack, allocations)::conts' ->
+    let env = clos_env @ env in
+    if Analysis.mem k map then
+      let old_context = Analysis.find k map in
+      if has3 old_context stack allocations then
+        let old_env = get3 old_context stack allocations in
+        let new_env = join_env old_env env in
+        if new_env = old_env
+          then analysis conts' prog map
+          else let environment, args, cont = get_clos prog k in
+            let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
+            analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),new_env)::old_context) map)
+      else
+        let environment, args, cont = get_clos prog k in
+        let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
+        analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
+    else
+      let environment, args, cont = get_clos prog k in
+      let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
+      analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
 
-let start_analysis prog args = analysis [0, args, [], Allocations.empty] prog (Analysis.empty)
+let start_analysis prog args = analysis [Cont 0, args, [], Allocations.empty] prog (Analysis.empty)
 
 
 let pp_alloc fmt (alloc: Values.t) =
