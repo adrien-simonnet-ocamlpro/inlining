@@ -92,12 +92,12 @@ let analysis_prim (prim : prim) args (env: (address * Values.t) list) (allocatio
   | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
       | Int_domain d1, Int_domain d2 when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)))
       | Int_domain _, Int_domain _ -> Int_domain (Int_domain.top)
-      | _ -> failwith "invalid type"
+      | _ -> assert false
     end
   | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
     | Int_domain d1, Int_domain d2 when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)))
     | Int_domain _, Int_domain _ -> Int_domain (Int_domain.top)
-    | _ -> failwith "invalid type"
+    | _ -> assert false
   end
   | Print, _ :: _ -> Int_domain (Int_domain.top)
   | _ -> failwith "invalid args"
@@ -154,7 +154,13 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
         | None -> [kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
         end
       | Int_domain _ -> (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
-      | _ -> failwith "invalid type"
+      | Pointer_domain i when Pointer_domain.is_singleton i -> begin
+        match List.find_opt (fun (n', _, _) -> Pointer_domain.get_singleton i = n') matchs with
+        | Some (_, kt, argst) -> [kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | None -> [kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        end
+      | Pointer_domain _ -> (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+      | _ -> assert false
     end else (kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
   | Return x -> begin match stack with
       | [] -> []
@@ -163,7 +169,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
   | Call (x, args, stack') -> begin
     match get env x allocations with
     | Pointer_domain d -> List.map (fun k -> k, map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) (Pointer_domain.to_list d)
-    | _ -> failwith "invalid type" end
+    | _ -> assert false end
 
 
 
