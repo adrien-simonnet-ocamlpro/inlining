@@ -18,18 +18,18 @@ type frame = pointer * var list
 
 type stack = frame list
 
-type prim = Asm.prim
+type prim =
+  | Add
+  | Sub
+  | Const of int
+  | Print
 
 type named =
   | Prim of prim * var list
   | Var of var
   | Tuple of var list
   | Get of var * int
-  | Closure of pointer * var list
-  
-  | Environment of var list
-  | Tag of tag
-  | Constructor of int * var
+  | Pointer of int
 
 and expr =
   | Let of var * named * expr
@@ -92,10 +92,7 @@ match named with
 | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split:"; " subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
 (*TODO*)
-| Closure (k, env) -> Format.fprintf fmt "Closure (Function k%d, [%a])" k (pp_args ~split:"; " subs "") env
-| Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args ~split:"; " subs "") args
-| Tag x -> Format.fprintf fmt "Tag %d" x
-| Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, %s)" tag (gen_name env subs)
+| Pointer x -> Format.fprintf fmt "Function %d" x
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with
@@ -127,31 +124,3 @@ and pp_expr subs fmt (cps : expr) : unit =
 let print_prog subs e = pp_cont subs Format.std_formatter e
 
 let map_values args values = List.map2 (fun arg value -> arg, value) args values
-
-let named_to_asm (named : named) : Asm.named =
-  match named with
-  | Prim (prim, args) -> Prim (prim, args)
-  | Var x -> Var x
-  | Tuple args -> Tuple args
-  | Get (record, pos) -> Get (record, pos)
-  | Closure (_k, _x) -> assert false
-  (*TODO*)
-  | Environment args -> Tuple args
-  | Tag x -> Prim (Const x, [])
-  | Constructor (_tag, _environment_id) -> assert false
-
-let rec expr_to_asm (cps : expr) : Asm.expr =
-    match cps with
-    | Let (var, Closure (k, environment_id), expr) -> Let (1000000, Pointer k, Let (1000001, Tuple environment_id, Let (var, Tuple [1000000; 1000001], expr_to_asm expr)))
-    | Let (var, Constructor (tag, environment_id), expr) -> Let (1000000, Prim (Const tag, []), Let (var, Tuple [1000000; environment_id], expr_to_asm expr))
-    | Let (var, named, expr) -> Let (var, named_to_asm named, expr_to_asm expr)
-    | Apply_cont (k, args, stack) -> Apply_cont (k, args, stack)
-    | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
-    | Return v -> Return v
-    | Call (x, args, stack) -> Call (x, args, stack)
-
-let rec cont_to_asm (cps : cont) : Asm.cont =
-  match cps with
-      | Let_cont (k', args', e1, e2) -> Let_cont (k', args', expr_to_asm e1, cont_to_asm e2)
-      | End -> End
-  ;;

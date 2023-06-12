@@ -1,16 +1,16 @@
-type prim = Cps.prim
-type named = Cps.named
-type pointer = Cps.pointer
-type expr = Cps.expr
-type address = Cps.address
-type cont = Cps.cont
+type prim = Asm.prim
+type named = Asm.named
+type pointer = Asm.pointer
+type expr = Asm.expr
+type address = Asm.address
+type cont = Asm.cont
 
-type var = Cps.var
+type var = Asm.var
 
 let has = Env.has
 
 let get = Env.get2
-let get_cont = Cps.get_cont
+let get_cont = Asm.get_cont
 
 let get env arg = if has env arg then get env arg else arg
 
@@ -20,11 +20,7 @@ let rec inline_named (named : named) (env : (var * var) list) : named =
   | Var x -> Var (get env x)
   | Tuple (args) -> Tuple (List.map (fun arg -> get env arg) args)
   | Get (record, pos) -> Get (get env record, pos)
-  | Closure (k, x) -> Closure (k, get env x)
-  (*TODO*)
-  | Environment args -> Environment (List.map (fun arg -> get env arg) args)
-  | Tag x -> Tag x
-  | Constructor (tag, environment_id) -> Constructor (tag, get env environment_id)
+  | Pointer k -> Pointer k
 
 and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) list) (conts : cont): expr =
 

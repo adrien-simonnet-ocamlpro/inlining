@@ -2,18 +2,18 @@ type value =
   | Int of int
   | Tuple of value list
 
-type var = Cps.var
+type var = Asm.var
 
-type 'a map = 'a Cps.map
+type 'a map = 'a Asm.map
 
 type env = value map
 
-type prim = Cps.prim
-type named = Cps.named
-type pointer = Cps.pointer
-type expr = Cps.expr
-type address = Cps.address
-type cont = Cps.cont
+type prim = Asm.prim
+type named = Asm.named
+type pointer = Asm.pointer
+type expr = Asm.expr
+type address = Asm.address
+type cont = Asm.cont
 
 let get = Env.get2
 
@@ -52,11 +52,7 @@ and interp_named var (named : named) (env : (var * value) list) =
     | Tuple (values) -> [var, List.nth values pos]
     | _ -> assert false
     end
-  | Closure (k, x) -> [var, Tuple [Int k; get env x]]
-  (*TODO*)
-  | Environment args -> [var, Tuple (List.map (fun arg -> get env arg) args)]
-  | Tag x -> [ var, Int x ]
-  | Constructor (tag, environment_id) -> [var, Tuple [Int tag; get env environment_id]]
+  | Pointer k -> [ var, Int k ]
 
 and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
 

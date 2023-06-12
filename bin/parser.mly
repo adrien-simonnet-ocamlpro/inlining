@@ -65,11 +65,11 @@ terme :
 /*| PARENTHESE_OUVRANTE PARENTHESE_FERMANTE { Ast.Unit }*/
 | PARENTHESE_OUVRANTE e = terme PARENTHESE_FERMANTE { e }
 
-| NAT { Ast.Prim (Cps.Const $1, []) }
-| e1 = terme PLUS e2 = terme { Ast.Prim (Cps.Add, [e1; e2]) }
-| e1 = terme MOINS e2 = terme { Ast.Prim (Cps.Sub, [e1; e2]) }
+| NAT { Ast.Prim (Asm.Const $1, []) }
+| e1 = terme PLUS e2 = terme { Ast.Prim (Asm.Add, [e1; e2]) }
+| e1 = terme MOINS e2 = terme { Ast.Prim (Asm.Sub, [e1; e2]) }
 
-| PRINT e = terme { Ast.Prim (Cps.Print, [e]) }
+| PRINT e = terme { Ast.Prim (Asm.Print, [e]) }
 
 /*| NIL { Ast.Nil }
 | CONS terme terme { Ast.Cons ($2, $3) }

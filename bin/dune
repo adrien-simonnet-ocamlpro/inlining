@@ -1,7 +1,7 @@
 (executable
  (public_name cps)
  (name main)
- (modules int_domain pointer_domain ast cst cps analysis propagation inliner cleaner interpreter lexer main parser env)
+ (modules int_domain pointer_domain ast cst cps asm analysis propagation inliner cleaner interpreter lexer main parser env)
  (libraries cps))
 
 (ocamllex lexer)

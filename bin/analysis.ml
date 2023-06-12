@@ -118,11 +118,7 @@ let analysis_named (named : named) (env: (address * Values.t) list) (allocations
       | Closure_domain clos when pos = 1 -> Tuple_domain (Closures.fold (fun _ values value -> List.map2 Values.union values value) clos (snd (Closures.choose clos)))
       | _ -> assert false
     end
-  | Closure (_k, _var') -> begin
-      match get env _var' allocations with
-      | Tuple_domain values -> Closure_domain (Closures.singleton _k values)
-      | _ -> assert false
-    end  (*Tuple_domain [Pointer_domain (Pointer_domain.singleton k); Env.get2 env var']*)
+  | Closure (k, values) -> Closure_domain (Closures.singleton k (List.map (fun value -> Env.get2 env value) values))
   (* TODO *)
   | Environment vars -> Tuple_domain (map_args2 vars env)
   | Tag x -> Int_domain (Int_domain.singleton x)

@@ -104,9 +104,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let environment_id = inc vars in
       let function_id = inc_conts () in
       let _, body = List.fold_left (fun (pos, cps') body_free_variable -> pos + 1, Cps.Let (body_free_variable, Cps.Get (environment_id, pos), cps')) (0, Apply_cont (function_id, body_argument_id :: body_free_variables, [])) body_free_variables in
-      let closure_environment_id = inc vars in
       let closure_id = inc_conts () in
-      Let (closure_environment_id, Environment body_free_variables, (Let (var, Closure (closure_id, closure_environment_id), expr))), body_substitutions @ substitutions, (remove_var (body_free_variables @ fv0) var), (Let_cont (closure_id, [environment_id; body_argument_id], body, Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
+      Let (var, Closure (closure_id, body_free_variables), expr), body_substitutions @ substitutions, (remove_var (body_free_variables @ fv0) var), (Let_cont (closure_id, [environment_id; body_argument_id], body, Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
     end
   (*
       let var = variable_name in
@@ -223,8 +222,6 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
     let all_binding_bodies_free_variables = join_fvs closures_caller_free_variable_ids in
 
-    let environment_id = inc vars in
-
     let scope_cps, substitutions'', _scope_free_variables_no_bindings'', scope_and_closures_conts = List.fold_left (fun (scope_cps', substitutions', _scope_free_variables_no_bindings', scope_and_closures_conts') ((scope_binding_variable_id, binding_body_closure_continuation_id, binding_body_cps, _binding_body_substitutions, bindind_body_bindind_variable_ids, binding_body_arg_id, binding_body_free_variables_no_arg_no_bindings), caller_free_variable_ids) ->
       (* *)
       let binding_body_function_continuation_id = inc_conts () in
@@ -238,14 +235,17 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       (* *)
       let bindind_body_bindind_closures_ids = List.map2 (fun bindind_body_bindind_variable_id (_, binding_body_binding_closure_continuation, _, _, _, _, _) -> (bindind_body_bindind_variable_id, binding_body_binding_closure_continuation)) bindind_body_bindind_variable_ids closures2 in
       
+      let closure_continuation_id = inc vars in
+
+      (* TODO MUST FIX closure_continuation_id -> need Closure_rec *)
       (* *)
-      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, local_environment_id), binding_body_with_free_variables')) binding_body_with_free_variables bindind_body_bindind_closures_ids in
+      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (closure_continuation_id, Cps.Prim (Const bindind_body_bindind_closures_id, []), Cps.Let (bindind_body_bindind_variable_id, Cps.Tuple [closure_continuation_id; local_environment_id], binding_body_with_free_variables'))) binding_body_with_free_variables bindind_body_bindind_closures_ids in
 
       (* *)
-      Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, environment_id), scope_cps'), substitutions', (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_cont (binding_body_closure_continuation_id, [local_environment_id; binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
+      Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), substitutions', (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_cont (binding_body_closure_continuation_id, [local_environment_id; binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
     
     ) (scope_cps, substitutions, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
-    Cps.Let (environment_id, Environment all_binding_bodies_free_variables, scope_cps), all_binding_bodies_substitutions @ scope_substitutions_no_bindings @ substitutions'', join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
+    scope_cps, all_binding_bodies_substitutions @ scope_substitutions_no_bindings @ substitutions'', join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
     (*
         let condition_id = condition_expr in
         if condition_id then true_continuation_id fv1_2 ... fvn_2 else false_continuation_id fv1_3 ... fvm_3
