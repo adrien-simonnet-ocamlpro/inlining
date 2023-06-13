@@ -1,39 +1,39 @@
 type var = string
 
-type prim =
-  | Add
-  | Const of int
-  | Print
-
 type match_pattern =
 | Int of int
 | Deconstructor of string * string list
 | Joker of string
 
+type binary_operator =
+| Add
+| Sub
+
 type expr =
-  | Type of var * (var * var) list * expr
-  | Var of var
-  | Constructor of string * (expr list)
-  | Let of var * expr * expr
-  | Let_rec of (var * expr) list * expr
-  | Fun of var * expr
-  | App of expr * expr
-  | Prim of Cps.prim * expr list
-  | If of expr * expr * expr
-  | Match of expr * (match_pattern * expr) list
-  | Match_pattern of expr * (match_pattern * expr) list
+| Int of int
+| Binary of binary_operator * expr * expr
+| Type of var * (var * var) list * expr
+| Var of var
+| Constructor of string * (expr list)
+| Let of var * expr * expr
+| Let_rec of (var * expr) list * expr
+| Fun of var * expr
+| App of expr * expr
+| If of expr * expr * expr
+| Match of expr * (match_pattern * expr) list
+| Match_pattern of expr * (match_pattern * expr) list
+
+let pp_binary fmt operator =
+  match operator with
+  | Add -> Format.fprintf fmt "+"
+  | Sub -> Format.fprintf fmt "-"
 
 let rec pp_expr fmt expr =
   match expr with
+  | Int i -> Format.fprintf fmt "%d" i
+  | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)" pp_expr a pp_binary op pp_expr b
   | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
   | Var x -> Format.fprintf fmt "%s" x
-  | Prim (Const x, _) -> Format.fprintf fmt "%d" x
-  | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" pp_expr x1 pp_expr x2
-  | Prim (Add, _) -> assert false
-  | Prim (Sub, x1 :: x2 :: _) -> Format.fprintf fmt "(%a - %a)" pp_expr x1 pp_expr x2
-  | Prim (Sub, _) -> assert false
-  | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" pp_expr x1
-  | Prim (Print, _) -> assert false
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)" pp_expr expr
   | If (cond, t, f) ->
@@ -51,18 +51,24 @@ let sprintf e = Format.asprintf "%a" pp_expr e
 
 module Constructors = Map.Make (String)
 
-let rec pattern_to_cst pattern: Cst.match_pattern =
+let pattern_to_cst (pattern: match_pattern): Cst.match_pattern =
   match pattern with
   | Int x -> Int x
   | Deconstructor _ -> Joker
   | Joker _ -> Joker
 
-and expr_to_cst (expr: expr) (constructors: int Constructors.t): Cst.expr =
+let binary_to_cst (binary: binary_operator): Cst.binary_operator =
+  match binary with
+  | Add -> Add
+  | Sub -> Sub
+
+let rec expr_to_cst (expr: expr) (constructors: int Constructors.t): Cst.expr =
   match expr with
+  | Int i -> Int i
+  | Binary (op, e1, e2) -> Binary (binary_to_cst op, expr_to_cst e1 constructors, expr_to_cst e2 constructors)
   | Fun (x, e) -> Fun (x, expr_to_cst e constructors)
   | Var x -> Var x
   | Constructor (str, exprs) -> let index = Constructors.find str constructors in Constructor (index, List.map (fun expr -> expr_to_cst expr constructors) exprs)
-  | Prim (prim, args) -> Prim (prim, List.map (fun e' -> expr_to_cst e' constructors) args)
   | Let (var, e1, e2) -> Let (var, expr_to_cst e1 constructors, expr_to_cst e2 constructors)
   | If (cond, t, f) -> If (expr_to_cst cond constructors, expr_to_cst t constructors, expr_to_cst f constructors)
   | App (e1, e2) -> App (expr_to_cst e1 constructors, expr_to_cst e2 constructors)
@@ -74,7 +80,7 @@ and expr_to_cst (expr: expr) (constructors: int Constructors.t): Cst.expr =
       let _, default_expr = List.find (fun (t, _) -> match t with
         | Joker _ -> true | _ -> false) branchs in default_expr
 
-      else Prim (Print, [Prim (Const 123456789, [])]) in
+      else Int 123456789 in
     
     let branchs = List.map (fun (pattern, e') -> begin match pattern with
     | Deconstructor (constructor_name, payload_values) -> let pattern_index = Constructors.find constructor_name constructors in pattern_index, payload_values, expr_to_cst e' constructors

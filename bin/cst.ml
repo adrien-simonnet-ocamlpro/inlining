@@ -9,30 +9,35 @@ type match_pattern =
 | Int of int
 | Joker
 
+type binary_operator =
+| Add
+| Sub
+
 type expr =
-  | Var of var
-  | Let of var * expr * expr
-  | Let_rec of (var * expr) list * expr
-  | Fun of var * expr
-  | App of expr * expr
-  | Prim of Cps.prim * expr list
-  | If of expr * expr * expr
-  | Match of expr * (match_pattern * expr) list
-  | Match_pattern of expr * (int * var list * expr) list * expr
-  | Tuple of expr list
-  | Constructor of int * expr list
+| Int of int
+| Binary of binary_operator * expr * expr
+| Var of var
+| Let of var * expr * expr
+| Let_rec of (var * expr) list * expr
+| Fun of var * expr
+| App of expr * expr
+| If of expr * expr * expr
+| Match of expr * (match_pattern * expr) list
+| Match_pattern of expr * (int * var list * expr) list * expr
+| Tuple of expr list
+| Constructor of int * expr list
+
+let pp_binary fmt operator =
+  match operator with
+  | Add -> Format.fprintf fmt "+"
+  | Sub -> Format.fprintf fmt "-"
 
 let rec pp_expr fmt expr =
   match expr with
+  | Int i -> Format.fprintf fmt "%d" i
+  | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a" pp_expr a pp_binary op pp_expr b
   | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
   | Var x -> Format.fprintf fmt "%s" x
-  | Prim (Const x, _) -> Format.fprintf fmt "%d" x
-  | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" pp_expr x1 pp_expr x2
-  | Prim (Add, _) -> assert false
-  | Prim (Sub, x1 :: x2 :: _) -> Format.fprintf fmt "(%a - %a)" pp_expr x1 pp_expr x2
-  | Prim (Sub, _) -> assert false
-  | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" pp_expr x1
-  | Prim (Print, _) -> assert false
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)" pp_expr expr
   | If (cond, t, f) ->
@@ -82,8 +87,18 @@ let get_var_name = Env.get_var
 let has_var_id = Env.has_value
 let get_var_id = Env.get_value
 
+let binary_operator_to_prim (binary: binary_operator): Cps.prim =
+  match binary with
+  | Add -> Add
+  | Sub -> Sub
+
 let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
+  | Int i -> Let (var, Prim (Const i, []), expr), substitutions, (remove_var fv0 var), conts
+  | Binary (binary_operator, e1, e2) -> begin
+      let arguments_ids = List.map (fun _ -> inc vars) [e1; e2] in
+      List.fold_left (fun (expr', substitutions', fv', conts') (argument_id, argument) -> to_cps conts' fv' argument argument_id expr' substitutions') (Let (var, Prim (binary_operator_to_prim binary_operator, arguments_ids), expr), substitutions, arguments_ids @ (remove_var fv0 var), conts) (List.combine arguments_ids [e1; e2])
+    end
   (*
       let closure_environment_id = Environment body_free_variables in
       let var = Closure (closure_id, closure_environment_id) in
@@ -117,22 +132,6 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
         Let (var, Var variable_id, expr), (variable_name, variable_id) :: substitutions, variable_id :: (remove_var fv0 var), conts
       end
     end
-  (*
-        let argument_id_1 = argument_1 in
-        ...
-        let argument_id_n = argument_n in
-        let var = prim argument_id_1 ... argument_id_n in
-        expr
-  *)
-  | Prim (prim, arguments) -> begin
-      let arguments_ids = List.map (fun _ -> inc vars) arguments in
-      List.fold_left (fun (expr', substitutions', fv', conts') (argument_id, argument) -> to_cps conts' fv' argument argument_id expr' substitutions') (Let (var, Prim (prim, arguments_ids), expr), substitutions, arguments_ids @ (remove_var fv0 var), conts) (List.combine arguments_ids arguments)
-    end
-    (*
-        let v1 = e1 in
-        let var = e2 in
-        expr
-    *)
   | Let (var', e1, e2) -> begin
       let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
       let v1 = if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars in
@@ -320,17 +319,17 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       else let k = inc_conts () in k, [], [], Let_cont (k, [], Let (0, Prim (Const (-1), []), Let (1, Prim (Print, [0]), Apply_cont (k_return, 1::fv0, []))), conts) in
       
       let matchs' = List.filter (fun (t, _) -> match t with
-      | Int _ -> true | Joker -> false) matchs in
+      | Joker -> false | Int _ -> true ) matchs in
 
       let conts3, matchs'' = List.fold_left_map (fun conts3 (pattern, e) -> begin
         match pattern with
+        | Joker -> assert false
         | Int n ->
          let k' = inc_conts () in
          let v2 = inc vars in
          let cps1, substitutions1, fv, conts1 = to_cps conts3 fv0 e v2 (Apply_cont (k_return, v2::fv0, [])) [] in
          Cps.Let_cont (k', fv, cps1, conts1), (n, k', fv, substitutions1)
          
-         | _ -> assert false
       end) conts3 matchs' in
 
       (* Var names in branchs that are not substitued in the beginning of Match statement (free variables). *)

@@ -65,11 +65,8 @@ terme :
 /*| PARENTHESE_OUVRANTE PARENTHESE_FERMANTE { Ast.Unit }*/
 | PARENTHESE_OUVRANTE e = terme PARENTHESE_FERMANTE { e }
 
-| NAT { Ast.Prim (Asm.Const $1, []) }
-| e1 = terme PLUS e2 = terme { Ast.Prim (Asm.Add, [e1; e2]) }
-| e1 = terme MOINS e2 = terme { Ast.Prim (Asm.Sub, [e1; e2]) }
-
-| PRINT e = terme { Ast.Prim (Asm.Print, [e]) }
+| i = NAT { Ast.Int i }
+| e1 = terme bop = binary_operator e2 = terme { Ast.Binary (bop, e1, e2) }
 
 /*| NIL { Ast.Nil }
 | CONS terme terme { Ast.Cons ($2, $3) }
@@ -96,6 +93,10 @@ terme :
 
 | MATCH e = terme WITH ps = patterns { Ast.Match (e, ps) }
 | MATCH_PATTERN e = terme WITH ps = patterns { Ast.Match_pattern (e, ps) }
+
+binary_operator:
+| PLUS { Ast.Add }
+| MOINS { Ast.Sub }
 
 constructors :
 | BARRE constructor_name = CONSTRUCTOR_NAME { [constructor_name, ""] }
