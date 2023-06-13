@@ -92,7 +92,7 @@ match named with
 | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split:"; " subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
 (*TODO*)
-| Pointer x -> Format.fprintf fmt "Function %d" x
+| Pointer x -> Format.fprintf fmt "Function k%d" x
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with
