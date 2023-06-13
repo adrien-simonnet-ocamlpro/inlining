@@ -115,7 +115,6 @@ patterns :
 | BARRE p = pattern FLECHE e = terme ps = patterns { (p, e)::ps }
 
 pattern :
-| n = NAT { Ast.Int n }
 | i = IDENT { Ast.Joker i }
 | constructor_name = CONSTRUCTOR_NAME { Ast.Deconstructor (constructor_name, []) }
 | constructor_name = CONSTRUCTOR_NAME ident = IDENT { Ast.Deconstructor (constructor_name, [ident]) }

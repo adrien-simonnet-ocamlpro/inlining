@@ -3,7 +3,6 @@ module Constructors = Map.Make (String)
 type var = string
 
 type match_pattern =
-| Int of int
 | Deconstructor of string * string list
 | Joker of string
 
@@ -29,7 +28,14 @@ let pp_binary fmt operator =
   | Add -> Format.fprintf fmt "+"
   | Sub -> Format.fprintf fmt "-"
 
-let rec pp_expr fmt expr =
+let rec pp_match_pattern fmt (pattern: match_pattern) =
+  match pattern with
+  | Deconstructor (name, []) -> Format.fprintf fmt "%s" name
+  | Deconstructor (name, [var]) -> Format.fprintf fmt "%s %s" name var
+  | Deconstructor (name, var::vars) -> Format.fprintf fmt "%s (%s)" name (List.fold_left (fun str var' -> str ^ ", " ^ var') var vars)
+  | Joker _ -> Format.fprintf fmt "_"
+
+and pp_expr fmt expr =
   match expr with
   | Int i -> Format.fprintf fmt "%d" i
   | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)" pp_expr a pp_binary op pp_expr b
@@ -40,19 +46,8 @@ let rec pp_expr fmt expr =
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
   | Type (name, _, expr) -> Format.fprintf fmt "type %s = %s %a" name "constructors" pp_expr expr
-  | Constructor (_, _) -> Format.fprintf fmt "constructor"
-  | Match (_, _) -> Format.fprintf fmt "match"
-;;
-
-let print_expr e = pp_expr Format.std_formatter e
-
-let sprintf e = Format.asprintf "%a" pp_expr e
-
-let pattern_to_cst (pattern: match_pattern): Cst.match_pattern =
-  match pattern with
-  | Int x -> Int x
-  | Deconstructor _ -> Joker
-  | Joker _ -> Joker
+  | Constructor (name, _args) -> Format.fprintf fmt "%s ()" name
+  | Match (e, matchs) -> Format.fprintf fmt "(match %a with " pp_expr e; (List.iter (fun (pattern, e) -> Format.fprintf fmt "%a -> %a" pp_match_pattern pattern pp_expr e) matchs); Format.fprintf fmt ")"
 
 let binary_to_cst (binary: binary_operator): Cst.binary_operator =
   match binary with
@@ -83,4 +78,3 @@ let rec expr_to_cst (expr: expr) (constructors: int Constructors.t): Cst.expr =
       Match (expr_to_cst x constructors, branchs, expr_to_cst default_expr constructors)
     end
   | Type (_, constructors', expr) -> expr_to_cst expr (List.fold_left (fun constructors'' ((constructor_name, _), index) -> Constructors.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors'))
-;;

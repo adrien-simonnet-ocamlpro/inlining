@@ -1,9 +1,5 @@
 type var = string
 
-type match_pattern =
-| Int of int
-| Joker
-
 type binary_operator =
 | Add
 | Sub
@@ -40,10 +36,6 @@ let rec pp_expr fmt expr =
   | Constructor (_, _) -> Format.fprintf fmt "constructor"
   | Match (_, _, _) -> Format.fprintf fmt "match"
   | Tuple _ -> Format.fprintf fmt "tuple"
-;;
-
-let print_expr e = pp_expr Format.std_formatter e
-let sprintf e = Format.asprintf "%a" pp_expr e
 
 let vars = ref 0
 let conts = ref 0
@@ -182,10 +174,6 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
           binding_body_conts, (arg, binding_body_cps, binding_body_substitutions, binding_body_free_variables)
       | _ -> assert false
     end) scope_conts bindings in
-    
-    
-    (* let closures = List.rev closures in *)
-
 
     let closures2 = List.map2 (fun scope_binding_variable_id (arg, binding_body_cps, binding_body_substitutions, binding_body_free_variables) ->
       (* Substitued binding variables in body. *)
@@ -360,4 +348,3 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let vars = List.map (fun arg -> inc vars, arg) args in
       List.fold_left (fun (expr', substitutions', fv', conts') (var, e) -> to_cps conts' fv' e var expr' substitutions') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars)@(remove_var fv0 var), conts) vars
     end
-    ;;

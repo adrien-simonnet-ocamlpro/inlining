@@ -37,8 +37,8 @@ let _ =
     try
       let ast = Parser.programme Lexer.jetons source in
       let cst = Ast.expr_to_cst ast (Ast.Constructors.empty) in
-      if !show_ast     
-      then Ast.print_expr ast
+      if !show_ast
+      then Ast.pp_expr (Format.formatter_of_out_channel outchan) ast
       else (
         let cps, subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
         let cont' = Cps.Let_cont (0, fv, cps, cont) in

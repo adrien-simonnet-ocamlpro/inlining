@@ -106,7 +106,6 @@ match named with
 | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
 | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split:"; " subs "") args
 | Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
-(*TODO*)
 | Closure (k, env) -> Format.fprintf fmt "Closure (Function k%d, [%a])" k (pp_args ~split:"; " subs "") env
 | Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split:"; " subs "") env
 
@@ -168,31 +167,29 @@ let named_to_asm (named : named) : Asm.named =
   | Tuple args -> Tuple args
   | Get (record, pos) -> Get (record, pos)
   | Closure (_k, _x) -> assert false
-  (*TODO*)
   | Constructor (_tag, _environment_id) -> assert false
 
 let rec expr_to_asm (cps : expr) : Asm.expr =
-    match cps with
-    | Let (var, Closure (k, environment_id), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Pointer k, Let (v2, Tuple environment_id, Let (var, Tuple [v1; v2], expr_to_asm expr)))
-    | Let (var, Constructor (tag, args), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Prim (Const tag, []), Let (v2, Tuple args, Let (var, Tuple [v1; v2], expr_to_asm expr)))
-    | Let (var, named, expr) -> Let (var, named_to_asm named, expr_to_asm expr)
-    | Apply_cont (k, args, stack) -> Apply_cont (k, args, stack)
-    | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
-    | Match_pattern (pattern_id, matchs, (kf, argsf), stack) -> begin
-        let pattern_tag_id = inc vars in
-        let pattern_payload_id = inc vars in
-        (Asm.Let (pattern_tag_id, Get (pattern_id, 0), (Asm.Let (pattern_payload_id, Get (pattern_id, 1), If (pattern_tag_id, List.map (fun (n, k, args) -> (n, k, pattern_payload_id :: args)) matchs, (kf, argsf), stack)))))
-      end
-    | Return v -> Return v
-    | Call (x, args, stack) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Get (x, 0), Let (v2, Get (x, 1), Call (v1, v2::args, stack)))
+  match cps with
+  | Let (var, Closure (k, environment_id), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Pointer k, Let (v2, Tuple environment_id, Let (var, Tuple [v1; v2], expr_to_asm expr)))
+  | Let (var, Constructor (tag, args), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Prim (Const tag, []), Let (v2, Tuple args, Let (var, Tuple [v1; v2], expr_to_asm expr)))
+  | Let (var, named, expr) -> Let (var, named_to_asm named, expr_to_asm expr)
+  | Apply_cont (k, args, stack) -> Apply_cont (k, args, stack)
+  | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
+  | Match_pattern (pattern_id, matchs, (kf, argsf), stack) -> begin
+      let pattern_tag_id = inc vars in
+      let pattern_payload_id = inc vars in
+      (Asm.Let (pattern_tag_id, Get (pattern_id, 0), (Asm.Let (pattern_payload_id, Get (pattern_id, 1), If (pattern_tag_id, List.map (fun (n, k, args) -> (n, k, pattern_payload_id :: args)) matchs, (kf, argsf), stack)))))
+    end
+  | Return v -> Return v
+  | Call (x, args, stack) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Get (x, 0), Let (v2, Get (x, 1), Call (v1, v2::args, stack)))
 
 let rec cont_to_asm (cps : cont) : Asm.cont =
   match cps with
-      | Let_cont (k', args', e1, e2) -> Let_cont (k', args', expr_to_asm e1, cont_to_asm e2)
-      | Let_clos (k', body_free_variables, args', e1, e2) -> begin
-          let environment_id = inc vars in
-          let _, body = List.fold_left (fun (pos, cps') body_free_variable -> pos + 1, Asm.Let (body_free_variable, Asm.Get (environment_id, pos), cps')) (0, (expr_to_asm e1)) body_free_variables in
-          Let_cont (k', environment_id::args', body, cont_to_asm e2)
-        end
-      | End -> End
-  ;;
+  | Let_cont (k', args', e1, e2) -> Let_cont (k', args', expr_to_asm e1, cont_to_asm e2)
+  | Let_clos (k', body_free_variables, args', e1, e2) -> begin
+      let environment_id = inc vars in
+      let _, body = List.fold_left (fun (pos, cps') body_free_variable -> pos + 1, Asm.Let (body_free_variable, Asm.Get (environment_id, pos), cps')) (0, (expr_to_asm e1)) body_free_variables in
+      Let_cont (k', environment_id::args', body, cont_to_asm e2)
+    end
+  | End -> End
