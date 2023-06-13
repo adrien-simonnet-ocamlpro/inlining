@@ -127,11 +127,7 @@ let analysis_named (named : named) (env: (address * Values.t) list) (allocations
   (* TODO *)
   | Environment vars -> Tuple_domain (map_args2 vars env)
   | Tag x -> Int_domain (Int_domain.singleton x)
-  | Constructor (_tag, _environment_id) -> begin
-    match get env _environment_id allocations with
-    | Tuple_domain values -> Closure_domain (Closures.singleton _tag values)
-    | _ -> assert false
-  end(*Tuple_domain [Int_domain (Int_domain.singleton tag); get env environment_id allocations]*)
+  | Constructor (tag, environment) -> Closure_domain (Closures.singleton tag (map_args2 environment env))
 
 let add_alloc var new_value map = Allocations.update var (fun value -> begin
     match value with
@@ -163,7 +159,16 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | Pointer_domain _ -> (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
       | _ -> assert false
     end else (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
-  | Return x -> begin match stack with
+  | Match_pattern (var, matchs, (kf, argsf), stack') -> begin
+      match get env var allocations with
+      | Closure_domain clos -> List.map (fun (n, env') -> begin
+          match List.find_opt (fun (n', _, _) -> n = n') matchs with
+          | Some (_, k, args) -> Clos (k, env'), map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations
+          | None -> Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations
+          end) (Closures.bindings clos)
+      | _ -> assert false
+    end
+    | Return x -> begin match stack with
       | [] -> []
       | (k, args)::stack' -> [Cont k, (Env.get2 env x)::args, stack', allocations]
     end

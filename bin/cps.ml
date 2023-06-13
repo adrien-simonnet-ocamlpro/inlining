@@ -29,13 +29,14 @@ type named =
   
   | Environment of var list
   | Tag of tag
-  | Constructor of int * var
+  | Constructor of int * var list
 
 and expr =
   | Let of var * named * expr
   | Apply_cont of pointer * var list * stack
   | Call of var * var list * stack
   | If of var * (int * pointer * var list) list * (pointer * var list) * stack
+  | Match_pattern of var * (int * pointer * var list) list * (pointer * var list) * stack
   | Return of var
 
 type cont =
@@ -112,7 +113,7 @@ match named with
 | Closure (k, env) -> Format.fprintf fmt "Closure (Function k%d, [%a])" k (pp_args ~split:"; " subs "") env
 | Environment args -> Format.fprintf fmt "Environment [%a]" (pp_args ~split:"; " subs "") args
 | Tag x -> Format.fprintf fmt "Tag %d" x
-| Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, %s)" tag (gen_name env subs)
+| Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split:"; " subs "") env
 
 and pp_expr subs fmt (cps : expr) : unit =
   match cps with
@@ -129,8 +130,16 @@ and pp_expr subs fmt (cps : expr) : unit =
       kf
       (print_args argsf subs)) stack
     in Format.fprintf fmt "%s" s
+  | Match_pattern (var, matchs, (kf, argsf), stack) -> let s =
+    List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf
+      "match %s with%s | _ -> k%d %s"
+      (gen_name var subs)
+      (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Printf.sprintf "| Int %d -> f%d %s " n kt (print_args argst subs))) " " matchs)
+      kf
+      (print_args argsf subs)) stack
+    in Format.fprintf fmt "%s" s
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
-  | Call (x, args, stack) -> let s = List.fold_left (fun string (k', args') -> Printf.sprintf "k%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf "(call %s %s)" (gen_name x subs) (print_args args subs)) stack
+  | Call (x, args, stack) -> let s = List.fold_left (fun string (k', args') -> Printf.sprintf "f%d (%s) %s" k' string (print_args ~empty:"" args' subs)) (Printf.sprintf "(call %s %s)" (gen_name x subs) (print_args args subs)) stack
   in Format.fprintf fmt "%s" s
   
   and pp_cont subs fmt (cps : cont) : unit =
@@ -140,9 +149,9 @@ and pp_expr subs fmt (cps : expr) : unit =
   | Let_cont (k, args, e1, cont) ->
     Format.fprintf fmt "k%d %a =\n%a\nand %a%!" k (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) cont
   | Let_clos (k, env, args, e1, End) ->
-    Format.fprintf fmt "k%d [%a] %a =\n%a\n%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1
+    Format.fprintf fmt "f%d [%a] %a =\n%a\n%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1
   | Let_clos (k, env, args, e1, cont) ->
-    Format.fprintf fmt "k%d [%a] %a =\n%a\nand %a%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) cont
+    Format.fprintf fmt "f%d [%a] %a =\n%a\nand %a%!" k (pp_args subs " ") env (pp_args subs "()") args (pp_expr subs) e1 (pp_cont subs) cont
   | End -> Format.fprintf fmt "()%!"
 
 let print_prog subs e = pp_cont subs Format.std_formatter e
@@ -172,10 +181,15 @@ let named_to_asm (named : named) : Asm.named =
 let rec expr_to_asm (cps : expr) : Asm.expr =
     match cps with
     | Let (var, Closure (k, environment_id), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Pointer k, Let (v2, Tuple environment_id, Let (var, Tuple [v1; v2], expr_to_asm expr)))
-    | Let (var, Constructor (tag, environment_id), expr) -> let v1 = inc vars in Let (v1, Prim (Const tag, []), Let (var, Tuple [v1; environment_id], expr_to_asm expr))
+    | Let (var, Constructor (tag, args), expr) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Prim (Const tag, []), Let (v2, Tuple args, Let (var, Tuple [v1; v2], expr_to_asm expr)))
     | Let (var, named, expr) -> Let (var, named_to_asm named, expr_to_asm expr)
     | Apply_cont (k, args, stack) -> Apply_cont (k, args, stack)
     | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
+    | Match_pattern (pattern_id, matchs, (kf, argsf), stack) -> begin
+        let pattern_tag_id = inc vars in
+        let pattern_payload_id = inc vars in
+        (Asm.Let (pattern_tag_id, Get (pattern_id, 0), (Asm.Let (pattern_payload_id, Get (pattern_id, 1), If (pattern_tag_id, List.map (fun (n, k, args) -> (n, k, pattern_payload_id :: args)) matchs, (kf, argsf), stack)))))
+      end
     | Return v -> Return v
     | Call (x, args, stack) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Get (x, 0), Let (v2, Get (x, 1), Call (v1, v2::args, stack)))
 
