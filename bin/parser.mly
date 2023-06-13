@@ -22,7 +22,7 @@
 
 %token LET REC AND IN EGAL
 
-%token MATCH MATCH_PATTERN WITH
+%token MATCH WITH
 
 %token JOKER
 
@@ -92,7 +92,6 @@ terme :
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
 
 | MATCH e = terme WITH ps = patterns { Ast.Match (e, ps) }
-| MATCH_PATTERN e = terme WITH ps = patterns { Ast.Match_pattern (e, ps) }
 
 binary_operator:
 | PLUS { Ast.Add }

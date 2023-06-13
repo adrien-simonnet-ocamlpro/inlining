@@ -37,8 +37,7 @@ rule jetons = parse
 | "=" { EGAL }
 | "in" { IN }
 
-| "match_int" { MATCH }
-| "match" { MATCH_PATTERN }
+| "match" { MATCH }
 | "with" { WITH }
 
 | "type" { TYPE }
