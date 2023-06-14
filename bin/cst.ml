@@ -103,7 +103,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> body_argument_id) body_free_variables in
       let function_id = inc_conts () in
       let closure_id = inc_conts () in
-      Let (var, Closure (closure_id, body_free_variables), expr), body_substitutions @ substitutions, (remove_var (body_free_variables @ fv0) var), (Let_clos (closure_id, body_free_variables, [body_argument_id], Apply_cont (function_id, body_argument_id :: body_free_variables, []), Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
+      Let (var, Closure (closure_id, body_free_variables), expr), body_substitutions @ substitutions, (remove_var (body_free_variables @ fv0) var), (Let_clos (closure_id, body_free_variables, [body_argument_id], Apply_cont (function_id, body_argument_id :: body_free_variables), Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
     end
   (*
       let var = variable_name in
@@ -208,14 +208,14 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let local_environment_id = inc vars in
       
       (* *)
-      let _binding_body_with_free_variables = List.fold_left (fun binding_body_function_continuation binding_body_free_variable_no_arg_no_bindings -> Cps.Let (binding_body_free_variable_no_arg_no_bindings, Cps.Get (local_environment_id, (find binding_body_free_variable_no_arg_no_bindings all_binding_bodies_free_variables)), binding_body_function_continuation)) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: caller_free_variable_ids), [])) caller_free_variable_ids in
+      let _binding_body_with_free_variables = List.fold_left (fun binding_body_function_continuation binding_body_free_variable_no_arg_no_bindings -> Cps.Let (binding_body_free_variable_no_arg_no_bindings, Cps.Get (local_environment_id, (find binding_body_free_variable_no_arg_no_bindings all_binding_bodies_free_variables)), binding_body_function_continuation)) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: caller_free_variable_ids))) caller_free_variable_ids in
     
       (* *)
       let bindind_body_bindind_closures_ids = List.map2 (fun bindind_body_bindind_variable_id (_, binding_body_binding_closure_continuation, _, _, _, _, _) -> (bindind_body_bindind_variable_id, binding_body_binding_closure_continuation)) bindind_body_bindind_variable_ids closures2 in
       
       (* TODO MUST FIX closure_continuation_id -> need Closure_rec *)
       (* *)
-      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables), [])) bindind_body_bindind_closures_ids in
+      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
 
       (* *)
       Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), substitutions', (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_clos (binding_body_closure_continuation_id, all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
@@ -244,8 +244,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let merge_continuation_id = inc_conts () in
       let true_continuation_id = inc_conts () in
       let false_continuation_id = inc_conts () in
-      let true_cps, true_substitutions, true_free_variables_id, true_continuations = to_cps (Let_cont (merge_continuation_id, var :: fv0, expr, conts)) fv0 true_expr true_id (Apply_cont (merge_continuation_id, true_id :: fv0, [])) [] in
-      let false_cps, false_substitutions, false_free_variables_id, true_and_false_continuations = to_cps true_continuations fv0 false_expr false_id (Apply_cont (merge_continuation_id, false_id :: fv0, [])) [] in
+      let true_cps, true_substitutions, true_free_variables_id, true_continuations = to_cps (Let_cont (merge_continuation_id, var :: fv0, expr, conts)) fv0 true_expr true_id (Apply_cont (merge_continuation_id, true_id :: fv0)) [] in
+      let false_cps, false_substitutions, false_free_variables_id, true_and_false_continuations = to_cps true_continuations fv0 false_expr false_id (Apply_cont (merge_continuation_id, false_id :: fv0)) [] in
       
       (* Var names in branchs that are not substitued in the beginning of If statement (free variables). *)
       let true_expr_free_variables_names = List.map (fun fv -> get_var_name true_substitutions fv) (List.filter (fun fv -> has_var_id true_substitutions fv && not (has_var_name substitutions (get_var_name true_substitutions fv))) true_free_variables_id) in
@@ -258,7 +258,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let true_caller_arguments_id = List.map (fun fv -> if has_var_id true_substitutions fv then let fval = get_var_name true_substitutions fv in if has_var_name true_false_substitutions fval then get_var_id true_false_substitutions fval else fv else fv) true_free_variables_id in
       let false_caller_arguments_id = List.map (fun fv -> if has_var_id false_substitutions fv then let fval = get_var_name false_substitutions fv in if has_var_name true_false_substitutions fval then get_var_id true_false_substitutions fval else fv  else fv) false_free_variables_id in
 
-      let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (true_continuation_id, true_free_variables_id, true_cps, Let_cont (false_continuation_id, false_free_variables_id, false_cps, true_and_false_continuations))) (condition_id :: (join_fv true_caller_arguments_id false_caller_arguments_id)) condition_expr condition_id (If (condition_id, [(0, false_continuation_id, false_caller_arguments_id)], (true_continuation_id, true_caller_arguments_id), [])) (true_false_substitutions @ substitutions) in
+      let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (true_continuation_id, true_free_variables_id, true_cps, Let_cont (false_continuation_id, false_free_variables_id, false_cps, true_and_false_continuations))) (condition_id :: (join_fv true_caller_arguments_id false_caller_arguments_id)) condition_expr condition_id (If (condition_id, [(0, false_continuation_id, false_caller_arguments_id)], (true_continuation_id, true_caller_arguments_id))) (true_false_substitutions @ substitutions) in
       cps1, substitutions1 @ true_substitutions @ false_substitutions, fv1, conts1
     end
     (*
@@ -275,7 +275,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let closure_id = inc vars in
       let argument_id = inc vars in
       let fv0 = remove_var fv0 var in
-      let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (return_continuation, var :: fv0, expr, conts)) (closure_id :: fv0) argument_expr argument_id (Call (closure_id, [argument_id], [(return_continuation, fv0)])) substitutions in
+      let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (return_continuation, var :: fv0, expr, conts)) (closure_id :: fv0) argument_expr argument_id (Call (closure_id, [argument_id], (return_continuation, fv0))) substitutions in
       let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var fv1 closure_id) closure_expr closure_id cps1 substitutions1 in
       cps2, substitutions2, fv2, conts2
     end
@@ -290,7 +290,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
       (* Default branch cps generation. *)
       let default_branch_return_id = inc vars in
-      let default_branch_cps, default_branch_substitutions, default_branch_free_variables, default_branch_continuations = to_cps conts fv0 default_branch_expr default_branch_return_id (Apply_cont (return_continuation_id, default_branch_return_id :: fv0, [])) [] in
+      let default_branch_cps, default_branch_substitutions, default_branch_free_variables, default_branch_continuations = to_cps conts fv0 default_branch_expr default_branch_return_id (Apply_cont (return_continuation_id, default_branch_return_id :: fv0)) [] in
       
       (* Default branch continuation. *)
       let default_continuation_id = inc_conts () in
@@ -300,7 +300,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let branchs_continuations, branchs_bodies = List.fold_left_map (fun default_continuation' (branch_index, branch_arguments_names, branch_expr) -> begin
         (* Branch cps generation. *)
         let branch_return_id = inc vars in
-        let branch_cps, branch_substitutions, branch_free_variables, branch_continuations = to_cps default_continuation' (branch_return_id::fv0) branch_expr branch_return_id (Apply_cont (return_continuation_id, branch_return_id::fv0, [])) [] in
+        let branch_cps, branch_substitutions, branch_free_variables, branch_continuations = to_cps default_continuation' (branch_return_id::fv0) branch_expr branch_return_id (Apply_cont (return_continuation_id, branch_return_id::fv0)) [] in
         
         (* Branch arguments substitutions. *)
         let branch_arguments_ids = List.map (fun branch_argument_name -> if has_var_name branch_substitutions branch_argument_name then get_var_id branch_substitutions branch_argument_name else inc vars) branch_arguments_names in
@@ -332,7 +332,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
       (* Pattern matching. *)
       let pattern_id = inc vars in
-      to_cps branchs_continuations (join_fv free_variables_default (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _, _), fvs) -> n, k, fvs) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, free_variables_default), [])) substitutions_branchs
+      to_cps branchs_continuations (join_fv free_variables_default (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _, _), fvs) -> n, k, fvs) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, free_variables_default))) substitutions_branchs
     end
     (*
     

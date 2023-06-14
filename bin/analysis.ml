@@ -105,7 +105,7 @@ let analysis_prim (prim : prim) args (env: (address * Values.t) list) (allocatio
 
 let map_args2 (args: var list) (env: (address * Values.t) list) = List.map (fun arg -> Env.get2 env arg) args
 
-let map_stack2 (stack: stack) (env) = List.map (fun (k'', args') -> k'', map_args2 args' env) stack
+let map_stack2 (k'', args') (env) = k'', map_args2 args' env
 
 type cont_type =
 | Cont of int
@@ -136,47 +136,48 @@ let add_alloc var new_value map = Allocations.update var (fun value -> begin
 let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): (cont_type * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list =
   match cps with
   | Let (var, Var var', expr) -> begin
-    analysis_cont expr stack ((var, Env.get2 env var')::env) allocations
-  end
+      analysis_cont expr stack ((var, Env.get2 env var')::env) allocations
+    end
   | Let (var, named, expr) -> begin
       let value = analysis_named named env allocations in
       analysis_cont expr stack ((var, Values.singleton var)::env) (add_alloc var value allocations)
     end
-  | Apply_cont (k', args, stack') -> [Cont k', map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
-  | If (var, matchs, (kf, argsf), stack') -> 
-    if has env var then begin
+  | Apply_cont (k', args) -> [Cont k', map_args2 args env, stack, allocations]
+  | If (var, matchs, (kf, argsf)) -> begin
       match get env var allocations with
       | Int_domain i when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
-        | None -> [Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, stack, allocations]
+        | None -> [Cont kf, map_args2 argsf env, stack, allocations]
         end
-      | Int_domain _ -> (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+      | Int_domain _ -> (Cont kf, map_args2 argsf env, stack, allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, stack, allocations) matchs)
       | Pointer_domain i when Pointer_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Pointer_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
-        | None -> [Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations]
+        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, stack, allocations]
+        | None -> [Cont kf, map_args2 argsf env, stack, allocations]
         end
-      | Pointer_domain _ -> (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
+      | Pointer_domain _ -> (Cont kf, map_args2 argsf env, stack, allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, stack, allocations) matchs)
       | _ -> assert false
-    end else (Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) matchs)
-  | Match_pattern (var, matchs, (kf, argsf), stack') -> begin
+    end
+  | Match_pattern (var, matchs, (kf, argsf)) -> begin
       match get env var allocations with
       | Closure_domain clos -> List.map (fun (n, env') -> begin
           match List.find_opt (fun (n', _, _) -> n = n') matchs with
-          | Some (_, k, args) -> Clos (k, env'), map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations
-          | None -> Cont kf, map_args2 argsf env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations
+          | Some (_, k, args) -> Clos (k, env'), map_args2 args env, stack, allocations
+          | None -> Cont kf, map_args2 argsf env, stack, allocations
           end) (Closures.bindings clos)
       | _ -> assert false
     end
-    | Return x -> begin match stack with
+  | Return x -> begin
+      match stack with
       | [] -> []
       | (k, args)::stack' -> [Cont k, (Env.get2 env x)::args, stack', allocations]
     end
-  | Call (x, args, stack') -> begin
-    match get env x allocations with
-    | Closure_domain clos -> List.map (fun (k, env') -> Clos (k, env'), map_args2 args env, (join_stack stack ((map_stack2 stack' env)@stack)), allocations) (Closures.bindings clos)
-    | _ -> assert false end
+  | Call (x, args, frame) -> begin
+      match get env x allocations with
+      | Closure_domain clos -> List.map (fun (k, env') -> Clos (k, env'), map_args2 args env, (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
+      | _ -> assert false
+    end
 
 
 
