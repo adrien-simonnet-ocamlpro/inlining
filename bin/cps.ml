@@ -161,43 +161,35 @@ let inc vars =
   !vars
 ;;
 
-(*
+
 let update_var var alias = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars vars alias = List.map (fun var -> update_var var alias) vars
 
-let named_to_asm (named : named) (alias: var VarMap.t) : Asm.named =
+let clean_named (named : named) (alias: var VarMap.t) : named =
   match named with
-  | Prim (prim, args) -> Prim (prim, update_vars args alias)
+  | Prim (prim, vars) -> Prim (prim, update_vars vars alias)
   | Var var -> Var (update_var var alias)
-  | Tuple args -> Tuple args
-  | Get (record, pos) -> Get (record, pos)
-  | Closure (_k, _x) -> assert false
-  | Constructor (_tag, _environment_id) -> assert false
+  | Tuple vars -> Tuple (update_vars vars alias)
+  | Get (record, pos) -> Get (update_var record alias, pos)
+  | Closure (k, vars) -> Closure (k, update_vars vars alias)
+  | Constructor (tag, vars) -> Constructor (tag, update_vars vars alias)
 
-let rec clean_expr (expr : expr) (alias: var VarMap.t) : Asm.expr =
+let rec clean_expr (expr : expr) (alias: var VarMap.t) : expr =
   match expr with
   | Let (var, Var var', expr') -> clean_expr expr' (VarMap.add var var' alias)
-  | Let (var, named, expr) -> Let (var, named_to_asm named alias, clean_expr expr alias)
-  | Apply_cont (k, args, stack) -> Apply_cont (k, update_vars args alias, stack)
-  | If (var, matchs, (kf, argsf), stack) -> If (var, matchs, (kf, argsf), stack)
-  | Match_pattern (pattern_id, matchs, (kf, argsf), stack) -> begin
-      let pattern_tag_id = inc vars in
-      let pattern_payload_id = inc vars in
-      (Asm.Let (pattern_tag_id, Get (pattern_id, 0), (Asm.Let (pattern_payload_id, Get (pattern_id, 1), If (pattern_tag_id, List.map (fun (n, k, args) -> (n, k, pattern_payload_id :: args)) matchs, (kf, argsf), stack)))))
-    end
-  | Return v -> Return v
-  | Call (x, args, stack) -> let v1 = inc vars in let v2 = inc vars in Let (v1, Get (x, 0), Let (v2, Get (x, 1), Call (v1, v2::args, stack)))
+  | Let (var, named, expr) -> Let (var, clean_named named alias, clean_expr expr alias)
+  | Apply_cont (k, args) -> Apply_cont (k, update_vars args alias)
+  | If (var, matchs, (kf, argsf)) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias))
+  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias))
+  | Return var -> Return (update_var var alias)
+  | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias))
 
-let rec clean_cont (cps : cont) : Asm.cont =
+let rec clean_cont (cps : cont) : cont =
   match cps with
-  | Let_cont (k', args', e1, e2) -> Let_cont (k', args', clean_expr e1, clean_cont e2)
-  | Let_clos (k', body_free_variables, args', e1, e2) -> begin
-      let environment_id = inc vars in
-      let _, body = List.fold_left (fun (pos, cps') body_free_variable -> pos + 1, Asm.Let (body_free_variable, Asm.Get (environment_id, pos), cps')) (0, (clean_expr e1)) body_free_variables in
-      Let_cont (k', environment_id::args', body, clean_cont e2)
-    end
+  | Let_cont (k', args', e1, e2) -> Let_cont (k', args', clean_expr e1 (VarMap.empty), clean_cont e2)
+  | Let_clos (k', body_free_variables, args', e1, e2) -> Let_clos (k', body_free_variables, args', clean_expr e1 (VarMap.empty), clean_cont e2)
   | End -> End
-*)
+
 
 let named_to_asm (named : named) : Asm.named =
   match named with
