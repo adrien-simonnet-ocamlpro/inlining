@@ -224,7 +224,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
         if has3 old_context stack env then begin
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
-          if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
+          if Allocations.equal ( = ) new_allocations old_allocations
             then analysis conts' prog map
             else let args, cont = get_cont prog k in
               let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
@@ -247,7 +247,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
         if has3 old_context stack env then begin
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
-          if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
+          if Allocations.equal ( = ) new_allocations old_allocations
             then analysis conts' prog map
             else let environment, args, cont = get_clos prog k in
               let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
