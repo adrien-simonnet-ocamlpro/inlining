@@ -55,8 +55,8 @@ let rec cherche_motif motif liste =
 
 let rec cherche_periode periode liste =
   match liste with
-  | [] -> false
-  | l::liste' -> cherche_motif (periode@[l]) liste' || cherche_periode (periode@[l]) liste'
+  | [] -> 0
+  | l::liste' -> if cherche_motif (periode@[l]) liste' then List.length (periode@[l]) else cherche_periode (periode@[l]) liste'
 
 let map = List.map (fun (k, _) -> k)
 
@@ -77,7 +77,12 @@ let rec join_value_list (values: value_domain list): value_domain =
   | [value] -> value
   | value :: values' -> join_values value (join_value_list values')
 
-let join_stack old_stack new_stack = if cherche_periode [] (map new_stack) then old_stack else new_stack
+let rec remove_n_list n list =
+  if n = 0 then list else match list with
+  | _::l' -> remove_n_list (n-1) l'
+  | _ -> assert false
+
+let join_stack _old_stack new_stack = let n = cherche_periode [] (map new_stack) in remove_n_list n new_stack
 
 let join_allocs allocs allocations =
   let values = Values.elements allocs in
