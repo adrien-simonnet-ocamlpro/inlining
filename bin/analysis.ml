@@ -225,7 +225,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal ( = ) new_allocations old_allocations
-            then analysis conts' prog map
+            then analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
             else let args, cont = get_cont prog k in
               let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
@@ -248,7 +248,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal ( = ) new_allocations old_allocations
-            then analysis conts' prog map
+            then analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
             else let environment, args, cont = get_clos prog k in
               let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
