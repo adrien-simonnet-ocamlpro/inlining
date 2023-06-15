@@ -156,11 +156,6 @@ let analysis_named (named : named) (env: (address * Values.t) list) (allocations
   (* TODO *)
   | Constructor (tag, environment) -> Closure_domain (Closures.singleton tag (map_args2 environment env))
 
-let add_alloc var new_value map = Allocations.update var (fun value -> begin
-    match value with
-    | Some old_value -> Some (join_values old_value new_value)
-    | None -> Some new_value
-  end) map
 
 let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): (cont_type * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list =
   match cps with
@@ -169,7 +164,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
     end
   | Let (var, named, expr) -> begin
       let value = analysis_named named env allocations in
-      analysis_cont expr stack ((var, Values.singleton var)::env) (add_alloc var value allocations)
+      analysis_cont expr stack ((var, Values.singleton var)::env) (Allocations.add var value allocations)
     end
   | Apply_cont (k', args) -> [Cont k', map_args2 args env, stack, allocations]
   | If (var, matchs, (kf, argsf)) -> begin
