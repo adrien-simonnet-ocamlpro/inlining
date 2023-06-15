@@ -217,7 +217,7 @@ let join_allocations a b = Allocations.union (fun _ value1 value2 -> Some (join_
 
 let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * Values.t list) list) Analysis.t) : (value_domain Allocations.t * Values.t list) Analysis.t =
   match conts with
-  | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> if acc = [] then allocations, new_env else Allocations.union (fun _ value1 value2 -> Some (join_values value1 value2)) allocs allocations,  List.map2 Values.union acc new_env) (Allocations.empty, []) contexts) map
+  | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations,  List.map2 Values.union (if acc = [] then new_env else acc) new_env) (Allocations.empty, []) contexts) map
   | (Cont k, env, stack, allocations)::conts' -> begin
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
