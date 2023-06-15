@@ -264,7 +264,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
       end
     end
 
-let start_analysis prog args = analysis [Cont 0, args, [], Allocations.empty] prog (Analysis.empty)
+let start_analysis prog = let args, _ = get_cont prog 0 in analysis [Cont 0, List.map (fun _ -> Values.singleton 0) args, [], Allocations.singleton 0 (Int_domain Int_domain.top)] prog (Analysis.empty)
 
 
 
