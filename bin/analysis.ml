@@ -220,47 +220,47 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> if acc = [] then allocations, new_env else Allocations.union (fun _ value1 value2 -> Some (join_values value1 value2)) allocs allocations,  List.map2 Values.union acc new_env) (Allocations.empty, []) contexts) map
   | (Cont k, env, stack, allocations)::conts' -> begin
       if Analysis.mem k map then begin
-      let old_context = Analysis.find k map in
+        let old_context = Analysis.find k map in
         if has3 old_context stack env then begin
-        let old_allocations = get3 old_context stack env in
-        let new_allocations = join_allocations old_allocations allocations in
-        if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
-          then analysis conts' prog map
-          else let args, cont = get_cont prog k in
-            let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
-            analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          let old_allocations = get3 old_context stack env in
+          let new_allocations = join_allocations old_allocations allocations in
+          if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
+            then analysis conts' prog map
+            else let args, cont = get_cont prog k in
+              let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
+              analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
         end else begin
-        let args, cont = get_cont prog k in
-        let next_conts = analysis_cont cont stack (map_values args env) allocations in
-        analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
+          let args, cont = get_cont prog k in
+          let next_conts = analysis_cont cont stack (map_values args env) allocations in
+          analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
         end
       end else begin
-      let args, cont = get_cont prog k in
-      let next_conts = analysis_cont cont stack (map_values args env) allocations in
-      analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
+        let args, cont = get_cont prog k in
+        let next_conts = analysis_cont cont stack (map_values args env) allocations in
+        analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
       end
     end
   | (Clos (k, clos_env), env, stack, allocations)::conts' -> begin
-    let env = clos_env @ env in
+      let env = clos_env @ env in
       if Analysis.mem k map then begin
-      let old_context = Analysis.find k map in
+        let old_context = Analysis.find k map in
         if has3 old_context stack env then begin
-        let old_allocations = get3 old_context stack env in
-        let new_allocations = join_allocations old_allocations allocations in
-        if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
-          then analysis conts' prog map
-          else let environment, args, cont = get_clos prog k in
-            let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
-            analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          let old_allocations = get3 old_context stack env in
+          let new_allocations = join_allocations old_allocations allocations in
+          if Allocations.equal (fun a b -> a = b) new_allocations old_allocations
+            then analysis conts' prog map
+            else let environment, args, cont = get_clos prog k in
+              let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
+              analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
         end else begin
-        let environment, args, cont = get_clos prog k in
-        let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
-        analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
+          let environment, args, cont = get_clos prog k in
+          let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
+          analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
         end
       end else begin
-      let environment, args, cont = get_clos prog k in
-      let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
-      analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
+        let environment, args, cont = get_clos prog k in
+        let next_conts = analysis_cont cont stack (map_values (environment @ args) env) allocations in
+        analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
       end
     end
 
