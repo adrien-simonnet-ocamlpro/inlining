@@ -175,12 +175,6 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
         | None -> [Cont kf, map_args2 argsf env, stack, allocations]
         end
       | Int_domain _ -> (Cont kf, map_args2 argsf env, stack, allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, stack, allocations) matchs)
-      | Pointer_domain i when Pointer_domain.is_singleton i -> begin
-        match List.find_opt (fun (n', _, _) -> Pointer_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [Cont kt, map_args2 argst env, stack, allocations]
-        | None -> [Cont kf, map_args2 argsf env, stack, allocations]
-        end
-      | Pointer_domain _ -> (Cont kf, map_args2 argsf env, stack, allocations)::(List.map (fun (_, kt, argst) -> Cont kt, map_args2 argst env, stack, allocations) matchs)
       | _ -> assert false
     end
   | Match_pattern (var, matchs, (kf, argsf)) -> begin
