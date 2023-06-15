@@ -29,6 +29,31 @@ type expr = Cps.expr
 type address = Cps.address
 type cont = Cps.cont
 
+let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
+
+let rec pp_value_domain fmt = function
+| Int_domain d ->  Int_domain.pp fmt d
+| Pointer_domain d -> Pointer_domain.pp fmt d
+| Tuple_domain values -> Format.fprintf fmt "[%a]" (pp_env "") values
+| Closure_domain clos -> Format.fprintf fmt "Closure:"; Closures.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
+
+and pp_env empty fmt args =
+  match args with
+  | [] -> Format.fprintf fmt "%s" empty
+  | [arg] -> Format.fprintf fmt "{%a}" pp_alloc arg
+  | arg::args' -> Format.fprintf fmt "{%a} %a" pp_alloc arg (pp_env empty) args'
+
+let pp_frame fmt (k, env) = Format.fprintf fmt "(%d: %a)" k (pp_env "") env
+  
+let pp_stack fmt stack =
+  Printf.printf "[";
+  List.iter (fun frame -> pp_frame fmt frame) stack;
+  Printf.printf "]\n"
+
+let pp_allocations fmt (allocations: value_domain Allocations.t) = Allocations.iter (fun i v -> Format.fprintf fmt "%d: %a\n" i pp_value_domain v) allocations
+
+let pp_analysis fmt (map: (value_domain Allocations.t * Values.t list) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, env) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k (pp_env "") env pp_allocations allocations) map
+
 let get = Env.get2
 let has = Env.has
 
@@ -240,22 +265,5 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
 let start_analysis prog args = analysis [Cont 0, args, [], Allocations.empty] prog (Analysis.empty)
 
 
-let pp_alloc fmt (alloc: Values.t) =
-  Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
 
-let rec pp_value_domain fmt = function
-| Int_domain d ->  Int_domain.pp fmt d
-| Pointer_domain d -> Pointer_domain.pp fmt d
-| Tuple_domain values -> Format.fprintf fmt "[%a]" (pp_env "") values
-| Closure_domain clos -> Format.fprintf fmt "Closure:"; Closures.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
 
-and pp_env empty fmt args =
-  match args with
-  | [] -> Format.fprintf fmt "%s" empty
-  | [arg] -> Format.fprintf fmt "{%a}" pp_alloc arg
-  | arg::args' -> Format.fprintf fmt "{%a} %a" pp_alloc arg (pp_env empty) args'
-
-let pp_allocations fmt (allocations: value_domain Allocations.t) =
-  Allocations.iter (fun i v -> Format.fprintf fmt "%d: %a\n" i pp_value_domain v) allocations
-
-let pp_analysis fmt (map: (value_domain Allocations.t * Values.t list) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, env) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k (pp_env "") env pp_allocations allocations) map
