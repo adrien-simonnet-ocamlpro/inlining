@@ -228,9 +228,11 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal value_cmp new_allocations old_allocations then begin
             analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
-          end else let args, cont = get_cont prog k in
-              let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
-              analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          end else begin
+            let args, cont = get_cont prog k in
+            let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
+            analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          end
         end else begin
           let args, cont = get_cont prog k in
           let next_conts = analysis_cont cont stack (map_values args env) allocations in
