@@ -12,6 +12,14 @@ type value_domain =
   | Pointer_domain of Pointer_domain.t
   | Closure_domain of (Values.t list) Closures.t
 
+let value_cmp v1 v2 =
+  match v1, v2 with
+  | Pointer_domain p1, Pointer_domain p2 -> Values.equal p1 p2
+  | Int_domain d1, Int_domain d2 -> d1 = d2
+  | Tuple_domain values1, Tuple_domain values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2
+  | Closure_domain clos1, Closure_domain clos2 -> Closures.equal (fun values1 values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2) clos1 clos2
+  | _ -> assert false
+
 type t = (value_domain list) Analysis.t
 
 type 'a map = 'a Cps.map
@@ -218,9 +226,9 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
         if has3 old_context stack env then begin
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
-          if Allocations.equal ( = ) new_allocations old_allocations
-            then analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
-            else let args, cont = get_cont prog k in
+          if Allocations.equal value_cmp new_allocations old_allocations then begin
+            analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          end else let args, cont = get_cont prog k in
               let next_conts = analysis_cont cont stack (map_values args env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
         end else begin
@@ -241,9 +249,9 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
         if has3 old_context stack env then begin
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
-          if Allocations.equal ( = ) new_allocations old_allocations
-            then analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
-            else let environment, args, cont = get_clos prog k in
+          if Allocations.equal value_cmp new_allocations old_allocations then begin
+            analysis conts' prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+          end else let environment, args, cont = get_clos prog k in
               let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
         end else begin
