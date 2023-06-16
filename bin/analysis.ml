@@ -121,6 +121,9 @@ let join_allocs allocs allocations =
   let values_domain = List.map (fun alloc -> Allocations.find alloc allocations) values in
   join_value_list values_domain
 
+let has (env: (address * Values.t) list) value =
+  let allocs = get env value in Values.cardinal allocs > 0
+
 let get (env: (address * Values.t) list) value allocations =
   let allocs = get env value in join_allocs allocs allocations
 
