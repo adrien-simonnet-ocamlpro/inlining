@@ -47,7 +47,7 @@ let _ =
         let cps2 = Cps.cont_to_asm cps2 in
         let cps3 =
           if !unused_vars
-          then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 1000 0) cps2 in cps
+          then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 10000 0) cps2 in cps
           else cps2
         in
         let cps3 = if List.length !inline_conts > 0 then Inliner.inline_cont !inline_conts cps3 cps3 else cps3 in
