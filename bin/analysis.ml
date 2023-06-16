@@ -252,7 +252,9 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
           let old_allocations = get3 old_context stack env in
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal value_cmp new_allocations old_allocations then begin
-            analysis conts' prog map
+            match stack with
+            | [] -> assert false
+            | (k', args)::_ -> analysis ((Cont k', (Values.empty :: args), stack, new_allocations)::conts') prog map
           end else let environment, args, cont = get_clos prog k in
               let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
