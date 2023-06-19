@@ -22,20 +22,44 @@ let value_cmp v1 v2 =
 
 type t = (value_domain list) Analysis.t
 
-type 'a map = 'a Cps.map
-
-type env_domain = value_domain map
-
 type var = Cps.var
 
-type stack = Cps.stack
+type stack = Cps.frame
 
 type prim = Cps.prim
 type named = Cps.named
 type pointer = Cps.pointer
 type expr = Cps.expr
-type address = Cps.address
+type address = pointer
 type cont = Cps.cont
+
+let rec has_cont (cont:cont) k =
+  match cont with
+  | Let_cont (k', _, _, _) when k = k' -> true
+  | Let_cont (_, _, _, e2) -> has_cont e2 k
+  | Let_clos (_, _, _, _, e2) -> has_cont e2 k
+  | End -> false
+
+let rec get_cont (cont:cont) k =
+match cont with
+| Let_cont (k', args, e1, _) when k = k' -> args, e1
+| Let_cont (_, _, _, e2) -> get_cont e2 k
+| Let_clos (_, _, _, _, e2) -> get_cont e2 k
+| End -> failwith "cont not found"
+
+let rec has_clos (cont:cont) k =
+  match cont with
+  | Let_clos (k', _, _, _, _) when k = k' -> true
+  | Let_clos (_, _, _, _, e2) -> has_clos e2 k
+  | Let_cont (_, _, _, e2) -> has_clos e2 k
+  | End -> false
+
+let rec get_clos (cont:cont) k =
+  match cont with
+  | Let_clos (k', env, args, e1, _) when k = k' -> env, args, e1
+  | Let_clos (_, _, _, _, e2) -> get_clos e2 k
+  | Let_cont (_, _, _, e2) -> get_clos e2 k
+  | End -> failwith "clos not found"
 
 let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
 
@@ -63,22 +87,15 @@ let pp_allocations fmt (allocations: value_domain Allocations.t) = Allocations.i
 let pp_analysis fmt (map: (value_domain Allocations.t * Values.t list) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, env) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k (pp_env "") env pp_allocations allocations) map
 
 let get = Env.get2
-let has = Env.has
 
-let get2 env var =
+let _get2 env var =
   match List.find_opt (fun (var', _) -> var = var') env with
   | Some (_, v) -> v
   | None -> assert false
 ;;
 
-let get_cont = Cps.get_cont
-let get_clos = Cps.get_clos
 
-let map_values = Cps.map_values
-
-let map_args (args: var list) (env: env_domain) = List.map (fun arg -> get env arg) args
-
-let map_stack (stack: stack) (env: env_domain) = List.map (fun (k'', args') -> k'', map_args args' env) stack
+let map_values args values = List.map2 (fun arg value -> arg, value) args values
 
 let rec cherche_motif motif liste =
   match motif, liste with
