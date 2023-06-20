@@ -86,8 +86,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
       let expr: Cps.expr = Let (var, Prim (binary_operator_to_prim binary_operator, [e1_id; e2_id]), expr) in
       let expr', substitutions', fv', conts' = to_cps conts (e1_id :: fv0) e2 e2_id expr substitutions in
-      let expr, subs, fvs, conts = to_cps conts' (remove_var (fv' @ (e1_id :: fv0)) e1_id) e1 e1_id expr' substitutions' in
-      expr, subs, fvs @ (remove_var (fv' @ (e1_id :: [])) e1_id), conts
+      let expr, subs, fvs, conts = to_cps conts' (fv' @ fv0) e1 e1_id expr' substitutions' in
+      expr, subs, (fvs @ fv'), conts
     end
   (*
       let closure_environment_id = Environment body_free_variables in
@@ -280,8 +280,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let closure_id = inc vars in
       let argument_id = inc vars in
       let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (return_continuation, var :: fv0, expr, conts)) (closure_id :: fv0) argument_expr argument_id (Call (closure_id, [argument_id], (return_continuation, fv0))) substitutions in
-      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var (fv1 @ (closure_id :: fv0)) closure_id) closure_expr closure_id cps1 substitutions1 in
-      cps2, substitutions2, fv2 @ (remove_var (fv1 @ (closure_id :: [])) closure_id), conts2
+      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (fv1 @ fv0) closure_expr closure_id cps1 substitutions1 in
+      cps2, substitutions2, fv2 @ fv1, conts2
     end
   (*
 
