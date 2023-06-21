@@ -2,7 +2,7 @@ type prim = Asm.prim
 type named = Asm.named
 type pointer = Asm.pointer
 type expr = Asm.expr
-type address = Asm.address
+type address = Asm.pointer
 type cont = Asm.cont
 
 let rec elim_unused_vars_named (vars : int array) conts (named : named)

@@ -2,7 +2,7 @@ type prim = Asm.prim
 type named = Asm.named
 type pointer = Asm.pointer
 type expr = Asm.expr
-type address = Asm.address
+type address = Asm.pointer
 type cont = Asm.cont
 
 type var = Asm.var
@@ -10,7 +10,17 @@ type var = Asm.var
 let has = Env.has
 
 let get = Env.get2
-let get_cont = Asm.get_cont
+let rec has_cont (cont: cont) k =
+  match cont with
+  | Let_cont (k', _, _, _) when k = k' -> true
+  | Let_cont (_, _, _, e2) -> has_cont e2 k
+  | End -> false
+
+let rec get_cont (cont: cont) k =
+match cont with
+| Let_cont (k', args, e1, _) when k = k' -> args, e1
+| Let_cont (_, _, _, e2) -> get_cont e2 k
+| End -> failwith "cont not found"
 
 let get env arg = if has env arg then get env arg else arg
 
