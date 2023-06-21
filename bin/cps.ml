@@ -8,20 +8,20 @@ module VarMap = Map.Make (Int)
 type prim = Asm.prim
 
 type named =
-  | Prim of prim * var list
-  | Var of var
-  | Tuple of var list
-  | Get of var * int
-  | Closure of pointer * var list
-  | Constructor of tag * var list
+| Prim of prim * var list
+| Var of var
+| Tuple of var list
+| Get of var * int
+| Closure of pointer * var list
+| Constructor of tag * var list
 
 and expr =
-  | Let of var * named * expr
-  | Apply_cont of pointer * var list
-  | Call of var * var list * frame
-  | If of var * (int * pointer * var list) list * (pointer * var list)
-  | Match_pattern of var * (int * pointer * var list) list * (pointer * var list)
-  | Return of var
+| Let of var * named * expr
+| Apply_cont of pointer * var list
+| Call of var * var list * frame
+| If of var * (int * pointer * var list) list * (pointer * var list)
+| Match_pattern of var * (int * pointer * var list) list * (pointer * var list)
+| Return of var
 
 type cont =
 | Let_cont of pointer * var list * expr * cont
@@ -52,8 +52,8 @@ match named with
 | Prim (prim, args) -> pp_prim subs fmt prim args
 | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
 | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
-| Get (record, pos) -> Format.fprintf fmt "get %s %d" (gen_name record subs) pos
-| Closure (k, env) -> Format.fprintf fmt "fun _0 -> f%d %a _0" k (pp_args ~split:" " ~subs ~empty: "()") env
+| Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (gen_name record subs) pos
+| Closure (k, env) -> Format.fprintf fmt "Closure (f%d, %a)" k (pp_args ~split:" " ~subs ~empty: "()") env
 | Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split: "; " ~subs ~empty: "") env
 
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr) : unit =
@@ -65,13 +65,11 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr) : u
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
 
-let rec pp_cont (subs: string VarMap.t) (fmt: Format.formatter) (cps : cont) : unit =
+let rec pp_cont ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatter) (cps : cont) : unit =
   match cps with
-  | Let_cont (k, args, e1, End) -> Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | Let_cont (k, args, e1, cont) -> Format.fprintf fmt "k%d %a =\n%a\nand %a%!" k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont subs) cont
-  | Let_clos (k, env, args, e1, End) -> Format.fprintf fmt "f%d %a %a =\n%a\n%!" k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | Let_clos (k, env, args, e1, cont) -> Format.fprintf fmt "f%d %a %a =\n%a\nand %a%!" k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont subs) cont
-  | End -> Format.fprintf fmt "()%!"
+  | Let_cont (k, args, e1, cont) -> Format.fprintf fmt "%s k%d %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
+  | Let_clos (k, env, args, e1, cont) -> Format.fprintf fmt "%s f%d %a %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
+  | End -> Format.fprintf fmt "%!"
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars

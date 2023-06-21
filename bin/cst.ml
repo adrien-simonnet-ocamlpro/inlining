@@ -24,18 +24,17 @@ let pp_binary fmt operator =
 
 let rec pp_expr fmt expr =
   match expr with
-  | Int i -> Format.fprintf fmt "%d" i
-  | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a" pp_expr a pp_binary op pp_expr b
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
-  | Var x -> Format.fprintf fmt "%s" x
-  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
-  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)" pp_expr expr
-  | If (cond, t, f) ->
-    Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
+  | Int i -> Format.fprintf fmt "%d%!" i
+  | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a%!" pp_expr a pp_binary op pp_expr b
+  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" x pp_expr e
+  | Var x -> Format.fprintf fmt "%s%!" x
+  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" var pp_expr e1 pp_expr e2
+  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" var pp_expr e) "" _bindings) pp_expr expr
+  | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
-  | Constructor (_, _) -> Format.fprintf fmt "constructor"
-  | Match (_, _, _) -> Format.fprintf fmt "match"
-  | Tuple _ -> Format.fprintf fmt "tuple"
+  | Constructor (_, _) -> Format.fprintf fmt "constructor%!"
+  | Match (_, _, _) -> Format.fprintf fmt "match%!"
+  | Tuple _ -> Format.fprintf fmt "tuple%!"
 
 let vars = ref 0
 let conts = ref 0

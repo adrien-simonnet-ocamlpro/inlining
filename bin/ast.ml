@@ -35,19 +35,31 @@ let rec pp_match_pattern fmt (pattern: match_pattern) =
   | Deconstructor (name, var::vars) -> Format.fprintf fmt "%s (%s)" name (List.fold_left (fun str var' -> str ^ ", " ^ var') var vars)
   | Joker _ -> Format.fprintf fmt "_"
 
+and pp_constructor fmt (name, exprs: string * expr list) =
+  match exprs with
+  | [] -> Format.fprintf fmt "%s" name
+  | [e] -> Format.fprintf fmt "%s %a" name pp_expr e
+  | e :: exprs' -> Format.fprintf fmt "%s (%a)" name (pp_exprs ~empty: "" ~split: ", ") (e :: exprs')
+
+and pp_exprs ?(empty=(" ": string)) ?(split=(" ": string)) (fmt: Format.formatter) (exprs: expr list): unit =
+  match exprs with
+  | [] -> Format.fprintf fmt "%s" empty
+  | [ e ] -> Format.fprintf fmt "%a" pp_expr e
+  | e :: exprs' -> Format.fprintf fmt "%a%s%a" pp_expr e split (pp_exprs ~split ~empty) exprs'
+
 and pp_expr fmt expr =
   match expr with
-  | Int i -> Format.fprintf fmt "%d" i
-  | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)" pp_expr a pp_binary op pp_expr b
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
-  | Var x -> Format.fprintf fmt "%s" x
-  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
-  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)" pp_expr expr
-  | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
-  | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
-  | Type (name, _, expr) -> Format.fprintf fmt "type %s = %s %a" name "constructors" pp_expr expr
-  | Constructor (name, _args) -> Format.fprintf fmt "%s ()" name
-  | Match (e, matchs) -> Format.fprintf fmt "(match %a with " pp_expr e; (List.iter (fun (pattern, e) -> Format.fprintf fmt "%a -> %a" pp_match_pattern pattern pp_expr e) matchs); Format.fprintf fmt ")"
+  | Int i -> Format.fprintf fmt "%d%!" i
+  | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)%!" pp_expr a pp_binary op pp_expr b
+  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" x pp_expr e
+  | Var x -> Format.fprintf fmt "%s%!" x
+  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
+  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)%!" pp_expr expr
+  | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
+  | App (e1, e2) -> Format.fprintf fmt "(%a %a)%!" pp_expr e1 pp_expr e2
+  | Type (name, _, expr) -> Format.fprintf fmt "type %s = %s \n\n%a%!" name "constructors" pp_expr expr
+  | Constructor (name, exprs) -> Format.fprintf fmt "%a%!" pp_constructor (name, exprs)
+  | Match (e, matchs) -> Format.fprintf fmt "(match %a with %!" pp_expr e; (List.iter (fun (pattern, e) -> Format.fprintf fmt "%a -> %a" pp_match_pattern pattern pp_expr e) matchs); Format.fprintf fmt ")"
 
 let binary_to_cst (binary: binary_operator): Cst.binary_operator =
   match binary with
