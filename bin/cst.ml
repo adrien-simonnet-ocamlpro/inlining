@@ -79,15 +79,15 @@ let binary_operator_to_prim (binary: binary_operator): Cps.prim =
 
 let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
   match ast with
-  | Int i -> Let (var, Prim (Const i, []), expr), substitutions, [], conts
+  | Int i -> Let (var, Prim (Const i, []), expr), [], [], conts
   | Binary (binary_operator, e1, e2) -> begin
       let e1_id = inc vars in
       let e2_id = inc vars in
 
       let expr: Cps.expr = Let (var, Prim (binary_operator_to_prim binary_operator, [e1_id; e2_id]), expr) in
       let expr', substitutions', fv', conts' = to_cps conts (e1_id :: fv0) e2 e2_id expr substitutions in
-      let expr, subs, fvs, conts = to_cps conts' (fv' @ fv0) e1 e1_id expr' substitutions' in
-      expr, subs, (fvs @ fv'), conts
+      let expr, subs, fvs, conts = to_cps conts' (fv' @ fv0) e1 e1_id expr' (substitutions' @ substitutions) in
+      expr, subs @ substitutions', (fvs @ fv'), conts
     end
   (*
       let closure_environment_id = Environment body_free_variables in
@@ -108,7 +108,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> body_argument_id) body_free_variables in
       let function_id = inc_conts () in
       let closure_id = inc_conts () in
-      Let (var, Closure (closure_id, body_free_variables), expr), body_substitutions @ substitutions, body_free_variables, (Let_clos (closure_id, body_free_variables, [body_argument_id], Apply_cont (function_id, body_argument_id :: body_free_variables), Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
+      Let (var, Closure (closure_id, body_free_variables), expr), body_substitutions, body_free_variables, (Let_clos (closure_id, body_free_variables, [body_argument_id], Apply_cont (function_id, body_argument_id :: body_free_variables), Let_cont (function_id, body_argument_id :: body_free_variables, body_cps, body_continuations)))
     end
   (*
       let var = variable_name in
@@ -116,17 +116,17 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
   *)
   | Var variable_name -> begin
       if has_var_name substitutions variable_name
-      then Let (var, Var (get_var_id substitutions variable_name), expr), substitutions, [], conts
+      then Let (var, Var (get_var_id substitutions variable_name), expr), [], [], conts
       else begin
         let variable_id = inc vars in
-        Let (var, Var variable_id, expr), (variable_name, variable_id) :: substitutions, [variable_id], conts
+        Let (var, Var variable_id, expr), [(variable_name, variable_id)], [variable_id], conts
       end
     end
   | Let (var', e1, e2) -> begin
       let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
-      let v1 = if has_var_name substitutions1 var' then get_var_id substitutions1 var' else inc vars in
-      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var (fv1 @ fv0) v1) e1 v1 cps1 (List.filter (fun (_, v) -> not (v = v1)) substitutions1) in
-      cps2, (if has_var_name substitutions1 var' then substitutions2 else add_var substitutions2 var' v1), (fv2 @ (remove_var (fv1 @ []) v1)), conts2
+      let v1 = if has_var_name (substitutions1 @ substitutions) var' then get_var_id (substitutions1 @ substitutions) var' else inc vars in
+      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (remove_var (fv1 @ fv0) v1) e1 v1 cps1 (List.filter (fun (_, v) -> not (v = v1)) (substitutions1 @ substitutions)) in
+      cps2, (if has_var_name (substitutions1 @ substitutions) var' then substitutions2 @ substitutions1 else add_var (substitutions2 @ substitutions1) var' v1), (fv2 @ (remove_var fv1 v1)), conts2
     end
     (*
         let env = fvs_1 ∪ ... ∪ fvs_n
@@ -159,6 +159,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
   | Let_rec (bindings, scope) ->
     let scope_cps, scope_substitutions, scope_free_variables, scope_conts = to_cps conts fv0 scope var expr substitutions in
 
+    (*let scope_substitutions = scope_substitutions @ substitutions in*)
+    
     (* Substitued binding variables in scope. *)
     let scope_binding_variable_ids = List.map (fun (var', _) -> if has_var_name scope_substitutions var' then get_var_id scope_substitutions var' else inc vars) bindings in
 
@@ -205,7 +207,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
     let all_binding_bodies_free_variables = join_fvs closures_caller_free_variable_ids in
 
-    let scope_cps, substitutions'', _scope_free_variables_no_bindings'', scope_and_closures_conts = List.fold_left (fun (scope_cps', substitutions', _scope_free_variables_no_bindings', scope_and_closures_conts') ((scope_binding_variable_id, binding_body_closure_continuation_id, binding_body_cps, _binding_body_substitutions, bindind_body_bindind_variable_ids, binding_body_arg_id, binding_body_free_variables_no_arg_no_bindings), caller_free_variable_ids) ->
+    let scope_cps, _scope_free_variables_no_bindings'', scope_and_closures_conts = List.fold_left (fun (scope_cps', _scope_free_variables_no_bindings', scope_and_closures_conts') ((scope_binding_variable_id, binding_body_closure_continuation_id, binding_body_cps, _binding_body_substitutions, bindind_body_bindind_variable_ids, binding_body_arg_id, binding_body_free_variables_no_arg_no_bindings), caller_free_variable_ids) ->
       (* *)
       let binding_body_function_continuation_id = inc_conts () in
       
@@ -223,10 +225,10 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
 
       (* *)
-      Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), substitutions', (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_clos (binding_body_closure_continuation_id, all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
+      Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_clos (binding_body_closure_continuation_id, all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
     
-    ) (scope_cps, substitutions, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
-    scope_cps, all_binding_bodies_substitutions @ scope_substitutions_no_bindings @ substitutions'', join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
+    ) (scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
+    scope_cps, all_binding_bodies_substitutions @ scope_substitutions_no_bindings, join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
     (*
         let condition_id = condition_expr in
         if condition_id then true_continuation_id fv1_2 ... fvn_2 else false_continuation_id fv1_3 ... fvm_3
@@ -256,7 +258,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let false_expr_free_variables_names = List.map (fun fv -> get_var_name false_substitutions fv) (List.filter (fun fv -> has_var_id false_substitutions fv && not (has_var_name substitutions (get_var_name false_substitutions fv))) false_free_variables_id) in
 
       (* Substitution of free variables. *)
-      let true_false_substitutions = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_var substitutions' fv (inc vars)) substitutions (true_expr_free_variables_names @ false_expr_free_variables_names) in
+      let true_false_substitutions = List.fold_left (fun substitutions' fv -> if has_var_name (substitutions' @ substitutions) fv then substitutions' else add_var substitutions' fv (inc vars)) [] (true_expr_free_variables_names @ false_expr_free_variables_names) in
 
       (* Substitued free variables. *)
       let true_caller_arguments_id = List.map (fun fv -> if has_var_id true_substitutions fv then let fval = get_var_name true_substitutions fv in if has_var_name true_false_substitutions fval then get_var_id true_false_substitutions fval else fv else fv) true_free_variables_id in
@@ -264,7 +266,7 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
 
       let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (true_continuation_id, true_free_variables_id @ fv0, true_cps, Let_cont (false_continuation_id, false_free_variables_id @ fv0, false_cps, true_and_false_continuations))) (join_fv true_caller_arguments_id false_caller_arguments_id) condition_expr condition_id (If (condition_id, [(0, false_continuation_id, false_caller_arguments_id  @ fv0)], (true_continuation_id, true_caller_arguments_id  @ fv0))) (true_false_substitutions @ substitutions) in
 
-      cps1, substitutions1 @ true_substitutions @ false_substitutions, fv1 @ (join_fv true_caller_arguments_id false_caller_arguments_id), conts1
+      cps1, substitutions1 @ true_false_substitutions @ true_substitutions @ false_substitutions, fv1 @ (join_fv true_caller_arguments_id false_caller_arguments_id), conts1
     end
     (*
           let closure_id = closure_expr in
@@ -280,8 +282,8 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let closure_id = inc vars in
       let argument_id = inc vars in
       let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (return_continuation, var :: fv0, expr, conts)) (closure_id :: fv0) argument_expr argument_id (Call (closure_id, [argument_id], (return_continuation, fv0))) substitutions in
-      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (fv1 @ fv0) closure_expr closure_id cps1 substitutions1 in
-      cps2, substitutions2, fv2 @ fv1, conts2
+      let cps2, substitutions2, fv2, conts2 = to_cps conts1 (fv1 @ fv0) closure_expr closure_id cps1 (substitutions1 @ substitutions) in
+      cps2, substitutions2 @ substitutions1, fv2 @ fv1, conts2
     end
   (*
 
@@ -327,29 +329,29 @@ let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (st
       let free_variable_names_default = List.map (fun fv -> get_var_name default_branch_substitutions fv) (List.filter (fun fv -> has_var_id default_branch_substitutions fv && not (has_var_name substitutions (get_var_name default_branch_substitutions fv))) default_branch_free_variables) in
 
       (* Substitution of free variables. *)
-      let substitutions_branchs = List.fold_left (fun substitutions' fv -> if has_var_name substitutions' fv then substitutions' else add_var substitutions' fv (inc vars)) substitutions (List.concat free_variable_names_branchs @ free_variable_names_default) in
+      let substitutions_branchs = List.fold_left (fun substitutions' fv -> if has_var_name (substitutions' @ substitutions) fv then substitutions' else add_var substitutions' fv (inc vars)) [] (List.concat free_variable_names_branchs @ free_variable_names_default) in
 
       (* Substitued free variables. *)
-      let free_variables_branchs = List.map (fun (_, _, fv2, substitutions_e2) -> List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in if has_var_name substitutions_branchs fval then get_var_id substitutions_branchs fval else fv else fv) fv2) branchs_bodies in
-      let free_variables_default = List.map (fun fv -> if has_var_id default_branch_substitutions fv then let fval = get_var_name default_branch_substitutions fv in if has_var_name substitutions_branchs fval then get_var_id substitutions_branchs fval else fv else fv) default_branch_free_variables in
+      let free_variables_branchs = List.map (fun (_, _, fv2, substitutions_e2) -> List.map (fun fv -> if has_var_id substitutions_e2 fv then let fval = get_var_name substitutions_e2 fv in if has_var_name (substitutions_branchs @ substitutions) fval then get_var_id (substitutions_branchs @ substitutions) fval else fv else fv) fv2) branchs_bodies in
+      let free_variables_default = List.map (fun fv -> if has_var_id default_branch_substitutions fv then let fval = get_var_name default_branch_substitutions fv in if has_var_name (substitutions_branchs @ substitutions) fval then get_var_id (substitutions_branchs @ substitutions) fval else fv else fv) default_branch_free_variables in
 
       (* Pattern matching. *)
       let pattern_id = inc vars in
-      let expr, subs, fvs, conts = to_cps branchs_continuations (join_fv free_variables_default (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _, _), fvs) -> n, k, fvs @ fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, free_variables_default @ fv0))) substitutions_branchs in
+      let expr, subs, fvs, conts = to_cps branchs_continuations (join_fv free_variables_default (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _, _), fvs) -> n, k, fvs @ fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, free_variables_default @ fv0))) (substitutions_branchs @ substitutions) in
 
-      expr, subs, fvs @ (join_fv free_variables_default (join_fvs free_variables_branchs)), conts
+      expr, subs @ substitutions_branchs, fvs @ (join_fv free_variables_default (join_fvs free_variables_branchs)), conts
     end
     (*
     
     *)
   | Tuple args -> begin
      let vars = List.map (fun arg -> inc vars, arg) args in
-     List.fold_left (fun (expr', substitutions', fv', conts') (var, e) -> let expr'', substitutions'', fv'', conts'' = to_cps conts' ((remove_var fv' var) @ fv0) e var expr' substitutions' in expr'', substitutions'', fv'' @ (remove_var fv' var), conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars), conts) vars
+     List.fold_left (fun (expr', substitutions', fv', conts') (var, e) -> let expr'', substitutions'', fv'', conts'' = to_cps conts' ((remove_var fv' var) @ fv0) e var expr' (substitutions' @ substitutions) in expr'', (substitutions'' @ substitutions'), fv'' @ (remove_var fv' var), conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) vars), expr), [], (List.map (fun (var, _) -> var) vars), conts) vars
     end
     (*
     
     *)
   | Constructor (tag, args) -> begin
       let vars = List.map (fun arg -> inc vars, arg) args in
-      List.fold_left (fun (expr', substitutions', fv', conts') (var, e) -> let expr'', substitutions'', fv'', conts'' = to_cps conts' ((remove_var fv' var) @ fv0) e var expr' substitutions' in expr'', substitutions'', fv'' @ (remove_var fv' var), conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) vars), expr), substitutions, (List.map (fun (var, _) -> var) vars), conts) vars
+      List.fold_left (fun (expr', substitutions', fv', conts') (var, e) -> let expr'', substitutions'', fv'', conts'' = to_cps conts' ((remove_var fv' var) @ fv0) e var expr' (substitutions' @ substitutions) in expr'', (substitutions'' @ substitutions'), fv'' @ (remove_var fv' var), conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) vars), expr), [], (List.map (fun (var, _) -> var) vars), conts) vars
     end
