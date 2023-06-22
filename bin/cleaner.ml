@@ -34,7 +34,7 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       let e1' = elim_unused_vars_named vars conts e1 in
       Let (var, e1', e2'))
     else e2'
-  | Apply_cont (k, args, stack) ->
+  | Apply_direct (k, args, stack) ->
     List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set conts k (Array.get conts k + 1);
@@ -42,7 +42,7 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
       (fun arg ->
         Array.set vars arg (Array.get vars arg + 1))
       args;
-    Apply_cont (k, args, stack)
+    Apply_direct (k, args, stack)
   | If (var, matchs, (kf, argsf), stack) ->
     List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
@@ -53,12 +53,12 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
   | Return x ->
     Array.set vars x (Array.get vars x + 1);
     Return x
-  | Call (x, args, stack) ->
+  | Apply_indirect (x, args, stack) ->
     Array.set vars x (Array.get vars x + 1);
     List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
-      Call (x, args, stack)
+      Apply_indirect (x, args, stack)
 and elim_unused_vars_cont (conts : int array) (cps : cont) : cont * int array =
     match cps with
     | Let_cont (k', args', e1, e2) ->

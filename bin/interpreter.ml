@@ -58,14 +58,14 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
 
     match cps with
     | Let (var, named, expr) -> interp stack expr (interp_named var named env @ env) conts
-    | Apply_cont (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
+    | Apply_direct (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
       interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
     | If (var, matchs, (kf, argsf), stack') -> begin
         match get env var with
         | Int n -> begin
           match List.find_opt (fun (n', _, _) -> n = n') matchs with
-          | Some (_, kt, argst) -> interp stack (Apply_cont (kt, argst, stack')) env conts
-          | None -> interp stack (Apply_cont (kf, argsf, stack')) env conts
+          | Some (_, kt, argst) -> interp stack (Apply_direct (kt, argst, stack')) env conts
+          | None -> interp stack (Apply_direct (kf, argsf, stack')) env conts
           end
         | _ -> assert false
       end
@@ -75,7 +75,7 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
       | (k, env')::stack' -> let args2', cont'', _ = Env.get_cont conts k in
       interp stack' cont'' ((List.hd args2', get env v)::(List.map2 (fun arg' arg -> arg', arg) (List.tl args2') env') ) conts
     end
-    | Call (x, args, stack') -> begin
+    | Apply_indirect (x, args, stack') -> begin
       match get env x with
       | Int k' -> let args', cont, _ = Env.get_cont conts k' in
         interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> arg', get env arg) args' args)) conts

@@ -36,25 +36,25 @@ and inline (stack: (pointer * var list) list) (cps : expr) (env : (var * var) li
 
     match cps with
     | Let (var, named, expr) -> Let (var, inline_named named env, inline stack expr env conts)
-    | Apply_cont (k, args, stack') -> Apply_cont (k, args, stack' @ stack)
+    | Apply_direct (k, args, stack') -> Apply_direct (k, args, stack' @ stack)
     | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack' @ stack)
     | Return v -> begin
       match stack with
       | [] -> assert false (* ?? *)
-      | (k, env')::stack' -> Apply_cont (k, v::env', stack')
+      | (k, env')::stack' -> Apply_direct (k, v::env', stack')
     end
-    | Call (x, args, stack') -> Call (x, args, stack' @ stack)
+    | Apply_indirect (x, args, stack') -> Apply_indirect (x, args, stack' @ stack)
 
 
 let rec inline_parent (cps : expr) (conts: cont): expr =
 
     match cps with
     | Let (var, named, expr) -> Let (var, named, inline_parent expr conts)
-    | Apply_cont (k, args, stack') -> let args', cont = get_cont conts k in
+    | Apply_direct (k, args, stack') -> let args', cont = get_cont conts k in
         inline stack' cont (List.map2 (fun arg' arg -> arg', arg) args' args) conts
     | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack')
     | Return _ -> assert false (* ?? *)
-    | Call (x, args, stack') -> Call (x, args, stack')
+    | Apply_indirect (x, args, stack') -> Apply_indirect (x, args, stack')
 
 
 let rec inline_cont ks (cps : cont) (conts : cont): cont =

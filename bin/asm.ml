@@ -21,8 +21,8 @@ type named =
 
 and expr =
 | Let of var * named * expr
-| Apply_cont of pointer * var list * stack
-| Call of var * var list * stack
+| Apply_direct of pointer * var list * stack
+| Apply_indirect of var * var list * stack
 | If of var * (int * pointer * var list) list * (pointer * var list) * stack
 | Return of var
 
@@ -60,10 +60,10 @@ let pp_named (subs: string VarMap.t) (fmt: Format.formatter) (named: named): uni
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): unit =
   match cps with
   | Let (var, named, expr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
-  | Apply_cont (k, args, []) -> Format.fprintf fmt "\tk%d %a" k (pp_args ~subs ~split: " " ~empty: "") args
+  | Apply_direct (k, args, []) -> Format.fprintf fmt "\tk%d %a" k (pp_args ~subs ~split: " " ~empty: "") args
   | If (var, matchs, (kf, argsf), []) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
-  | Call (x, args, [(k, kargs)]) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
+  | Apply_indirect (x, args, [(k, kargs)]) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
   | _ -> assert false
 
 let rec pp_cont ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatter) (cps: cont): unit =

@@ -138,7 +138,7 @@ let rec named_to_asm (var: var) (named: named) (expr: expr) (vars: var Seq.t): A
 and expr_to_asm (cps: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
   match cps with
   | Let (var, named, expr) -> named_to_asm var named expr vars
-  | Apply_cont (k, args) -> Apply_cont (k, args, []), vars
+  | Apply_cont (k, args) -> Apply_direct (k, args, []), vars
   | If (var, matchs, (kf, argsf)) -> If (var, matchs, (kf, argsf), []), vars
   | Match_pattern (cons, matchs, (kf, argsf)) -> begin
       let tag_id, vars = inc vars in
@@ -149,7 +149,7 @@ and expr_to_asm (cps: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
   | Call (clos, args, frame) -> begin
       let k_id, vars = inc vars in
       let env_id, vars = inc vars in
-      Let (k_id, Get (clos, 0), Let (env_id, Get (clos, 1), Call (k_id, env_id :: args, [frame]))), vars
+      Let (k_id, Get (clos, 0), Let (env_id, Get (clos, 1), Apply_indirect (k_id, env_id :: args, [frame]))), vars
     end
 
 let rec cont_to_asm (cps: cont) (vars: var Seq.t): Asm.cont * var Seq.t =
