@@ -95,7 +95,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let expr: Cps.expr = Let (var, Prim (binary_operator_to_prim binary_operator, [e1_id; e2_id]), expr) in
       let expr', vars, fv', conts' = to_cps vars (e1_id :: fv0) e2 e2_id expr in
       let expr, vars, fvs, conts = to_cps vars (fv' @ fv0) e1 e1_id expr' in
-      expr, vars, (fvs @ fv'), conts @ conts'
+      expr, vars, join_fv fvs fv', conts @ conts'
     end
   (*
       let closure_environment_id = Environment body_free_variables in
@@ -124,8 +124,8 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
   | Var variable_name -> Let (var, Var variable_name, expr), vars, [variable_name], []
   | Let (var', e1, e2) -> begin
       let cps1, vars, fv1, conts1 = to_cps vars fv0 e2 var expr in
-      let cps2, vars, fv2, conts2 = to_cps vars (remove_var (fv1 @ fv0) var') e1 var' cps1 in
-      cps2, vars, (fv2 @ (remove_var fv1 var')), conts1 @ conts2
+      let cps2, vars, fv2, conts2 = to_cps vars (remove_var (join_fv fv1 fv0) var') e1 var' cps1 in
+      cps2, vars, join_fv fv2 (remove_var fv1 var'), conts1 @ conts2
     end
     (*
         let env = fvs_1 ∪ ... ∪ fvs_n
@@ -239,7 +239,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       
       let cps1, vars, fv1, conts1 = to_cps vars (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
 
-      cps1, vars, fv1 @ (join_fv true_free_variables_id false_free_variables_id), Cont (e2_kid, true_free_variables_id @ fv0, true_cps) :: Cont (e3_kid, false_free_variables_id @ fv0, false_cps) :: Cont (merge_kid, var :: fv0, expr) :: (true_continuations @ false_continuations @ conts1)
+      cps1, vars, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), Cont (merge_kid, var :: fv0, expr) :: Cont (e3_kid, false_free_variables_id @ fv0, false_cps) :: Cont (e2_kid, true_free_variables_id @ fv0, true_cps) :: (true_continuations @ false_continuations @ conts1)
     end
     (*
           let closure_id = e1 in
@@ -259,8 +259,8 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let return_kid = inc_conts () in
 
       let cps1, vars, fv1, conts1 = to_cps vars (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
-      let cps2, vars, fv2, conts2 = to_cps vars (fv1 @ fv0) e1 e1_id cps1 in
-      cps2, vars,fv2 @ fv1, Cont (return_kid, var :: fv0, expr) :: (conts2 @ conts1)
+      let cps2, vars, fv2, conts2 = to_cps vars (join_fv fv1 fv0) e1 e1_id cps1 in
+      cps2, vars, join_fv fv2 fv1, Cont (return_kid, var :: fv0, expr) :: (conts2 @ conts1)
     end
   (*
 
@@ -299,9 +299,9 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
 
       (* Pattern matching. *)
       let pattern_id, vars = inc vars in
-      let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, fvs @ fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
+      let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, join_fv fvs fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
 
-      expr'', vars, fvs @ (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), Cont (default_continuation_id, default_branch_free_variables @ fv0, default_branch_cps) :: Cont (return_continuation_id, var :: fv0, expr) :: (conts @ default_branch_continuations @ branchs_continuations)
+      expr'', vars, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), Cont (default_continuation_id, default_branch_free_variables @ fv0, default_branch_cps) :: Cont (return_continuation_id, var :: fv0, expr) :: (conts @ default_branch_continuations @ branchs_continuations)
     end
     (*
     
@@ -311,7 +311,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let var_id, vars = inc vars in
       vars, (var_id, arg)
      end) vars args in
-     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts' @ conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
+     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, join_fv fv'' (remove_var fv' var), conts' @ conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
     end
     (*
     
@@ -321,5 +321,5 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let var_id, vars = inc vars in
       vars, (var_id, arg)
      end) vars args in
-     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts' @ conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
+     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, join_fv fv'' (remove_var fv' var), conts' @ conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
     end
