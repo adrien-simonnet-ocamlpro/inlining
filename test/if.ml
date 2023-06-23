@@ -1,1 +1,1 @@
-fun x -> if x then x else x
+if (if a then b else c) then (if a then b else c) else (if a then b else c)

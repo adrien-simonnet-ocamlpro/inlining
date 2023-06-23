@@ -1,12 +1,13 @@
 type list =
 | Empty
 | Cons of int * list
-let x = Cons (10, Cons (20, Cons (32, Empty))) in
-
 let rec sum = fun l ->
  ( match l with
   | Cons (x, y) -> x + (sum y)
-  | _ -> 0
+  | _ -> free
  )
+in
 
-in sum x
+let rec ints3 = fun i -> if i then (Cons (trois, (ints3 (i-1)))) else (Empty)
+
+in (sum (ints3 y))
