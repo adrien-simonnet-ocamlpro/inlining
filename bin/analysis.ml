@@ -151,23 +151,23 @@ let get2 (env: (address * Values.t) list) value allocations =
 let get (env: (address * Values.t) list) value allocations =
   let allocs = get env value in join_allocs allocs allocations
 
-let analysis_prim (prim : prim) args (env: (address * Values.t) list) (allocations: value_domain Allocations.t) : value_domain option =
+let analysis_prim (prim : prim) args (env: (address * Values.t) list) (allocations: value_domain Allocations.t): value_domain option =
   match prim, args with
   | Const x, _ -> Some (Int_domain (Int_domain.singleton x))
   | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-      | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
-      | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
-      | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
-      | _ -> assert false
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
+    | _ -> assert false
     end
   | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-  | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
-  | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
-  | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
-| _ -> assert false
-  end
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
+    | _ -> assert false
+    end
   | Print, _ :: _ -> None
-  | _ -> failwith "invalid args"
+  | _ -> assert false
 
 let map_args2 (args: var list) (env: (address * Values.t) list) = List.map (fun arg -> Env.get2 env arg) args
 
@@ -177,7 +177,7 @@ type cont_type =
 | Cont of int
 | Clos of int * Values.t list
 
-let analysis_named (named : named) (env: (address * Values.t) list) (allocations: value_domain Allocations.t) : value_domain option =
+let analysis_named (named : named) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): value_domain option =
   match named with
   | Var var' -> get env var' allocations
   | Prim (prim, args) -> analysis_prim prim args env allocations
