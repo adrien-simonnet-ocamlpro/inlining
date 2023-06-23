@@ -85,17 +85,17 @@ let inc (vars: Cps.var Seq.t): Cps.var * Cps.var Seq.t =
   | None -> assert false
   | Some (i, vars') -> i, vars'
 
-let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr): Cps.expr * Cps.var Seq.t * int list * Cps.cont =
+let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps.expr * Cps.var Seq.t * int list * Cps.conts =
   match ast with
-  | Int i -> Let (var, Prim (Const i, []), expr), vars, [], conts
+  | Int i -> Let (var, Prim (Const i, []), expr), vars, [], []
   | Binary (binary_operator, e1, e2) -> begin
       let e1_id, vars = inc vars in
       let e2_id, vars = inc vars in
 
       let expr: Cps.expr = Let (var, Prim (binary_operator_to_prim binary_operator, [e1_id; e2_id]), expr) in
-      let expr', vars, fv', conts' = to_cps vars conts (e1_id :: fv0) e2 e2_id expr in
-      let expr, vars, fvs, conts = to_cps vars conts' (fv' @ fv0) e1 e1_id expr' in
-      expr, vars, (fvs @ fv'), conts
+      let expr', vars, fv', conts' = to_cps vars (e1_id :: fv0) e2 e2_id expr in
+      let expr, vars, fvs, conts = to_cps vars (fv' @ fv0) e1 e1_id expr' in
+      expr, vars, (fvs @ fv'), conts @ conts'
     end
   (*
       let closure_environment_id = Environment body_free_variables in
@@ -111,21 +111,21 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
   *)
   | Fun (argument_name, body) -> begin
       let body_return_id, vars = inc vars in
-      let body_cps, vars, body_free_variables, body_continuations = to_cps vars conts [] body body_return_id (Return body_return_id) in
+      let body_cps, vars, body_free_variables, body_continuations = to_cps vars [] body body_return_id (Return body_return_id) in
       let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> argument_name) body_free_variables in
       let function_id = inc_conts () in
       let closure_id = inc_conts () in
-      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, (Let_clos (closure_id, body_free_variables, [argument_name], Apply_cont (function_id, argument_name :: body_free_variables), Let_cont (function_id, argument_name :: body_free_variables, body_cps, body_continuations)))
+      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, Clos (closure_id, body_free_variables, [argument_name], Apply_cont (function_id, argument_name :: body_free_variables)) :: Cont (function_id, argument_name :: body_free_variables, body_cps) :: body_continuations
     end
   (*
       let var = variable_name in
       expr
   *)
-  | Var variable_name -> Let (var, Var variable_name, expr), vars, [variable_name], conts
+  | Var variable_name -> Let (var, Var variable_name, expr), vars, [variable_name], []
   | Let (var', e1, e2) -> begin
-      let cps1, vars, fv1, conts1 = to_cps vars conts fv0 e2 var expr in
-      let cps2, vars, fv2, conts2 = to_cps vars conts1 (remove_var (fv1 @ fv0) var') e1 var' cps1 in
-      cps2, vars, (fv2 @ (remove_var fv1 var')), conts2
+      let cps1, vars, fv1, conts1 = to_cps vars fv0 e2 var expr in
+      let cps2, vars, fv2, conts2 = to_cps vars (remove_var (fv1 @ fv0) var') e1 var' cps1 in
+      cps2, vars, (fv2 @ (remove_var fv1 var')), conts1 @ conts2
     end
     (*
         let env = fvs_1 ∪ ... ∪ fvs_n
@@ -156,7 +156,7 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
         exprn
   *)
   | Let_rec (bindings, scope) ->
-    let scope_cps, vars, scope_free_variables, scope_conts = to_cps vars conts fv0 scope var expr in
+    let scope_cps, vars, scope_free_variables, scope_conts = to_cps vars fv0 scope var expr in
 
     (*let scope_substitutions = scope_substitutions @ in*)
     
@@ -171,8 +171,8 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       match binding_expr with
       | Fun (arg, binding_body_expr) ->
           let return_variable, vars = inc vars in
-          let binding_body_cps, vars, binding_body_free_variables, binding_body_conts = to_cps vars scope_conts' [] binding_body_expr return_variable (Return return_variable) in
-          (vars, binding_body_conts), (arg, binding_body_cps, binding_body_free_variables)
+          let binding_body_cps, vars, binding_body_free_variables, binding_body_conts = to_cps vars [] binding_body_expr return_variable (Return return_variable) in
+          (vars, binding_body_conts @ scope_conts'), (arg, binding_body_cps, binding_body_free_variables)
       | _ -> assert false
     end) (vars, scope_conts) bindings in
 
@@ -207,7 +207,7 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
 
       (* *)
-      vars, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), (Cps.Let_clos (binding_body_closure_continuation_id, all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables, Let_cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps, scope_and_closures_conts')))
+      vars, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), Cps.Clos (binding_body_closure_continuation_id, all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables) :: Cont (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps) :: scope_and_closures_conts'
     
     ) (vars, scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
     scope_cps, vars, join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
@@ -234,12 +234,12 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       let e3_kid = inc_conts () in
       let merge_kid = inc_conts () in
 
-      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars (Let_cont (merge_kid, var :: fv0, expr, conts)) fv0 e2 e2_id (Apply_cont (merge_kid, e2_id :: fv0)) in
-      let false_cps, vars, false_free_variables_id, true_and_false_continuations = to_cps vars true_continuations fv0 e3 e3_id (Apply_cont (merge_kid, e3_id :: fv0)) in
+      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars fv0 e2 e2_id (Apply_cont (merge_kid, e2_id :: fv0)) in
+      let false_cps, vars, false_free_variables_id, false_continuations = to_cps vars fv0 e3 e3_id (Apply_cont (merge_kid, e3_id :: fv0)) in
       
-      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (e2_kid, true_free_variables_id @ fv0, true_cps, Let_cont (e3_kid, false_free_variables_id @ fv0, false_cps, true_and_false_continuations))) (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
+      let cps1, vars, fv1, conts1 = to_cps vars (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
 
-      cps1, vars, fv1 @ (join_fv true_free_variables_id false_free_variables_id), conts1
+      cps1, vars, fv1 @ (join_fv true_free_variables_id false_free_variables_id), Cont (e2_kid, true_free_variables_id @ fv0, true_cps) :: Cont (e3_kid, false_free_variables_id @ fv0, false_cps) :: Cont (merge_kid, var :: fv0, expr) :: (true_continuations @ false_continuations @ conts1)
     end
     (*
           let closure_id = e1 in
@@ -258,9 +258,9 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       (* Continuations IDs. *)
       let return_kid = inc_conts () in
 
-      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (return_kid, var :: fv0, expr, conts)) (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
-      let cps2, vars, fv2, conts2 = to_cps vars conts1 (fv1 @ fv0) e1 e1_id cps1 in
-      cps2, vars,fv2 @ fv1, conts2
+      let cps1, vars, fv1, conts1 = to_cps vars (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
+      let cps2, vars, fv2, conts2 = to_cps vars (fv1 @ fv0) e1 e1_id cps1 in
+      cps2, vars,fv2 @ fv1, Cont (return_kid, var :: fv0, expr) :: (conts2 @ conts1)
     end
   (*
 
@@ -268,21 +268,19 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
   | Match (pattern_expr, branchs, default_branch_expr) -> begin
       (* Return continuation after matching. *)
       let return_continuation_id = inc_conts () in
-      let conts = Cps.Let_cont (return_continuation_id, var :: fv0, expr, conts) in
 
       (* Default branch cps generation. *)
       let default_branch_return_id, vars = inc vars in
-      let default_branch_cps, vars, default_branch_free_variables, default_branch_continuations = to_cps vars conts fv0 default_branch_expr default_branch_return_id (Apply_cont (return_continuation_id, default_branch_return_id :: fv0)) in
+      let default_branch_cps, vars, default_branch_free_variables, default_branch_continuations = to_cps vars fv0 default_branch_expr default_branch_return_id (Apply_cont (return_continuation_id, default_branch_return_id :: fv0)) in
       
       (* Default branch continuation. *)
       let default_continuation_id = inc_conts () in
-      let default_continuation = Cps.Let_cont (default_continuation_id, default_branch_free_variables @ fv0, default_branch_cps, default_branch_continuations) in
 
       (* Branchs continuations and bodies informations. *)
       let (vars, branchs_continuations), branchs_bodies = List.fold_left_map (fun (vars, default_continuation') (branch_index, branch_arguments_names, branch_expr) -> begin
         (* Branch cps generation. *)
         let branch_return_id, vars = inc vars in
-        let branch_cps, vars, branch_free_variables, branch_continuations = to_cps vars default_continuation' fv0 branch_expr branch_return_id (Apply_cont (return_continuation_id, branch_return_id::fv0)) in
+        let branch_cps, vars, branch_free_variables, branch_continuations = to_cps vars fv0 branch_expr branch_return_id (Apply_cont (return_continuation_id, branch_return_id::fv0)) in
                 
         (* Branch free variables that are not passed in arguments. *)
         let branch_free_variables = List.filter (fun branch_free_variable -> not (List.mem branch_free_variable branch_arguments_names)) branch_free_variables in
@@ -293,17 +291,17 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
         
         (* Branch continuation and body informations. *)
         let branch_continuation_id = inc_conts () in
-        (vars, Let_clos (branch_continuation_id, branch_arguments_names, branch_free_variables @ fv0, branch_cps, branch_continuations)), (branch_index, branch_continuation_id, branch_free_variables)
-      end) (vars, default_continuation) branchs in
+        (vars, Cps.Clos (branch_continuation_id, branch_arguments_names, branch_free_variables @ fv0, branch_cps) :: (branch_continuations @ default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
+      end) (vars, []) branchs in
       
       (* Substitued free variables. *)
       let free_variables_branchs = List.map (fun (_, _, fv2) -> fv2) branchs_bodies in
 
       (* Pattern matching. *)
       let pattern_id, vars = inc vars in
-      let expr, vars, fvs, conts = to_cps vars branchs_continuations (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, fvs @ fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
+      let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, fvs @ fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
 
-      expr, vars, fvs @ (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), conts
+      expr'', vars, fvs @ (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), Cont (default_continuation_id, default_branch_free_variables @ fv0, default_branch_cps) :: Cont (return_continuation_id, var :: fv0, expr) :: (conts @ default_branch_continuations @ branchs_continuations)
     end
     (*
     
@@ -313,7 +311,7 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       let var_id, vars = inc vars in
       vars, (var_id, arg)
      end) vars args in
-     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars conts' ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), conts) args_ids
+     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts' @ conts'') (Let (var, Tuple (List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
     end
     (*
     
@@ -323,5 +321,5 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
       let var_id, vars = inc vars in
       vars, (var_id, arg)
      end) vars args in
-     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars conts' ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), conts) args_ids
+     List.fold_left (fun (expr', vars, fv', conts') (var, e) -> let expr'', vars, fv'', conts'' = to_cps vars ((remove_var fv' var) @ fv0) e var expr' in expr'', vars, fv'' @ (remove_var fv' var), conts' @ conts'') (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, (List.map (fun (var, _) -> var) args_ids), []) args_ids
     end

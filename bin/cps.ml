@@ -20,13 +20,24 @@ and expr =
 | Apply_cont of pointer * var list
 | Call of var * var list * frame
 | If of var * (int * pointer * var list) list * (pointer * var list)
-| Match_pattern of var * (int * pointer * var list) list * (pointer * var list)
+| Match_pattern of var * (tag * pointer * var list) list * (pointer * var list)
 | Return of var
+
+type cont0 =
+| Cont of pointer * var list * expr
+| Clos of pointer * var list * var list * expr
+
+type conts = cont0 list
 
 type cont =
 | Let_cont of pointer * var list * expr * cont
 | Let_clos of pointer * var list * var list * expr * cont
 | End
+
+let map_cont = List.fold_left (fun conts cont ->
+  match cont with
+| Clos (a, b, c, d) -> Let_clos (a, b, c, d, conts)
+| Cont (a, b, c) -> Let_cont (a, b, c, conts)) End
 
 let gen_name (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
