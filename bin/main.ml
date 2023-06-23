@@ -45,15 +45,15 @@ let _ =
       let ast = Parser.programme Lexer.jetons source in
       if !show_ast then Ast.pp_expr (Format.formatter_of_out_channel outchan) ast
       else begin
-        let cst = Ast.expr_to_cst ast (Ast.Constructors.empty) in
-        if !show_cst then Cst.pp_expr (Format.formatter_of_out_channel outchan) cst
+        let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) [] (Ast.Constructors.empty) in
+        if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) (_subs @ _fvs)) (Format.formatter_of_out_channel outchan) cst
         else begin
-          let expr, subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
+          let expr, __subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
           let cps = Cps.Let_cont (0, fv, expr, cont) in
           let cps = if !unused_vars then Cps.clean_cont cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then cps (*Propagation.propagation_cont cont' cont' analysis*) else cps in
-          if !show_cps then Cps.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) subs) (Format.formatter_of_out_channel outchan) cps
+          if !show_cps then Cps.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
           else begin
             let asm, _vars = Cps.cont_to_asm cps (Seq.ints 1000) in
             let asm = if !unused_vars then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 10000 0) asm in cps else asm in
@@ -61,10 +61,10 @@ let _ =
             let asm = if !unused_vars then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cleaner.elim_unused_vars_cont (conts) asm in Cleaner.elim_unused_conts conts cps else asm in
             if !show_asm then begin
               Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n| Environment of value list\n| Closure of value * value\n| Constructor of int * value\n\nlet print (Int i) = Printf.printf \"%%d\" i\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get value pos =\nmatch value with\n| Tuple vs -> List.nth vs pos\n| Environment vs -> List.nth vs pos\n| Closure (f, _) when pos = 0 -> f\n| Closure (_, env) when pos = 1 -> env\n| Constructor (tag, _) when pos = 0 -> Int tag\n| Constructor (_, env) when pos = 1 -> env\n| _ -> assert false\n\nlet call (Function k) = k\n\nlet rec ";
-              Asm.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) subs) (Format.formatter_of_out_channel outchan) asm;
-              Printf.fprintf outchan ";;\nk0 ()"  
+              Asm.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
+              Printf.fprintf outchan ";;\nk0 ()"
             end else begin
-              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var subs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
+              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _subs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
               let r = Interpreter.interp_cont 0 asm [] init in
                 match r with
                 | Int i -> Printf.fprintf outchan "%d\n" i

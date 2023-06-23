@@ -1,4 +1,4 @@
-type var = string
+type var = int
 
 type binary_operator =
 | Add
@@ -17,19 +17,27 @@ type expr =
 | Tuple of expr list
 | Constructor of int * expr list
 
+module VarMap = Map.Make (Int)
+
+let gen_name (var: var) (subs: string VarMap.t): string =
+  match VarMap.find_opt var subs with
+  | Some str -> str ^ "_" ^ (string_of_int var)
+  | None -> "_" ^ (string_of_int var)
+
 let pp_binary fmt operator =
   match operator with
   | Add -> Format.fprintf fmt "+"
   | Sub -> Format.fprintf fmt "-"
 
-let rec pp_expr fmt expr =
+let rec pp_expr subs fmt expr =
+  let pp_expr = pp_expr subs in
   match expr with
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a%!" pp_expr a pp_binary op pp_expr b
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" x pp_expr e
-  | Var x -> Format.fprintf fmt "%s%!" x
-  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" var pp_expr e1 pp_expr e2
-  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" var pp_expr e) "" _bindings) pp_expr expr
+  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" (gen_name x subs) pp_expr e
+  | Var x -> Format.fprintf fmt "%s%!" (gen_name x subs)
+  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" (gen_name var subs) pp_expr e1 pp_expr e2
+  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" (gen_name var subs) pp_expr e) "" _bindings) pp_expr expr
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
   | Constructor (_, _) -> Format.fprintf fmt "constructor%!"
@@ -69,14 +77,17 @@ let has_var_name = Env.has_var
 let get_var_name = Env.get_var
 
 let has_var_id = Env.has_value
-let get_var_id = Env.get_value
+let get_var_id env var =
+  match List.find_opt (fun (v, _) -> var = v) env with
+  | Some (_, v) -> v
+  | None -> assert false
 
 let binary_operator_to_prim (binary: binary_operator): Cps.prim =
   match binary with
   | Add -> Add
   | Sub -> Sub
 
-let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (string * int) list) : Cps.expr * (string * int) list * int list * Cps.cont =
+let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (var * int) list) : Cps.expr * (var * int) list * int list * Cps.cont =
   match ast with
   | Int i -> Let (var, Prim (Const i, []), expr), [], [], conts
   | Binary (binary_operator, e1, e2) -> begin
