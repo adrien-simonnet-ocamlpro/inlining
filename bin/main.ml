@@ -52,8 +52,7 @@ let _ =
         Env.print_subs _fvs;
         if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) (_subs @ _fvs)) (Format.formatter_of_out_channel outchan) cst
         else begin
-          let expr, _vars, __subs, fv, cont = Cst.to_cps _vars (Cps.End) [] cst 0 (Return 0) [] in
-          Env.print_subs2 __subs;
+          let expr, _vars, fv, cont = Cst.to_cps _vars (Cps.End) [] cst 0 (Return 0) [] in
           Env.print_fv fv;
           let cps = Cps.Let_cont (0, fv, expr, cont) in
           let cps = if !unused_vars then Cps.clean_cont cps else cps in
@@ -70,7 +69,7 @@ let _ =
               Asm.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
               Printf.fprintf outchan ";;\nk0 ()"
             end else begin
-              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs (Env.get_var __subs fv)) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
+              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
               let r = Interpreter.interp_cont 0 asm [] init in
                 match r with
                 | Int i -> Printf.fprintf outchan "%d\n" i
