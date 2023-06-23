@@ -10,6 +10,7 @@ let eval = ref false
 let show_ast = ref false
 let show_cst = ref false
 let show_cps = ref false
+let show_aps = ref false
 let show_asm = ref false
 
 let unused_vars = ref false
@@ -29,6 +30,7 @@ let speclist =
   ; "-ast", Arg.Set show_ast, "Show AST"
   ; "-cst", Arg.Set show_cst, "Show CST"
   ; "-cps", Arg.Set show_cps, "Show CPS"
+  ; "-aps", Arg.Set show_aps, "Show APS"
   ; "-asm", Arg.Set show_asm, "Show ASM"
   ; "-inline", Arg.Int inline, "Inline specified cont"
   ]
@@ -46,9 +48,13 @@ let _ =
       if !show_ast then Ast.pp_expr (Format.formatter_of_out_channel outchan) ast
       else begin
         let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) [] (Ast.Constructors.empty) in
+        Env.print_subs _subs;
+        Env.print_subs _fvs;
         if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) (_subs @ _fvs)) (Format.formatter_of_out_channel outchan) cst
         else begin
-          let expr, __subs, fv, cont = Cst.to_cps (Cps.End) [] cst 0 (Return 0) [] in
+          let expr, _vars, __subs, fv, cont = Cst.to_cps _vars (Cps.End) [] cst 0 (Return 0) [] in
+          Env.print_subs2 __subs;
+          Env.print_fv fv;
           let cps = Cps.Let_cont (0, fv, expr, cont) in
           let cps = if !unused_vars then Cps.clean_cont cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
@@ -64,7 +70,7 @@ let _ =
               Asm.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
               Printf.fprintf outchan ";;\nk0 ()"
             end else begin
-              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _subs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
+              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs (Env.get_var __subs fv)) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
               let r = Interpreter.interp_cont 0 asm [] init in
                 match r with
                 | Int i -> Printf.fprintf outchan "%d\n" i
@@ -74,11 +80,7 @@ let _ =
         end
       end
     with
-    | Parsing.Parse_error ->
-      Printf.fprintf
-        stderr
-        "Erreur de parsing au caractère %d.\n"
-        source.Lexing.lex_curr_pos
+    | Parsing.Parse_error -> Printf.fprintf stderr "Erreur de parsing au caractère %d.\n" source.Lexing.lex_curr_pos
     | Failure s -> Printf.fprintf stderr "Failure: %s.\n" s
   done
 ;;
