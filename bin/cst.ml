@@ -212,48 +212,54 @@ let rec to_cps (vars: Cps.var Seq.t) conts fv0 (ast : expr) var (expr : Cps.expr
     ) (vars, scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
     scope_cps, vars, join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
     (*
-        let condition_id = condition_expr in
-        if condition_id then true_continuation_id fv1_2 ... fvn_2 else false_continuation_id fv1_3 ... fvm_3
-      and true_continuation_id fv1_2 ... fvn_2 =
-        let true_id = true_expr in
-        merge_continuation_id true_id fv1 ... fvi
-      and false_continuation_id fv1_3 ... fvm_3 =
-        let false_id = false_expr in
-        merge_continuation_id false_id fv1 ... fvi
-      and merge_continuation_id var fv1 ... fvi =
+        let e1_id = e1 in
+        if e1_id then e2_kid fv1_2 ... fvn_2 else e3_kid fv1_3 ... fvm_3
+      and e2_kid fv1_2 ... fvn_2 =
+        let e2_id = e2 in
+        merge_kid e2_id fv1 ... fvi
+      and e3_kid fv1_3 ... fvm_3 =
+        let e3_id = e3 in
+        merge_kid e3_id fv1 ... fvi
+      and merge_kid var fv1 ... fvi =
         expr
     *)
-  | If (condition_expr, true_expr, false_expr) -> begin
-      let condition_id, vars = inc vars in
+  | If (e1, e2, e3) -> begin
+      (* Varialbes that will hold expression result. *)
+      let e1_id, vars = inc vars in
+      let e2_id, vars = inc vars in
+      let e3_id, vars = inc vars in
 
-      let true_id, vars = inc vars in
-      let false_id, vars = inc vars in
+      (* Continuations IDs. *)
+      let e2_kid = inc_conts () in
+      let e3_kid = inc_conts () in
+      let merge_kid = inc_conts () in
 
-      let merge_continuation_id = inc_conts () in
-      let true_continuation_id = inc_conts () in
-      let false_continuation_id = inc_conts () in
-      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars (Let_cont (merge_continuation_id, var :: fv0, expr, conts)) fv0 true_expr true_id (Apply_cont (merge_continuation_id, true_id :: fv0)) in
-      let false_cps, vars, false_free_variables_id, true_and_false_continuations = to_cps vars true_continuations fv0 false_expr false_id (Apply_cont (merge_continuation_id, false_id :: fv0)) in
+      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars (Let_cont (merge_kid, var :: fv0, expr, conts)) fv0 e2 e2_id (Apply_cont (merge_kid, e2_id :: fv0)) in
+      let false_cps, vars, false_free_variables_id, true_and_false_continuations = to_cps vars true_continuations fv0 e3 e3_id (Apply_cont (merge_kid, e3_id :: fv0)) in
       
-      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (true_continuation_id, true_free_variables_id @ fv0, true_cps, Let_cont (false_continuation_id, false_free_variables_id @ fv0, false_cps, true_and_false_continuations))) (join_fv true_free_variables_id false_free_variables_id) condition_expr condition_id (If (condition_id, [(0, false_continuation_id, false_free_variables_id @ fv0)], (true_continuation_id, true_free_variables_id  @ fv0))) in
+      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (e2_kid, true_free_variables_id @ fv0, true_cps, Let_cont (e3_kid, false_free_variables_id @ fv0, false_cps, true_and_false_continuations))) (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
 
       cps1, vars, fv1 @ (join_fv true_free_variables_id false_free_variables_id), conts1
     end
     (*
-          let closure_id = closure_expr in
-          let argument_id = argument_expr in
+          let closure_id = e1 in
+          let argument_id = e2 in
           let closure_continuation_id = Get (closure_id, 0) in
           let closure_environment_id = Get (closure_id, 1) in
-          return_continuation (closure_continuation_id closure_environment_id argument_id) fv_1 ... fv_n
-        let return_continuation var fv_1 ... fv_n =
+          return_kid (closure_continuation_id closure_environment_id argument_id) fv_1 ... fv_n
+        let return_kid var fv_1 ... fv_n =
           expr
     *)
-  | App (closure_expr, argument_expr) -> begin
-      let return_continuation = inc_conts () in
-      let closure_id, vars = inc vars in
-      let argument_id, vars = inc vars in
-      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (return_continuation, var :: fv0, expr, conts)) (closure_id :: fv0) argument_expr argument_id (Call (closure_id, [argument_id], (return_continuation, fv0))) in
-      let cps2, vars, fv2, conts2 = to_cps vars conts1 (fv1 @ fv0) closure_expr closure_id cps1 in
+  | App (e1, e2) -> begin
+      (* Varialbes that will hold expression result. *)
+      let e1_id, vars = inc vars in
+      let e2_id, vars = inc vars in
+
+      (* Continuations IDs. *)
+      let return_kid = inc_conts () in
+
+      let cps1, vars, fv1, conts1 = to_cps vars (Let_cont (return_kid, var :: fv0, expr, conts)) (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
+      let cps2, vars, fv2, conts2 = to_cps vars conts1 (fv1 @ fv0) e1 e1_id cps1 in
       cps2, vars,fv2 @ fv1, conts2
     end
   (*
