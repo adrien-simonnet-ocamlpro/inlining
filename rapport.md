@@ -34,7 +34,15 @@ La structure du langage ASM est très semblable à celle de CPS, à l'exception 
 
 ## Analyse
 
-L'analyse est l'étape la plus compliquée
+L'analyse est l'étape la plus compliquée et la plus importante. Elle s'effectue au niveau du CPS afin d'exploiter la sémantique du langage (et donc de conserver certaines relations) et les informations sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Comme après alpha-conversion chaque nom de variable est unique, on peut identifer les valeurs par un ensemble de nom de variable (ce qui correspond aux endroits potentiels où elles ont été déclarées et initialisées). 
+
+### Abstractions
+
+Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du langage. La première pour les entiers qui est simplement le domaine singleton (deux entiers différents donnent Z). La deuxième pour les fermetures et les constructeurs est un environnement d'identifiants vers contextes, où l'identifiant correspont au pointeur de fonction dans le cas d'une fermeture ou au tag dans le cas d'un constructeur, et le contexte correspond respectivement aux variables libres ou aux arguments. Etant donné que les pointeurs de fonctions/tags ainsi que les contextes (ensemble de zones d'allocations) sont bornés, l'union des deux est garantie de converger.
+
+### Preuve de terminaison
+
+Les noms de variables, par extension les zones d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidemment fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
 
 ## Propagation
 
@@ -53,4 +61,5 @@ Les structures de données étant prêtes et à mes yeux suffisement expressives
 Une heuristique possible sur laquelle je vais me concentrer sera l'inlining partiel, c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont j'ai représenté mon programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible dans flambda2. La question est donc de savoir s'il existe des cas où cette heuristique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille et du temps d'éxécution. Une première idée de situations intéressantes qui me vient à l'esprit est le (très) grand nombre de fonctions en OCaml qui matchent d'entrée un de leurs arguments. Le match en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transfomerait ici un appel de fonction en un switch vers des blocs de celle-ci. De plus l'inliner peut permettre de gagner en informations sur le pattern, ce qui peut rendre possible de transformer le match en appel direct, les gains seraient considérables.
 
 ### Outlining
+
 
