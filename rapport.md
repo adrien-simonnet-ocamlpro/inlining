@@ -4,7 +4,7 @@
 
 Le langage source est un sous-ensemble des fonctionnalités d'OCaml. Dans le cadre du stage je ne traite que celles qui sont intéressantes d'un point de vue de l'inlining. En particulier le noyeau impératif d'OCaml est ignoré.
 
-### Opérations élémentaires
+### Opérations élémentaires
 
 La manipulation des entiers, la déclaration de variables ou de fonctions (unaires) et le branchement conditionnel sont évidemment des fonctionnalités indispensables.
 
