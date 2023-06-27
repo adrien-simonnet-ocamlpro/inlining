@@ -76,7 +76,7 @@ let f b x =
 let g x = f true x
 ```
 
-En appliquant les transformations pour faire apparaître les continuations, les branchements et les manipulations de la pile on obtient ce pseudo-code qui se rapproche d'un langage assembleur :
+En appliquant les transformations pour faire apparaître les continuations, les branchements et les manipulations de la pile on obtient ce pseudo-code qui se rapproche d'un langage assembleur (sans distinguer les appels directs des appels indirects) :
 
 ```ocaml
 let rec f b x stack =
@@ -90,8 +90,8 @@ and b1 (k::stack) =
   k (... big expression ...) stack
 and g x stack =
   f true x (r0::stack)
-and r0 x1 (r1::stack) =
-  r1 x1
+and r0 x1 (k::stack) =
+  k x1 stack
 ```
 
 Dans le cas présent la fonction `f` peut être vue comme un bloc d'une seule instruction. L'idée est donc d'inliner systématiquement ce bloc (pas la fonction complète, d'où la notion d'inlining partiel), et on obtient le code suivant où l'appel vers `f`est inliné dans `g` :
@@ -111,8 +111,8 @@ and g x stack =
     b0 x (r0::stack)
   else
     b1 (r0::stack)
-and r0 x1 (r1::stack) =
-  r1 x1
+and r0 x1 (k::stack) =
+  k x1 stack
 ```
 
 Cet inlining n'est possible que si toutes les branches du `if` empilent les mêmes contextes sur la pile, ce qui est normalement toujours le cas quand le code est bien construit. Avec cet inlining, indépendamment de la valeur de `b`, on économise un saut et on se donne davantage d'informations sur le contexte dans le bloc inliné qui pourraient être utiles à d'éventuelles simplifications. Evidemment au stade actuel cette heuristique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité.
