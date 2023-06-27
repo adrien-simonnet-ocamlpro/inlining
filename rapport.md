@@ -85,9 +85,9 @@ let rec f b x stack =
   else
     b1 stack
 and b0 x (k::stack) =
-  k x
+  k x stack
 and b1 (k::stack) =
-  k (... big expression ...)
+  k (... big expression ...) stack
 and g x stack =
   f true x (r0::stack)
 and r0 x1 (r1::stack) =
@@ -103,9 +103,9 @@ let rec f b x stack =
   else
     b1 stack
 and b0 x (k::stack) =
-  k x
+  k x stack
 and b1 (k::stack) =
-  k (... big expression ...)
+  k (... big expression ...) stack
 and g x stack =
   if true then
     b0 x (r0::stack)
