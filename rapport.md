@@ -1,40 +1,52 @@
 # Rapport d'avancement
 
-L'objectif du stage est de proposer des idées d'heuristiques d'inlining pour OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel, dans l'objectif d'accélérer l'exécution du code. Néanmoins copier le corps d'une fonction augmente la taille du corps et peut conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie processeur par processeur du meilleur choix d'inlining, l'idée est de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par `flambda` et l'idée est de proposer des améliorations pour `flambda2` actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable pas mes tuteurs de stage, c'est la raison pour laquelle j'ai travaillé sur un langage "jouet" qui n'est rien d'autre qu'un noyau d'OCaml. La première moitié du stage a donc consisté à créer son compilateur, à travers différentes passes, afin de me donner les moyens nécessaires lors de la seconde partie du stage de tester toutes les heuristiques d'inlining possibles et imaginables.
+L'objectif du stage est de proposer des idées d'heuristiques d'inlining pour le compilateur d'OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel dans l'objectif d'accélérer l'exécution du code. Néanmoins copier le corps d'une fonction augmente la taille du code et peut conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie en fonction du processeur du meilleur choix d'inlining, l'idée est de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif `flambda` et je suiq amené à proposer des améliorations pour `flambda2` actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'ai travaillé sur un langage "jouet" qui n'est rien d'autre qu'une infime partie d'OCaml. La première moitié du stage a donc consisté à créer son compilateur, à travers différentes passes, afin de me donner les moyens nécessaires lors de la seconde partie du stage pour tester toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
 
 ## Langage source
 
-Dans le cadre du stage je ne traite que celles qui sont intéressantes d'un point de vue de l'inlining. En particulier le noyeau impératif d'OCaml est ignoré.
+Dans le cadre du stage je ne traite que les fonctionnalités d'OCaml qui sont intéressantes d'un point de vue de l'inlining. En particulier  je me concentre uniquement sur le noyau fonctionnel d'OCaml, tout ce qui est impératif, orienté objet ou autre est ignoré.
 
 ### Opérations élémentaires
 
-La manipulation des entiers, la déclaration de variables ou de fonctions (unaires) et le branchement conditionnel sont évidemment des fonctionnalités indispensables.
+La manipulation des entiers, la déclaration de variables, la création de fermetures et le branchement conditionnel sont évidemment des fonctionnalités indispensables.
 
 ### Fermetures (mutuellement) récursives
 
-La prise en compte de la récursivité est fondamentale, du fait de l'impossibité d'inliner tous les appels potentiels. Prendre en compte la récursivité mutuelle permet d'ajouter une couche de complexité notamment lors de l'analyse.
+La prise en compte de la récursivité est fondamentale, premièrement en terme d'expressivité du langage (je vais être amené à réalisé des tests poussés), deuxièmement il est intéressant de prendre en compte la complexité liée l'impossibité d'inliner tous les appels récursifs potentiels. La récursivité mutuelle permet d'ajouter une couche de complexité notamment lors de l'analyse.
 
 ### Types Somme et pattern matching
 
-Le pattern matching sur des types Somme est une des fonctionnalités de base d'OCaml. De plus, de la même manière que les autres branchements conditionnels, elle se prête particulièrement bien à l'inlining puisque connaître le pattern permet probablement de simplifier de nombreuses branches et donc d'alléger un potentiel inlining.
+La possibilité de construire des types Somme est une des fonctionnalités essentielles d'OCaml et permet de représenter quasiment n'importe quelle structure de données. De plus, de la même manière que les autres branchements conditionnels, le pattern matching se prête particulièrement bien à l'inlining puisque connaître le pattern peut permettre de simplifier de nombreuses branches et donc d'alléger un potentiel inlining.
 
 ## Langages intermédiaires
 
+Du premier jour de stage à aujourd'hui j'ai considérablement augmenté le nombre de langages intermédiaires au fur et à mesure où la complexité des tâches à réaliser augmentait. J'ai fait des choix qui n'étaient pas judicieux et fait machine arrière plusieurs fois ce qui m'a amené à me fixer les règles suivantes :
+
+- Toujours, dans la mesure du raisonnable, pouvoir reconcrêtiser après abstraction en gardant sous la main les informations nécessaires à la reconstruction (conserver par exemple la liste des alpha-conversions pour le débogage) ;
+- Ne pas réaliser plusieurs abstractions à la fois, je pense qu'il est préfèrable d'avoir un langage intermédiaire en trop plutôt que d'avoir une transformation de l'un vers l'autre trop compliquée ;
+- Eviter au mieux les "expressions mortes", ces constructions du langage qui ne sont pas utilisées lors d'une transformation mais utilisées dans la suivante, cas dans lequel il peut être pertinent de créer un langage intermédiaire.
+
+Evidemment il est possible que ces règles que je m'applique de respecter ne soient valables que dans le cadre d'un projet de petite taille.
+
 ### AST
 
-
+L'AST est généré par le parser, il est la représentation directe du code source.
 
 ### CST
 
-Le CST est un langage intermédiaire à expressions presque identique à l'AST à l'exception que toutes les variables ont été alpha-converties, les noms des constructeurs ont reçus un identifiant unique et les noms des constructeurs des pattern-matchings ont été remplacés par cet identifiant.
+Le CST est construit à partir de l'AST en remplaçant toutes les chaînes de caractères par des identifiants numériques uniques. En détails toutes les variables ont été alpha-converties, les noms des constructeurs ont reçus un index relatif à leur position dans la déclaration du type et les noms des constructeurs dans les pattern-matchings ont été remplacés par cet index.
 
 ### CPS
 
-Le CPS est un langage intermédiaire à instructions qui est une version "impérative" du CST. Chaque
+Le CPS est construit à partir du CST en rempaçant les expressions par un ensemble de (basic) blocs. Chaque bloc est construit différament en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction, branchement, etc.), est clos en prenant en entrée les arguments dont il a besoin et contient une suite de déclarations de variables suivies d'une instruction de branchement. L'idée est de perdre le moins d'informations possible sur le programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
+
+### CPS analysé
+
+Pour exploiter l'analyse il m'a été nécessaire dans l'immédiat de clôner le CPS pour intégrer les informations issues de l'analyse. Cela concerne exclusivement les appels indirects transformés en appels directs mais pour lesquels je ne peux pas les transformer en saut (directs) pour rester conforme à la sémantique. La question de la pertinence d'un tel clône se pose, est-il préférable d'intégrer les appels directs dans le CPS (qui seront donc jamais utilisés dans la transformation CST vers CPS) ou de déterminer si un saut est direct en gardant sous la main les résultats de l'analyse lors de l'inlining (inlining ayant lieu dans la phase suivante) ?
 
 ### ASM
 
-La structure du langage ASM est très semblable à celle de CPS, à l'exception d'un niveau d'abstraction beaucoup plus important. Les structures propres à OCaml disparaissent et sont généralisées. Tous les blocs (fermetures, conditionnels, pattern-matching, retour de fonction) fusionnent en un seul. C'est ici que la sémantique des appels est fixées (passage de l'environnement comme argument). Pour conserver de manière idéale la sémantique des appels, chaque type de branchement a la possibilité d'ajouter des contextes d'appel sur la pile.
+L'ASM est construit à partir du CPS en faisant abstraction de quasiment tous les traits de langage propres à OCaml. A chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
 
 ## Analyse
 
@@ -48,13 +60,9 @@ Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du
 
 Les noms de variables, par extension les zones d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidemment fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
 
-## Propagation
-
-
-
 ## Inlining
 
-Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction de branchement. Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant, et en toute logique probablement définitivement, seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un return celui-ci dépilera la pile et deviendra un appel direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction. 
+L'inlining a lieu sur le langage ASM car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenter au niveau de la pile. Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement). Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant (définitivement ?) seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction. 
 
 ## Heuristiques
 
@@ -104,7 +112,3 @@ and r0 x1 (k::stack) =
 ```
 
 Cet inlining n'est possible que si toutes les branches du `if` empilent les mêmes contextes sur la pile, ce qui est normalement toujours le cas quand le code est bien construit. Avec cet inlining, indépendamment de la valeur de `b`, on économise un saut et on se donne davantage d'informations sur le contexte dans le bloc inliné qui pourraient être utiles à d'éventuelles simplifications. Evidemment au stade actuel cette heuristique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité.
-
-### Outlining
-
-
