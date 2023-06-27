@@ -1,8 +1,10 @@
 # Rapport d'avancement
 
+L'objectif du stage est de proposer des idées d'heuristiques d'inlining pour OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un point d'appel, dans l'objectif d'augmenter la vitesse d'exécution du code. Néanmoins copier le corps d'une fonction augmente la taille du corps et peut conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie processeur par processeur du meilleur choix d'inlining, l'idée est de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par `flambda` et l'idée est de proposer des améliorations pour `flambda2` actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable pas mes tuteurs de stage, c'est la raison pour laquelle j'ai travaillé sur un langage "jouet" qui n'est rien d'autre qu'un noyau d'OCaml. La première moitié du stage a donc consisté à créer son compilateur, à travers différentes passes, afin de me donner les moyens nécessaires lors de la seconde partie du stage de tester toutes les heuristiques d'inlining possibles et imaginables.
+
 ## Langage source
 
-Le langage source est un sous-ensemble des fonctionnalités d'OCaml. Dans le cadre du stage je ne traite que celles qui sont intéressantes d'un point de vue de l'inlining. En particulier le noyeau impératif d'OCaml est ignoré.
+Dans le cadre du stage je ne traite que celles qui sont intéressantes d'un point de vue de l'inlining. En particulier le noyeau impératif d'OCaml est ignoré.
 
 ### Opérations élémentaires
 
@@ -19,6 +21,8 @@ Le pattern matching sur des types Somme est une des fonctionnalités de base d'O
 ## Langages intermédiaires
 
 ### AST
+
+
 
 ### CST
 
