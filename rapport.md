@@ -68,10 +68,7 @@ Un exemple qui me pousse à croire qu'une telle heuristique peut être prometteu
 
 ```ocaml
 let f b x =
-  if b then
-    x
-  else
-    ... big expression ...
+  if b then x else ... big expression ...
 
 let g x = f true x
 ```
@@ -80,10 +77,7 @@ En appliquant les transformations pour faire apparaître les continuations, les 
 
 ```ocaml
 let rec f b x stack =
-  if b then
-    b0 x stack
-  else
-    b1 stack
+  if b then b0 x stack else b1 stack
 and b0 x (k::stack) =
   k x stack
 and b1 (k::stack) =
@@ -98,19 +92,13 @@ Dans le cas présent la fonction `f` peut être vue comme un bloc d'une seule in
 
 ```ocaml
 let rec f b x stack =
-  if b then
-    b0 x stack
-  else
-    b1 stack
+  if b then b0 x stack else b1 stack
 and b0 x (k::stack) =
   k x stack
 and b1 (k::stack) =
   k (... big expression ...) stack
 and g x stack =
-  if true then
-    b0 x (r0::stack)
-  else
-    b1 (r0::stack)
+  if true then b0 x (r0::stack) else b1 (r0::stack)
 and r0 x1 (k::stack) =
   k x1 stack
 ```
