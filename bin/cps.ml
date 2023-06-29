@@ -67,11 +67,17 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr) : u
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
 
-let rec pp_cont ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatter) (cps : conts) : unit =
+let pp_cont (subs: string VarMap.t) (fmt: Format.formatter) (cps : cont) : unit =
   match cps with
-  | Cont (k, args, e1) :: conts -> Format.fprintf fmt "%s k%d %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) conts
-  | Clos (k, env, args, e1) :: conts -> Format.fprintf fmt "%s f%d %a %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) conts
-  | Return (k, arg, args, e1) :: conts -> Format.fprintf fmt "%s r%d %s %a =\n%a\n%a" join k (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) conts
+  | Cont (k, args, e1) -> Format.fprintf fmt "k%d %a =\n%a" k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
+  | Clos (k, env, args, e1) -> Format.fprintf fmt "f%d %a %a =\n%a" k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
+  | Return (k, arg, args, e1) -> Format.fprintf fmt "r%d %s %a =\n%a" k (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
+
+let rec pp_conts ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatter) (cps : conts) : unit =
+  match cps with
+  | Cont (k, args, e1) :: conts -> Format.fprintf fmt "%s k%d %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_conts ~join: "and" subs) conts
+  | Clos (k, env, args, e1) :: conts -> Format.fprintf fmt "%s f%d %a %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_conts ~join: "and" subs) conts
+  | Return (k, arg, args, e1) :: conts -> Format.fprintf fmt "%s r%d %s %a =\n%a\n%a" join k (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_conts ~join: "and" subs) conts
   | [] -> Format.fprintf fmt "%!"
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
@@ -96,12 +102,13 @@ let rec clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Return var -> Return (update_var var alias)
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias))
 
-let rec clean_cont (cps: conts): conts =
+let clean_cont (cps: cont): cont =
   match cps with
-  | Cont (k', args', e1) :: e2 -> Cont (k', args', clean_expr e1 (VarMap.empty)) :: clean_cont e2
-  | Clos (k', body_free_variables, args', e1) :: e2 -> Clos (k', body_free_variables, args', clean_expr e1 (VarMap.empty)) :: clean_cont e2
-  | Return (k', result, args', e1) :: e2 -> Return (k', result, args', clean_expr e1 (VarMap.empty)) :: clean_cont e2
-  | [] -> []
+  | Cont (k', args', e1) -> Cont (k', args', clean_expr e1 (VarMap.empty))
+  | Clos (k', body_free_variables, args', e1) -> Clos (k', body_free_variables, args', clean_expr e1 (VarMap.empty))
+  | Return (k', result, args', e1) -> Return (k', result, args', clean_expr e1 (VarMap.empty))
+
+let clean_conts: conts -> conts = List.map clean_cont
 
 let inc (vars: var Seq.t): var * var Seq.t =
   match Seq.uncons vars with
