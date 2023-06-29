@@ -33,33 +33,35 @@ type expr = Cps.expr
 type address = pointer
 type cont = Cps.cont
 
-let rec has_cont (cont:cont) k =
+let rec has_cont (cont: cont) k =
   match cont with
   | Let_cont (k', _, _, _) when k = k' -> true
-  | Let_cont (_, _, _, e2) -> has_cont e2 k
-  | Let_clos (_, _, _, _, e2) -> has_cont e2 k
+  | Let_cont (_, _, _, e2) | Let_clos (_, _, _, _, e2) | Let_return (_, _, _, _, e2) -> has_cont e2 k
   | End -> false
 
-let rec get_cont (cont:cont) k =
+let rec get_cont (cont: cont) k =
 match cont with
 | Let_cont (k', args, e1, _) when k = k' -> args, e1
-| Let_cont (_, _, _, e2) -> get_cont e2 k
-| Let_clos (_, _, _, _, e2) -> get_cont e2 k
+| Let_cont (_, _, _, e2) | Let_clos (_, _, _, _, e2) | Let_return (_, _, _, _, e2) -> get_cont e2 k
 | End -> failwith "cont not found"
 
-let rec has_clos (cont:cont) k =
+let rec has_clos (cont: cont) k =
   match cont with
   | Let_clos (k', _, _, _, _) when k = k' -> true
-  | Let_clos (_, _, _, _, e2) -> has_clos e2 k
-  | Let_cont (_, _, _, e2) -> has_clos e2 k
+  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> has_clos e2 k
   | End -> false
 
-let rec get_clos (cont:cont) k =
+let rec get_clos (cont: cont) k =
   match cont with
   | Let_clos (k', env, args, e1, _) when k = k' -> env, args, e1
-  | Let_clos (_, _, _, _, e2) -> get_clos e2 k
-  | Let_cont (_, _, _, e2) -> get_clos e2 k
+  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> get_clos e2 k
   | End -> failwith "clos not found"
+
+let rec get_return (cont: cont) k =
+  match cont with
+  | Let_return (k', arg, args, e1, _) when k = k' -> arg, args, e1
+  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> get_return e2 k
+  | End -> failwith "return not found"
 
 let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
 
@@ -176,6 +178,7 @@ let map_stack2 (k'', args') (env) = k'', map_args2 args' env
 type cont_type =
 | Cont of int
 | Clos of int * Values.t list
+| Return of int * Values.t
 
 let analysis_named (named : named) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): value_domain option =
   match named with
@@ -228,7 +231,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
   | Return x -> begin
       match stack with
       | [] -> []
-      | (k, args)::stack' -> [Cont k, (Env.get2 env x)::args, stack', allocations]
+      | (k, args)::stack' -> [Return (k, Env.get2 env x), args, stack', allocations]
     end
   | Call (x, args, frame) -> begin
       match get env x allocations with
@@ -252,6 +255,8 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations,  List.map2 Values.union (if acc = [] then new_env else acc) new_env) (Allocations.empty, []) contexts) map
   | (Cont k, env, stack, allocations)::conts' -> begin
+    Format.fprintf Format.std_formatter "/// Cont: %d Env: %a Stack: %a Allocs: %a\n" k (pp_env "")  env pp_stack stack pp_allocations allocations;
+
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
         if has3 old_context stack env then begin
@@ -276,6 +281,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
       end
     end
   | (Clos (k, clos_env), env, stack, allocations)::conts' -> begin
+      Format.fprintf Format.std_formatter "/// Clos: %d Clos: %a Env: %a Stack: %a Allocs: %a\n" k (pp_env "") clos_env (pp_env "") env pp_stack stack pp_allocations allocations;
       let env = clos_env @ env in
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
@@ -285,7 +291,7 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
           if Allocations.equal value_cmp new_allocations old_allocations then begin
             match stack with
             | [] -> assert false
-            | (k', args) :: _ -> analysis ((Cont k', (Values.empty :: args), stack, new_allocations) :: conts') prog map
+            | (k', args) :: _ -> analysis ((Return (k', Values.empty), args, stack, new_allocations) :: conts') prog map
           end else let environment, args, cont = get_clos prog k in
               let next_conts = analysis_cont cont stack (map_values (environment @ args) env) new_allocations in
               analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
@@ -300,8 +306,33 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
         analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
       end
     end
+  | (Return (k, result), env, stack, allocations)::conts' -> begin
+    Format.fprintf Format.std_formatter "/// Return: %d Result: %a Env: %a Stack: %a Allocs: %a\n" k (pp_alloc) result (pp_env "") env pp_stack stack pp_allocations allocations;
 
-let start_analysis prog = let args, _ = get_cont prog 0 in analysis [Cont 0, List.map (fun _ -> Values.singleton 0) args, [], Allocations.singleton 0 (Int_domain Int_domain.top)] prog (Analysis.empty)
+      let env = result :: env in
+      if Analysis.mem k map then begin
+        let old_context = Analysis.find k map in
+        if has3 old_context stack env then begin
+          let old_allocations = get3 old_context stack env in
+          let new_allocations = join_allocations old_allocations allocations in
+          if Allocations.equal value_cmp new_allocations old_allocations then begin
+            assert false
+          end else let result, args, cont = get_return prog k in
+              let next_conts = analysis_cont cont stack (map_values (result :: args) env) new_allocations in
+              analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),env)::old_context) map)
+        end else begin
+          let result, args, cont = get_return prog k in
+          let next_conts = analysis_cont cont stack (map_values (result :: args) env) allocations in
+          analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),env)::old_context) map)
+        end
+      end else begin
+        let result, args, cont = get_return prog k in
+        let next_conts = analysis_cont cont stack (map_values (result :: args) env) allocations in
+        analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),env] map)
+      end
+    end
+
+let start_analysis prog = let args, _ = get_cont prog 0 in analysis [Cont 0, List.map (fun _ -> Values.empty) args, [], Allocations.empty] prog (Analysis.empty)
 
 
 

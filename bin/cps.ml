@@ -26,17 +26,20 @@ and expr =
 type cont0 =
 | Cont of pointer * var list * expr
 | Clos of pointer * var list * var list * expr
+| Return of pointer * var * var list * expr
 
 type conts = cont0 list
 
 type cont =
 | Let_cont of pointer * var list * expr * cont
 | Let_clos of pointer * var list * var list * expr * cont
+| Let_return of pointer * var * var list * expr * cont
 | End
 
 let map_cont = List.fold_left (fun conts cont ->
   match cont with
 | Clos (a, b, c, d) -> Let_clos (a, b, c, d, conts)
+| Return (a, b, c, d) -> Let_return (a, b, c, d, conts)
 | Cont (a, b, c) -> Let_cont (a, b, c, conts)) End
 
 let gen_name (var: var) (subs: string VarMap.t): string =
@@ -80,6 +83,7 @@ let rec pp_cont ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatt
   match cps with
   | Let_cont (k, args, e1, cont) -> Format.fprintf fmt "%s k%d %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
   | Let_clos (k, env, args, e1, cont) -> Format.fprintf fmt "%s f%d %a %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
+  | Let_return (k, arg, args, e1, cont) -> Format.fprintf fmt "%s r%d %s %a =\n%a\n%a" join k (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
   | End -> Format.fprintf fmt "%!"
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
@@ -108,6 +112,7 @@ let rec clean_cont (cps: cont): cont =
   match cps with
   | Let_cont (k', args', e1, e2) -> Let_cont (k', args', clean_expr e1 (VarMap.empty), clean_cont e2)
   | Let_clos (k', body_free_variables, args', e1, e2) -> Let_clos (k', body_free_variables, args', clean_expr e1 (VarMap.empty), clean_cont e2)
+  | Let_return (k', result, args', e1, e2) -> Let_return (k', result, args', clean_expr e1 (VarMap.empty), clean_cont e2)
   | End -> End
 
 let inc (vars: var Seq.t): var * var Seq.t =
@@ -169,6 +174,11 @@ let rec cont_to_asm (cps: cont) (vars: var Seq.t): Asm.cont * var Seq.t =
       let asm1, vars = expr_to_asm e1 vars in
       let asm2, vars = cont_to_asm e2 vars in
       Let_cont (k', args', asm1, asm2), vars
+    end
+  | Let_return (k', arg, args', e1, e2) -> begin
+      let asm1, vars = expr_to_asm e1 vars in
+      let asm2, vars = cont_to_asm e2 vars in
+      Let_cont (k', arg :: args', asm1, asm2), vars
     end
   | Let_clos (k', body_free_variables, args', e1, e2) -> begin
       let environment_id, vars = inc vars in

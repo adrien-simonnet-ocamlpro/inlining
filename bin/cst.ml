@@ -260,7 +260,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
 
       let cps1, vars, fv1, conts1 = to_cps vars (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
       let cps2, vars, fv2, conts2 = to_cps vars (join_fv fv1 fv0) e1 e1_id cps1 in
-      cps2, vars, join_fv fv2 fv1, Cont (return_kid, var :: fv0, expr) :: (conts2 @ conts1)
+      cps2, vars, join_fv fv2 fv1, Return (return_kid, var, fv0, expr) :: (conts2 @ conts1)
     end
   (*
 
