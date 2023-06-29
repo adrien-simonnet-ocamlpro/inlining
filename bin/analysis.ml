@@ -31,37 +31,37 @@ type named = Cps.named
 type pointer = Cps.pointer
 type expr = Cps.expr
 type address = pointer
-type cont = Cps.cont
+type cont = Cps.conts
 
 let rec has_cont (cont: cont) k =
   match cont with
-  | Let_cont (k', _, _, _) when k = k' -> true
-  | Let_cont (_, _, _, e2) | Let_clos (_, _, _, _, e2) | Let_return (_, _, _, _, e2) -> has_cont e2 k
-  | End -> false
+  | Cont (k', _, _) :: _ when k = k' -> true
+  | Cont (_, _, _) :: e2 | Clos (_, _, _, _) :: e2 | Return (_, _, _, _) :: e2 -> has_cont e2 k
+  | [] -> false
 
 let rec get_cont (cont: cont) k =
 match cont with
-| Let_cont (k', args, e1, _) when k = k' -> args, e1
-| Let_cont (_, _, _, e2) | Let_clos (_, _, _, _, e2) | Let_return (_, _, _, _, e2) -> get_cont e2 k
-| End -> failwith "cont not found"
+| Cont (k', args, e1) :: _ when k = k' -> args, e1
+| Cont (_, _, _) :: e2 | Clos (_, _, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_cont e2 k
+| [] -> failwith "cont not found"
 
 let rec has_clos (cont: cont) k =
   match cont with
-  | Let_clos (k', _, _, _, _) when k = k' -> true
-  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> has_clos e2 k
-  | End -> false
+  | Clos (k', _, _, _) :: _ when k = k' -> true
+  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> has_clos e2 k
+  | [] -> false
 
 let rec get_clos (cont: cont) k =
   match cont with
-  | Let_clos (k', env, args, e1, _) when k = k' -> env, args, e1
-  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> get_clos e2 k
-  | End -> failwith "clos not found"
+  | Clos (k', env, args, e1) :: _ when k = k' -> env, args, e1
+  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_clos e2 k
+  | [] -> failwith "clos not found"
 
 let rec get_return (cont: cont) k =
   match cont with
-  | Let_return (k', arg, args, e1, _) when k = k' -> arg, args, e1
-  | Let_clos (_, _, _, _, e2) | Let_cont (_, _, _, e2) | Let_return (_, _, _, _, e2) -> get_return e2 k
-  | End -> failwith "return not found"
+  | Return (k', arg, args, e1) :: _ when k = k' -> arg, args, e1
+  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_return e2 k
+  | [] -> failwith "return not found"
 
 let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
 

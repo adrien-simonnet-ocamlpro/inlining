@@ -57,7 +57,7 @@ let _ =
           | None -> assert false in
           let expr, _vars, fv, conts = Cst.to_cps _vars [] cst var0 (Return var0) in
           Env.print_fv fv;
-          let cps = Cps.Let_cont (0, fv, expr, Cps.map_cont conts) in
+          let cps = Cps.Cont (0, fv, expr) :: conts in
           let cps = if !unused_vars then Cps.clean_cont cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then cps (*Propagation.propagation_cont cont' cont' analysis*) else cps in
