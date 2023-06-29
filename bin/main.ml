@@ -52,7 +52,10 @@ let _ =
         Env.print_subs _fvs;
         if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) (_subs @ _fvs)) (Format.formatter_of_out_channel outchan) cst
         else begin
-          let expr, _vars, fv, conts = Cst.to_cps _vars [] cst 0 (Return 0) in
+          let var0, _vars = match Seq.uncons _vars with
+          | Some (var0, _vars) -> var0, _vars
+          | None -> assert false in
+          let expr, _vars, fv, conts = Cst.to_cps _vars [] cst var0 (Return var0) in
           Env.print_fv fv;
           let cps = Cps.Let_cont (0, fv, expr, Cps.map_cont conts) in
           let cps = if !unused_vars then Cps.clean_cont cps else cps in
