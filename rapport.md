@@ -4,7 +4,7 @@ L'objectif du stage est de proposer des heuristiques d'inlining pour le compilat
 
 ## Langage source
 
-Dans le cadre du stage je ne traite que les fonctionnalités d'OCaml nécessaires pour traiter toutes les cas intéressants de l'inlining et suffisantes pour obtenir un langage Turing-complet. En particulier je me concentre uniquement sur le noyau fonctionnel d'OCaml, tout ce qui est impératif, orienté objet ou autre est ignoré. Ces choix pourront bien évidemment évoluer en fonction des besoins.
+Dans le cadre du stage je ne traite que les fonctionnalités d'OCaml nécessaires pour traiter toutes les cas intéressants de l'inlining et suffisantes pour obtenir un langage Turing-complet. En particulier je me concentre uniquement sur le noyau fonctionnel d'OCaml, les objets, références, exceptions ou autre sont ignorés. Ces choix pourront bien évidemment évoluer en fonction des besoins.
 
 ### Lambda-calcul
 
