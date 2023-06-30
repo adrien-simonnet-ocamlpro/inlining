@@ -57,13 +57,13 @@ let _ =
           | None -> assert false in
           let expr, _vars, fv, conts = Cst.to_cps _vars [] cst var0 (Return var0) in
           Env.print_fv fv;
-          let cps = Cps.Cont (0, fv, expr) :: conts in
-          let cps = if !unused_vars then Cps.clean_conts cps else cps in
+          let cps = Cst.add_block 0 (Cps.Cont (fv, expr)) conts in
+          let cps = if !unused_vars then Cps.clean_blocks cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then cps (*Propagation.propagation_cont cont' cont' analysis*) else cps in
-          if !show_cps then Cps.pp_conts (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
+          if !show_cps then Cps.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
           else begin
-            let asm, _vars = Cps.cont_to_asm cps (Seq.ints 1000) in
+            let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in
             let asm = if !unused_vars then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 10000 0) asm in cps else asm in
             let asm = if List.length !inline_conts > 0 then Inliner.inline_cont !inline_conts asm asm else asm in
             let asm = if !unused_vars then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cleaner.elim_unused_vars_cont (conts) asm in Cleaner.elim_unused_conts conts cps else asm in

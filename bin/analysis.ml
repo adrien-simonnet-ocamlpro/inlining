@@ -31,37 +31,23 @@ type named = Cps.named
 type pointer = Cps.pointer
 type expr = Cps.expr
 type address = pointer
-type cont = Cps.conts
+type cont = Cps.blocks
 
-let rec has_cont (cont: cont) k =
-  match cont with
-  | Cont (k', _, _) :: _ when k = k' -> true
-  | Cont (_, _, _) :: e2 | Clos (_, _, _, _) :: e2 | Return (_, _, _, _) :: e2 -> has_cont e2 k
-  | [] -> false
+let get_cont (cont: cont) k =
+match Cps.BlockMap.find_opt k cont with
+| Some (Cont (args, e1)) -> args, e1
+| _ -> assert false
 
-let rec get_cont (cont: cont) k =
-match cont with
-| Cont (k', args, e1) :: _ when k = k' -> args, e1
-| Cont (_, _, _) :: e2 | Clos (_, _, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_cont e2 k
-| [] -> failwith "cont not found"
+let get_clos (cont: cont) k =
+  match Cps.BlockMap.find_opt k cont with
+  | Some (Clos (env, args, e1)) -> env, args, e1
+  | _ -> assert false
+  
 
-let rec has_clos (cont: cont) k =
-  match cont with
-  | Clos (k', _, _, _) :: _ when k = k' -> true
-  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> has_clos e2 k
-  | [] -> false
-
-let rec get_clos (cont: cont) k =
-  match cont with
-  | Clos (k', env, args, e1) :: _ when k = k' -> env, args, e1
-  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_clos e2 k
-  | [] -> failwith "clos not found"
-
-let rec get_return (cont: cont) k =
-  match cont with
-  | Return (k', arg, args, e1) :: _ when k = k' -> arg, args, e1
-  | Clos (_, _, _, _) :: e2 | Cont (_, _, _) :: e2 | Return (_, _, _, _) :: e2 -> get_return e2 k
-  | [] -> failwith "return not found"
+let get_return (cont: cont) k =
+  match Cps.BlockMap.find_opt k cont with
+  | Some (Return (arg, args, e1)) -> arg, args, e1
+  | _ -> assert false
 
 let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc
 
@@ -207,7 +193,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | Some value' -> analysis_cont expr stack ((var, Values.singleton var)::env) (Allocations.add var value' allocations)
       | None -> analysis_cont expr stack ((var, Values.empty)::env) allocations
     end
-  | Apply_cont (k', args) -> [Cont k', map_args2 args env, stack, allocations]
+  | Apply_block (k', args) -> [Cont k', map_args2 args env, stack, allocations]
   | If (var, matchs, (kf, argsf)) -> begin
       match get env var allocations with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
