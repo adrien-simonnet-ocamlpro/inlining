@@ -13,7 +13,7 @@ type named = Asm.named
 type pointer = Asm.pointer
 type expr = Asm.expr
 type address = Asm.pointer
-type cont = Asm.cont
+type cont = Asm.blocks
 
 let get = Env.get2
 
@@ -54,11 +54,11 @@ and interp_named var (named : named) (env : (var * value) list) =
     end
   | Pointer k -> [ var, Int k ]
 
-and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : (int * var list * expr * env) list): value =
+and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : Asm.blocks): value =
 
     match cps with
     | Let (var, named, expr) -> interp stack expr (interp_named var named env @ env) conts
-    | Apply_direct (k, args, stack') -> let args', cont, _ = Env.get_cont conts k in
+    | Apply_direct (k, args, stack') -> let args', cont = Asm.BlockMap.find k conts in
       interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont (List.map2 (fun arg' arg -> arg', get env arg) args' args ) conts
     | If (var, matchs, (kf, argsf), stack') -> begin
         match get env var with
@@ -72,19 +72,16 @@ and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts 
     | Return v -> begin
       match stack with
       | [] -> get env v
-      | (k, env')::stack' -> let args2', cont'', _ = Env.get_cont conts k in
+      | (k, env')::stack' -> let args2', cont'' = Asm.BlockMap.find k conts in
       interp stack' cont'' ((List.hd args2', get env v)::(List.map2 (fun arg' arg -> arg', arg) (List.tl args2') env') ) conts
     end
     | Apply_indirect (x, args, stack') -> begin
       match get env x with
-      | Int k' -> let args', cont, _ = Env.get_cont conts k' in
+      | Int k' -> let args', cont = Asm.BlockMap.find k' conts in
         interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> arg', get env arg) args' args)) conts
       | _ -> failwith ("invalid type")
        end
 
-
-and interp_cont k (cps : cont) (conts : (int * var list * expr * env) list) env: value =
-match cps with
-    | Let_cont (k', args', e1, e2) -> interp_cont k e2 ((k', args', e1, []) :: conts) env
-    | End -> let _, cont, _ = Env.get_cont conts k in interp [] cont env conts
-;;
+let interp_blocks (blocks : Asm.blocks) k env: value =
+  let _, e = Asm.BlockMap.find k blocks in
+  interp [] e env blocks

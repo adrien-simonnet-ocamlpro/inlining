@@ -5,6 +5,7 @@ type frame = pointer * var list
 type stack = frame list
 
 module VarMap = Map.Make (Int)
+module BlockMap = Map.Make (Int)
 
 type prim =
 | Add
@@ -26,9 +27,9 @@ and expr =
 | If of var * (int * pointer * var list) list * (pointer * var list) * stack
 | Return of var
 
-type cont =
-| Let_cont of pointer * var list * expr * cont
-| End
+type block = var list * expr
+
+type blocks = block BlockMap.t
 
 let gen_name (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
@@ -66,7 +67,6 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): un
   | Apply_indirect (x, args, [(k, kargs)]) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
   | _ -> assert false
 
-let rec pp_cont ?(join = "let rec") (subs: string VarMap.t) (fmt: Format.formatter) (cps: cont): unit =
-  match cps with
-  | Let_cont (k, args, e1, cont) -> Format.fprintf fmt "%s k%d %a =\n%a\n%a" join k (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1 (pp_cont ~join: "and" subs) cont
-  | End -> Format.fprintf fmt "%!"
+let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
+
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n" k (pp_block subs) block) block

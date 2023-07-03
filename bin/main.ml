@@ -64,16 +64,16 @@ let _ =
           if !show_cps then Cps.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
           else begin
             let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in
-            let asm = if !unused_vars then let cps, _ = Cleaner.elim_unused_vars_cont (Array.make 10000 0) asm in cps else asm in
-            let asm = if List.length !inline_conts > 0 then Inliner.inline_cont !inline_conts asm asm else asm in
-            let asm = if !unused_vars then let conts = (Array.make 1000 0) in Array.set conts 0 1; let cps, conts = Cleaner.elim_unused_vars_cont (conts) asm in Cleaner.elim_unused_conts conts cps else asm in
+            let asm = if !unused_vars then let cps, _ = Cleaner.elim_unused_vars_blocks asm in cps else asm in
+            let asm = if List.length !inline_conts > 0 then Inliner.inline_blocks !inline_conts asm else asm in
+            let asm = if !unused_vars then let cps, conts = Cleaner.elim_unused_vars_blocks asm in Array.set conts 0 1; Cleaner.elim_unused_blocks conts cps else asm in
             if !show_asm then begin
               Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n| Environment of value list\n| Closure of value * value\n| Constructor of int * value\n\nlet print (Int i) = Printf.printf \"%%d\" i\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get value pos =\nmatch value with\n| Tuple vs -> List.nth vs pos\n| Environment vs -> List.nth vs pos\n| Closure (f, _) when pos = 0 -> f\n| Closure (_, env) when pos = 1 -> env\n| Constructor (tag, _) when pos = 0 -> Int tag\n| Constructor (_, env) when pos = 1 -> env\n| _ -> assert false\n\nlet call (Function k) = k\n\nlet rec ";
-              Asm.pp_cont (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
+              Asm.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
               Printf.fprintf outchan ";;\nk0 ()"
             end else begin
               let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
-              let r = Interpreter.interp_cont 0 asm [] init in
+              let r = Interpreter.interp_blocks asm 0 init in
                 match r with
                 | Int i -> Printf.fprintf outchan "%d\n" i
                 | _ -> Printf.fprintf outchan "fun\n"

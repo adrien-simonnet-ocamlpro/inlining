@@ -3,7 +3,7 @@ type named = Asm.named
 type pointer = Asm.pointer
 type expr = Asm.expr
 type address = Asm.pointer
-type cont = Asm.cont
+type cont = Asm.block
 
 let rec elim_unused_vars_named (vars : int array) conts (named : named)
   : named
@@ -47,7 +47,7 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     List.iter (fun (k, args2) -> Array.set conts k (Array.get conts k + 1);
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set vars var (Array.get vars var + 1);
-    List.iter (fun (_, kt, _) -> Array.set conts kt (Array.get conts kt + 1)) matchs;
+    List.iter (fun (_, kt, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
     Array.set conts kf (Array.get conts kf + 1);
     If (var, matchs, (kf, argsf), stack)
   | Return x ->
@@ -59,14 +59,12 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
       Apply_indirect (x, args, stack)
-and elim_unused_vars_cont (conts : int array) (cps : cont) : cont * int array =
-    match cps with
-    | Let_cont (k', args', e1, e2) ->
-      let e2', _ = elim_unused_vars_cont conts e2 in
-      let e1' = elim_unused_vars (Array.make 1000 0) conts e1 in Let_cont (k', args', e1', e2'), conts
-    | End -> End, conts
-and elim_unused_conts (conts : int array) (cps : cont) : cont =
-    match cps with
-    | Let_cont (k', args', e1, e2) -> if Array.get conts k' > 0 then Let_cont (k', args', e1, elim_unused_conts conts e2) else elim_unused_conts conts e2
-    | End -> End
-;;
+
+let elim_unused_vars_block (conts : int array) ((args', e1) : cont) : cont =
+    (args', elim_unused_vars (Array.make 10000 0) conts e1)
+
+let elim_unused_vars_blocks (blocks : Asm.blocks) : Asm.blocks * int array =
+  let conts = Array.make 10000 0 in
+  Asm.BlockMap.map (elim_unused_vars_block conts) blocks, conts
+
+let elim_unused_blocks (conts : int array) (blocks : Asm.blocks) : Asm.blocks = Asm.BlockMap.filter (fun k _ -> Array.get conts k > 0) blocks
