@@ -9,12 +9,10 @@ module Values = Set.Make (Int)
 type value_domain =
   | Int_domain of Int_domain.t
   | Tuple_domain of Values.t list
-  | Pointer_domain of Pointer_domain.t
   | Closure_domain of (Values.t list) Closures.t
 
 let value_cmp v1 v2 =
   match v1, v2 with
-  | Pointer_domain p1, Pointer_domain p2 -> Values.equal p1 p2
   | Int_domain d1, Int_domain d2 -> d1 = d2
   | Tuple_domain values1, Tuple_domain values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2
   | Closure_domain clos1, Closure_domain clos2 -> Closures.equal (fun values1 values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2) clos1 clos2
@@ -53,7 +51,6 @@ let pp_alloc fmt (alloc: Values.t) = Values.iter (fun i -> Format.fprintf fmt "%
 
 let rec pp_value_domain fmt = function
 | Int_domain d ->  Int_domain.pp fmt d
-| Pointer_domain d -> Pointer_domain.pp fmt d
 | Tuple_domain values -> Format.fprintf fmt "[%a]" (pp_env "") values
 | Closure_domain clos -> Format.fprintf fmt "Closure:"; Closures.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
 
@@ -100,7 +97,6 @@ let rec cherche_periode periode liste =
 let join_env (old_env: 'a list) (new_env: 'a list): 'a list = List.map2 Values.union old_env new_env
 
 let join_values v1 v2 = match v1, v2 with
-| Pointer_domain p1, Pointer_domain p2 -> Pointer_domain (Pointer_domain.join p1 p2)
 | Int_domain d1, Int_domain d2 -> Int_domain (Int_domain.join d1 d2)
 | Tuple_domain values1, Tuple_domain values2 -> Tuple_domain (List.map2 Values.union values1 values2)
 | Closure_domain clos1, Closure_domain clos2 -> Closure_domain (Closures.union (fun _ env1 env2 -> Some (join_env env1 env2)) clos1 clos2)
