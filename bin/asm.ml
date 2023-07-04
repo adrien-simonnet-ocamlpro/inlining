@@ -187,7 +187,7 @@ type env = value map
 
 let get = Env.get2
 
-let rec interp_prim var (prim : prim) args (env : (var * value) list) (benchmark: benchmark) =
+let interp_prim var (prim : prim) args (env : (var * value) list) (benchmark: benchmark) =
   match prim, args with
   | Const x, _ -> benchmark.const <- benchmark.const + 1; [ var, Int x ]
   | Add, x1 :: x2 :: _ -> benchmark.add <- benchmark.add + 1; 
@@ -212,7 +212,7 @@ let rec interp_prim var (prim : prim) args (env : (var * value) list) (benchmark
      | _ -> assert false)
   | _ -> failwith "invalid args"
 
-and interp_named var (named : named) (env : (var * value) list) (benchmark: benchmark) =
+let interp_named var (named : named) (env : (var * value) list) (benchmark: benchmark) =
   match named with
   | Prim (prim, args) -> interp_prim var prim args env benchmark
   | Var x -> benchmark.read <- benchmark.read + 1; [ var, get env x ]
@@ -224,7 +224,7 @@ and interp_named var (named : named) (env : (var * value) list) (benchmark: benc
     end
   | Pointer k -> [ var, Int k ]
 
-and interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : blocks) (benchmark: benchmark): value =
+let rec interp (stack: (pointer * value list) list) (cps : expr) (env : env) (conts : blocks) (benchmark: benchmark): value =
     match cps with
     | Let (var, named, expr) -> benchmark.write <- benchmark.write + 1; interp stack expr (interp_named var named env benchmark @ env) conts benchmark
     | Apply_direct (k, args, stack') -> begin
