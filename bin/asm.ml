@@ -267,3 +267,25 @@ let interp_blocks (blocks : blocks) k env: value * benchmark =
 
 let pp_benchmark (benchmark: benchmark) fmt: unit =
   Format.fprintf fmt "const: %d; write: %d; read: %d; add: %d; sub: %d; push: %d; pop: %d; jmp: %d\n%!" benchmark.const benchmark.write benchmark.read benchmark.add benchmark.sub benchmark.push benchmark.pop benchmark.jmp
+
+let size_named (named : named): int =
+  match named with
+  | Prim (_, args) -> 1 + List.length args
+  | Var _ -> 1
+  | Tuple args -> List.length args
+  | Get (_, _) -> 2
+  | Pointer _ -> 1
+
+let rec size_expr (cps : expr): int =
+    match cps with
+    | Let (_, named, expr) -> 1 + size_named named + size_expr expr
+    | Apply_direct (_, args, stack) -> 1 + List.length args + List.fold_left (fun size (_, args) -> size + 1 + List.length args) 0 stack
+    | If (_, matchs, (_, argsf), stack) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args) 0 matchs + 1 + List.length argsf + List.fold_left (fun size (_, args) -> size + 1 + List.length args) 0 stack
+    | Return _ -> 1
+    | Apply_indirect (_, args, stack) -> 2 + List.length args + List.fold_left (fun size (_, args) -> size + 1 + List.length args) 0 stack
+
+let size_block (args, expr: block): int =
+  List.length args + size_expr expr
+
+let size_blocks (blocks: blocks): int =
+  BlockMap.fold (fun _ block size -> size + size_block block) blocks 0
