@@ -78,8 +78,8 @@ let _ =
               Asm.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) asm;
               Printf.fprintf outchan ";;\nk0 ()"
             end else begin
-              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs fv) ; int_of_string (read_line ()) in (fv, Interpreter.Int i)) fv in
-              let r = Interpreter.interp_blocks asm 0 init in
+              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs fv) ; int_of_string (read_line ()) in (fv, Asm.Int i)) fv in
+              let r = Asm.interp_blocks asm 0 init in
                 match r with
                 | Int i -> Printf.fprintf outchan "%d\n" i
                 | _ -> Printf.fprintf outchan "fun\n"
