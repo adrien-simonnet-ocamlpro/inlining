@@ -66,6 +66,7 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): un
   | If (var, matchs, (kf, argsf), []) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Apply_indirect (x, args, [(k, kargs)]) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
+  | Apply_direct (k', args, [(k, kargs)]) -> Format.fprintf fmt "\tk%d (%d %a) %a" k k' (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
   | _ -> assert false
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
