@@ -5,6 +5,7 @@ type frame = pointer * var list
 
 module VarMap = Map.Make (Int)
 module BlockMap = Map.Make (Int)
+module BlockSet = Set.Make (Int)
 
 type prim = Asm.prim
 
@@ -125,6 +126,112 @@ let inc (vars: var Seq.t): var * var Seq.t =
   match Seq.uncons vars with
   | None -> assert false
   | Some (i, vars') -> i, vars'
+
+let rec copy_expr (expr: expr) (vars: var Seq.t) (alias: var VarMap.t): expr * var Seq.t=
+  match expr with
+  | Let (var, named, expr) -> begin
+      let var_id, vars = inc vars in
+      let expr, vars = copy_expr expr vars (VarMap.add var var_id alias) in
+      Let (var, clean_named named alias, expr), vars
+    end
+  | Apply_block (k, args) -> Apply_block (k, update_vars args alias), vars
+  | If (var, matchs, (kf, argsf)) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias)), vars
+  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias)), vars
+  | Return var -> Return (update_var var alias), vars
+  | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
+  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
+
+let copy_block (block: block) (vars: var Seq.t) : block * var Seq.t =
+  match block with
+  | Cont (args', e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      Cont (args', expr), vars
+    end
+  | Clos (body_free_variables, args', e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      Clos (body_free_variables, args', expr), vars
+    end
+  | Return (result, args', e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      Return (result, args', expr), vars
+    end
+  | If_branch (args, fvs, e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      If_branch (args, fvs, expr), vars
+    end
+  | If_join (arg, args, e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      If_join (arg, args, expr), vars
+    end
+  | Match_branch (env, args, fvs, e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      Match_branch (env, args, fvs, expr), vars
+    end
+  | Match_join (arg, args, e1) -> begin
+      let expr, vars = copy_expr e1 vars (VarMap.empty) in
+      Match_join (arg, args, expr), vars
+    end
+
+let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * blocks * var Seq.t =
+  match expr with
+  | Let (var, named, expr) -> begin
+      let expr, blocks', vars = copy_callee expr vars blocks in
+      Let (var, named, expr), blocks', vars
+    end
+  | Apply_block (k, args) when BlockMap.mem k blocks -> begin
+      let block, vars = copy_block (BlockMap.find k blocks) vars in
+      let k_id, vars = inc vars in
+      Apply_block (k_id, args), BlockMap.singleton k_id block, vars
+    end
+  | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars
+  | If (var, matchs, (kf, argsf)) -> If (var, matchs, (kf, argsf)), BlockMap.empty, vars
+  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (pattern_id, matchs, (kf, argsf)), BlockMap.empty, vars
+  | Return var -> Return var, BlockMap.empty, vars
+  | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
+  | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
+      let block, vars = copy_block (BlockMap.find k' blocks) vars in
+      let k_id, vars = inc vars in
+      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id block, vars
+    end
+  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars
+
+let copy_callee_block (block: block) (vars: var Seq.t) (blocks: blocks): block * blocks * var Seq.t =
+  match block with
+  | Cont (args', e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      Cont (args', expr), blocks, vars
+    end
+  | Clos (body_free_variables, args', e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      Clos (body_free_variables, args', expr), blocks, vars
+    end
+  | Return (result, args', e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      Return (result, args', expr), blocks, vars
+    end
+  | If_branch (args, fvs, e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      If_branch (args, fvs, expr), blocks, vars
+    end
+  | If_join (arg, args, e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      If_join (arg, args, expr), blocks, vars
+    end
+  | Match_branch (env, args, fvs, e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      Match_branch (env, args, fvs, expr), blocks, vars
+    end
+  | Match_join (arg, args, e1) -> begin
+      let expr, blocks, vars = copy_callee e1 vars blocks in
+      Match_join (arg, args, expr), blocks, vars
+    end
+
+let copy_blocks (blocks: blocks) (targets: BlockSet.t) (vars: var Seq.t): blocks * var Seq.t =
+  let targets = BlockMap.filter (fun k _ -> BlockSet.mem k targets) blocks in
+  BlockMap.fold (fun k block (blocks, vars) -> begin
+    let block, blocks', vars = copy_callee_block block vars targets in
+    BlockMap.union (fun _ _ _ -> assert false) blocks' (BlockMap.add k block blocks), vars
+  end) blocks (BlockMap.empty, vars)
 
 let rec named_to_asm (var: var) (named: named) (expr: expr) (vars: var Seq.t): Asm.expr * var Seq.t =
   match named with
