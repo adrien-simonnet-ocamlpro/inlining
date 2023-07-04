@@ -6,6 +6,7 @@ type stack = frame list
 
 module VarMap = Map.Make (Int)
 module BlockMap = Map.Make (Int)
+module BlockSet = Set.Make (Int)
 
 type prim =
 | Add
@@ -70,3 +71,42 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): un
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
 
 let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n" k (pp_block subs) block) block
+
+let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
+let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
+
+let rec inline_named (named : named) (alias: var VarMap.t): named =
+  match named with
+  | Prim (prim, args) -> Prim (prim, update_vars args alias)
+  | Var x -> Var (update_var x alias)
+  | Tuple args -> Tuple (update_vars args alias)
+  | Get (record, pos) -> Get (update_var record alias, pos)
+  | Pointer k -> Pointer k
+
+and inline (cps : expr) (alias: var VarMap.t) (stack: (pointer * var list) list): expr =
+  match cps with
+  | Let (var, named, expr) -> Let (var, inline_named named alias, inline expr alias stack)
+  | Apply_direct (k, args, stack') -> Apply_direct (k, update_vars args alias, stack' @ stack)
+  | If (var, matchs, (kf, argsf), stack') -> If (var, List.map (fun (n, k, argst) -> n, k, update_vars argst alias) matchs, (kf, update_vars argsf alias), stack' @ stack)
+  | Return v -> begin
+      match stack with
+      | [] -> Return (update_var v alias)
+      | (k, env') :: stack' -> Apply_direct (k, update_var v alias :: env', stack')
+    end
+  | Apply_indirect (x, args, stack') -> Apply_indirect (update_var x alias, update_vars args alias, stack' @ stack)
+
+let rec inline_parent (cps : expr) (blocks: blocks): expr =
+  match cps with
+  | Let (var, named, expr) -> Let (var, named, inline_parent expr blocks)
+  | Apply_direct (k, args, stack') when BlockMap.mem k blocks -> begin
+      let args', block = BlockMap.find k blocks in
+      inline block (List.fold_left2 (fun alias arg' arg -> VarMap.add arg' arg alias) VarMap.empty args' args) stack' 
+    end
+  | Apply_direct (k, args, stack') -> Apply_direct (k, args, stack')
+  | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack')
+  | Return var -> Return var
+  | Apply_indirect (x, args, stack') -> Apply_indirect (x, args, stack')
+
+let inline_blocks (blocks : blocks) (targets: BlockSet.t): blocks =
+  let targets = BlockMap.filter (fun k _ -> BlockSet.mem k targets) blocks in
+  BlockMap.map (fun (args, block) -> args, inline_parent block targets) blocks
