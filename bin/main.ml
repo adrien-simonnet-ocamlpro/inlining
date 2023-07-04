@@ -65,8 +65,8 @@ let _ =
           let cps = Cst.add_block 0 (Cps.Cont (fv, expr)) conts in
           let cps = if !unused_vars then Cps.clean_blocks cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
+          let cps = if !prop then Analysis.propagation_blocks cps _cps_analysis else cps in
           let cps, _vars = if List.length !copy_conts > 0 then Cps.copy_blocks cps (Cps.BlockSet.of_list !copy_conts) _vars else cps, _vars in
-          let cps = if !prop then cps (*Propagation.propagation_cont cont' cont' analysis*) else cps in
           if !show_cps then Cps.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
           else begin
             let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in

@@ -321,6 +321,88 @@ let rec analysis (conts: (cont_type * Values.t list * ((pointer * Values.t list)
 
 let start_analysis prog = let args, _ = get_cont prog 0 in analysis [Cont 0, List.map (fun _ -> Values.empty) args, [], Allocations.empty] prog (Analysis.empty)
 
+let map_args2 = map_args2
+let join_allocs = join_allocs
 
+let propagation_prim (prim : prim) args (env: (address * Values.t) list) (allocations: value_domain Allocations.t): named * value_domain option =
+  match prim, args with
+  | Const x, _ -> Prim (prim, args), Some (Int_domain (Int_domain.singleton x))
+  | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), args), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
+    | _ -> assert false
+    end
+  | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), args), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
+    | _ -> assert false
+    end
+  | Print, _ :: _ -> Prim (Print, args), None
+  | _ -> assert false
 
+let propagation_named (named : Cps.named) (env: (address * Values.t) list) (allocations: value_domain Allocations.t): named * value_domain option =
+match named with
+| Var var' -> Var var', get env var' allocations
+| Prim (prim, args) -> propagation_prim prim args env allocations
+| Tuple vars -> Tuple vars, Some (Tuple_domain (map_args2 vars env))
+| Get (var', pos) -> begin
+    match get env var' allocations with
+    | Some (Tuple_domain values) -> Get (var', pos), join_allocs (List.nth values pos) allocations
+    | None -> Get (var', pos), None
+    | _ -> assert false
+  end
+| Closure (k, values) -> Closure (k, values), Some (Closure_domain (Closures.singleton k (map_args2 values env)))
+| Constructor (tag, environment) -> Constructor (tag, environment), Some (Closure_domain (Closures.singleton tag (map_args2 environment env)))
 
+let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocations: value_domain Allocations.t): expr =
+  match cps with
+  | Let (var, named, expr) -> begin
+      let named, value = propagation_named named env allocations in
+      match value with
+      | Some value' -> Let (var, named, propagation expr ((var, Values.singleton var)::env) (Allocations.add var value' allocations))
+      | None -> Let (var, named, propagation expr ((var, Values.empty)::env) allocations)
+    end
+  | Apply_block (k', args) -> Apply_block (k', args)
+  | If (var, matchs, (kf, argsf)) -> begin
+      match get env var allocations with
+      | Some (Int_domain i) when Int_domain.is_singleton i -> begin
+        match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
+        | Some (_, kt, argst) -> Apply_block (kt, argst)
+        | None -> Apply_block (kf, argsf)
+        end
+      | Some (Int_domain _) | None -> If (var, matchs, (kf, argsf))
+      | _ -> assert false
+    end
+  | Match_pattern (var, matchs, (kf, argsf)) -> begin
+    match get env var allocations with
+    | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf))
+    | None -> Match_pattern (var, matchs, (kf, argsf))
+    | _ -> assert false
+  end
+  | Return x -> Return x
+  | Call (x, args, stack) -> begin
+      match get env x allocations with
+      | Some (Closure_domain clos) when Closures.cardinal clos = 1 -> let (k, _) = Closures.choose clos in Call_direct (k, x, args, stack)
+      | Some _ | None -> Call (x, args, stack)
+    end
+  | Call_direct (k, x, args, stack) -> Call_direct (k, x, args, stack)
+
+let propagation_block (cps: Cps.block) (env: Values.t list) (allocations: value_domain Allocations.t): Cps.block =
+  match cps with
+  | Cont (args', e1) -> Cont (args', propagation e1 (map_values args' env) allocations)
+  | Return (arg, args', e1) -> Return (arg, args', propagation e1 (map_values (arg :: args') env) allocations)
+  | Clos (body_free_variables, args', e1) -> Clos (body_free_variables, args', propagation e1 (map_values (body_free_variables @ args') env) allocations)
+  | If_branch (args, fvs, e) -> If_branch (args, fvs, propagation e (map_values (fvs @ args) env) allocations)
+  | If_join (arg, args, e) -> If_join (arg, args, propagation e (map_values (arg :: args) env) allocations)
+  | Match_branch (body_free_variables, args', fvs, e) -> Match_branch (body_free_variables, args', fvs, propagation e (map_values (fvs @ body_free_variables @ args') env) allocations)
+  | Match_join (arg, args, e) -> Match_join (arg, args, propagation e (map_values (arg :: args) env) allocations)
+
+let propagation_blocks (blocks: Cps.blocks) (map: (value_domain Allocations.t * Values.t list) Analysis.t) =
+  Cps.BlockMap.mapi (fun k block -> begin
+    if Analysis.mem k map then
+      let allocations, env = Analysis.find k map in
+      propagation_block block env allocations
+    else block
+  end) blocks
