@@ -16,6 +16,10 @@ let show_asm = ref false
 let unused_vars = ref false
 let anon_fun filename = input_files := filename :: !input_files
 
+let copy_conts = ref ([] : int list)
+
+let copy k = copy_conts := k :: !copy_conts
+
 let inline_conts = ref ([] : int list)
 
 let inline k = inline_conts := k :: !inline_conts
@@ -32,7 +36,8 @@ let speclist =
   ; "-cps", Arg.Set show_cps, "Show CPS"
   ; "-aps", Arg.Set show_aps, "Show APS"
   ; "-asm", Arg.Set show_asm, "Show ASM"
-  ; "-inline", Arg.Int inline, "Inline specified cont"
+  ; "-copy", Arg.Int copy, "Copy specified block"
+  ; "-inline", Arg.Int inline, "Inline specified block"
   ]
 ;;
 
@@ -60,12 +65,13 @@ let _ =
           let cps = Cst.add_block 0 (Cps.Cont (fv, expr)) conts in
           let cps = if !unused_vars then Cps.clean_blocks cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
+          let cps, _vars = if List.length !copy_conts > 0 then Cps.copy_blocks cps (Cps.BlockSet.of_list !copy_conts) _vars else cps, _vars in
           let cps = if !prop then cps (*Propagation.propagation_cont cont' cont' analysis*) else cps in
           if !show_cps then Cps.pp_blocks (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) (Cps.VarMap.empty) _subs) (Format.formatter_of_out_channel outchan) cps
           else begin
             let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in
             let asm = if !unused_vars then let cps, _ = Cleaner.elim_unused_vars_blocks asm in cps else asm in
-            let asm = if List.length !inline_conts > 0 then Inliner.inline_blocks !inline_conts asm else asm in
+            let asm = if List.length !inline_conts > 0 then Asm.inline_blocks asm (Asm.BlockSet.of_list !inline_conts) else asm in
             let asm = if !unused_vars then let cps, conts = Cleaner.elim_unused_vars_blocks asm in Array.set conts 0 1; Cleaner.elim_unused_blocks conts cps else asm in
             if !show_asm then begin
               Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n| Environment of value list\n| Closure of value * value\n| Constructor of int * value\n\nlet print (Int i) = Printf.printf \"%%d\" i\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get value pos =\nmatch value with\n| Tuple vs -> List.nth vs pos\n| Environment vs -> List.nth vs pos\n| Closure (f, _) when pos = 0 -> f\n| Closure (_, env) when pos = 1 -> env\n| Constructor (tag, _) when pos = 0 -> Int tag\n| Constructor (_, env) when pos = 1 -> env\n| _ -> assert false\n\nlet call (Function k) = k\n\nlet rec ";
