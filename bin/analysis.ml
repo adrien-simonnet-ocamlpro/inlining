@@ -224,6 +224,11 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | Some (Closure_domain clos) -> List.map (fun (k, env') -> Clos (k, env'), map_args2 args env, (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
       | _ -> assert false
     end
+  | Call_direct (_k, x, args, frame) -> begin
+      match get env x allocations with
+      | Some (Closure_domain clos) -> assert (Closures.cardinal clos = 1); List.map (fun (k, env') -> Clos (k, env'), map_args2 args env, (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
+      | _ -> assert false
+    end
 
 
 

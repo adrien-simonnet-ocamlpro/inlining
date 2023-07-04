@@ -19,6 +19,7 @@ type named =
 and expr =
 | Let of var * named * expr
 | Apply_block of pointer * var list
+| Call_direct of pointer * var * var list * frame
 | Call of var * var list * frame
 | If of var * (int * pointer * var list) list * (pointer * var list)
 | Match_pattern of var * (tag * pointer * var list) list * (pointer * var list)
@@ -71,6 +72,7 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (block : expr) :
   | Match_pattern (var, matchs, (kf, argsf)) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> f%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
+  | Call_direct (k', x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (k%d %s %a) %a" k k' (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
@@ -105,6 +107,7 @@ let rec clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias))
   | Return var -> Return (update_var var alias)
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias))
+  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias))
 
 let clean_block (block: block): block =
   match block with
@@ -170,6 +173,10 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
       let env_id, vars = inc vars in
       Let (k_id, Get (clos, 0), Let (env_id, Get (clos, 1), Apply_indirect (k_id, env_id :: args, [frame]))), vars
     end
+  | Call_direct (k, clos, args, frame) -> begin
+      let env_id, vars = inc vars in
+      Let (env_id, Get (clos, 1), Apply_direct (k, env_id :: args, [frame])), vars
+    end
 
 let block_to_asm (block: block) (vars: var Seq.t): Asm.block * var Seq.t =
   match block with
@@ -210,4 +217,3 @@ let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = B
     let block, vars = block_to_asm block vars in
     Asm.BlockMap.add k block blocks, vars
   end) blocks (Asm.BlockMap.empty, vars)
-
