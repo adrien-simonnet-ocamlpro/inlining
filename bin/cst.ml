@@ -1,23 +1,25 @@
 type var = int
+type tag = int
+
+module VarMap = Map.Make (Int)
+module TagMap = Map.Make (Int)
 
 type binary_operator =
 | Add
 | Sub
 
 type expr =
-| Int of int
-| Binary of binary_operator * expr * expr
 | Var of var
-| Let of var * expr * expr
-| Let_rec of (var * expr) list * expr
 | Fun of var * expr
 | App of expr * expr
+| Let of var * expr * expr
+| Let_rec of (var * expr) list * expr
+| Int of int
+| Binary of binary_operator * expr * expr
 | If of expr * expr * expr
-| Match of expr * (int * var list * expr) list * expr
+| Constructor of tag * expr list
+| Match of expr * (tag * var list * expr) list * expr
 | Tuple of expr list
-| Constructor of int * expr list
-
-module VarMap = Map.Make (Int)
 
 let gen_name (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
