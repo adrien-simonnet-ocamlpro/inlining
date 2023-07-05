@@ -27,15 +27,15 @@ and expr =
 | Return of var
 
 type block =
-| Cont of var list * expr
-| Clos of var list * var list * expr
-| Return of var * var list * expr
-| If_branch of var list * var list * expr
-| If_join of var * var list * expr
-| Match_branch of var list * var list * var list * expr
-| Match_join of var * var list * expr
+| Cont of var list
+| Clos of var list * var list
+| Return of var * var list
+| If_branch of var list * var list
+| If_join of var * var list
+| Match_branch of var list * var list * var list
+| Match_join of var * var list
 
-type blocks = block BlockMap.t
+type blocks = (block * expr) BlockMap.t
 
 let gen_name (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
@@ -77,15 +77,15 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (block : expr) :
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
-  | Cont (args, e1) -> Format.fprintf fmt "%a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | Clos (env, args, e1) -> Format.fprintf fmt "%a %a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | Return (arg, args, e1) -> Format.fprintf fmt "%s %a =\n%a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | If_branch (args, fvs, e1) -> Format.fprintf fmt "%a %a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs (pp_expr subs) e1
-  | If_join (arg, args, e1) -> Format.fprintf fmt "%s %a =\n%a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
-  | Match_branch (env, args, fvs, e1) -> Format.fprintf fmt "%a %a %a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs (pp_expr subs) e1
-  | Match_join (arg, args, e1) -> Format.fprintf fmt "%s %a =\n%a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e1
+  | Cont args -> Format.fprintf fmt "%a" (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Clos (env, args) -> Format.fprintf fmt "%a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Return (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
+  | If_branch (args, fvs) -> Format.fprintf fmt "%a %a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
+  | If_join (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Match_branch (env, args, fvs) -> Format.fprintf fmt "%a %a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
+  | Match_join (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
   
-let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n" k (pp_block subs) block) block
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k (block, expr) -> Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_block subs) block (pp_expr subs) expr) block
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
@@ -110,17 +110,7 @@ let rec clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias))
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias))
 
-let clean_block (block: block): block =
-  match block with
-  | Cont (args', e1) -> Cont (args', clean_expr e1 (VarMap.empty))
-  | Clos (body_free_variables, args', e1) -> Clos (body_free_variables, args', clean_expr e1 (VarMap.empty))
-  | Return (result, args', e1) -> Return (result, args', clean_expr e1 (VarMap.empty))
-  | If_branch (args, fvs, e1) -> If_branch (args, fvs, clean_expr e1 (VarMap.empty))
-  | If_join (arg, args, e1) -> If_join (arg, args, clean_expr e1 (VarMap.empty))
-  | Match_branch (env, args, fvs, e1) -> Match_branch (env, args, fvs, clean_expr e1 (VarMap.empty))
-  | Match_join (arg, args, e1) -> Match_join (arg, args, clean_expr e1 (VarMap.empty))
-  
-let clean_blocks: blocks -> blocks = BlockMap.map clean_block
+let clean_blocks: blocks -> blocks = BlockMap.map (fun (block, expr) -> block, clean_expr expr VarMap.empty)
 
 let inc (vars: var Seq.t): var * var Seq.t =
   match Seq.uncons vars with
@@ -141,37 +131,6 @@ let rec copy_expr (expr: expr) (vars: var Seq.t) (alias: var VarMap.t): expr * v
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
 
-let copy_block (block: block) (vars: var Seq.t) : block * var Seq.t =
-  match block with
-  | Cont (args', e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      Cont (args', expr), vars
-    end
-  | Clos (body_free_variables, args', e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      Clos (body_free_variables, args', expr), vars
-    end
-  | Return (result, args', e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      Return (result, args', expr), vars
-    end
-  | If_branch (args, fvs, e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      If_branch (args, fvs, expr), vars
-    end
-  | If_join (arg, args, e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      If_join (arg, args, expr), vars
-    end
-  | Match_branch (env, args, fvs, e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      Match_branch (env, args, fvs, expr), vars
-    end
-  | Match_join (arg, args, e1) -> begin
-      let expr, vars = copy_expr e1 vars (VarMap.empty) in
-      Match_join (arg, args, expr), vars
-    end
-
 let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * blocks * var Seq.t =
   match expr with
   | Let (var, named, expr) -> begin
@@ -179,9 +138,10 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * bloc
       Let (var, named, expr), blocks', vars
     end
   | Apply_block (k, args) when BlockMap.mem k blocks -> begin
-      let block, vars = copy_block (BlockMap.find k blocks) vars in
+      let block, expr = BlockMap.find k blocks in
+      let expr', vars = copy_expr expr vars VarMap.empty in
       let k_id, vars = inc vars in
-      Apply_block (k_id, args), BlockMap.singleton k_id block, vars
+      Apply_block (k_id, args), BlockMap.singleton k_id (block, expr'), vars
     end
   | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars
   | If (var, matchs, (kf, argsf)) -> If (var, matchs, (kf, argsf)), BlockMap.empty, vars
@@ -189,48 +149,18 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * bloc
   | Return var -> Return var, BlockMap.empty, vars
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
-      let block, vars = copy_block (BlockMap.find k' blocks) vars in
+      let block, expr = BlockMap.find k blocks in
+      let expr', vars = copy_expr expr vars VarMap.empty in
       let k_id, vars = inc vars in
-      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id block, vars
+      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id (block, expr'), vars
     end
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars
 
-let copy_callee_block (block: block) (vars: var Seq.t) (blocks: blocks): block * blocks * var Seq.t =
-  match block with
-  | Cont (args', e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      Cont (args', expr), blocks, vars
-    end
-  | Clos (body_free_variables, args', e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      Clos (body_free_variables, args', expr), blocks, vars
-    end
-  | Return (result, args', e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      Return (result, args', expr), blocks, vars
-    end
-  | If_branch (args, fvs, e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      If_branch (args, fvs, expr), blocks, vars
-    end
-  | If_join (arg, args, e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      If_join (arg, args, expr), blocks, vars
-    end
-  | Match_branch (env, args, fvs, e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      Match_branch (env, args, fvs, expr), blocks, vars
-    end
-  | Match_join (arg, args, e1) -> begin
-      let expr, blocks, vars = copy_callee e1 vars blocks in
-      Match_join (arg, args, expr), blocks, vars
-    end
-
 let copy_blocks (blocks: blocks) (targets: BlockSet.t) (vars: var Seq.t): blocks * var Seq.t =
   let targets = BlockMap.filter (fun k _ -> BlockSet.mem k targets) blocks in
-  BlockMap.fold (fun k block (blocks, vars) -> begin
-    let block, blocks', vars = copy_callee_block block vars targets in
-    BlockMap.union (fun _ _ _ -> assert false) blocks' (BlockMap.add k block blocks), vars
+  BlockMap.fold (fun k (block, expr) (blocks, vars) -> begin
+    let expr', blocks', vars = copy_callee expr vars targets in
+    BlockMap.union (fun _ _ _ -> assert false) blocks' (BlockMap.add k (block, expr') blocks), vars
   end) blocks (BlockMap.empty, vars)
 
 let rec named_to_asm (var: var) (named: named) (expr: expr) (vars: var Seq.t): Asm.expr * var Seq.t =
@@ -285,43 +215,27 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
       Let (env_id, Get (clos, 1), Apply_direct (k, env_id :: args, [frame])), vars
     end
 
-let block_to_asm (block: block) (vars: var Seq.t): Asm.block * var Seq.t =
+let block_to_asm (block: block) (asm1: Asm.expr) (vars: var Seq.t): Asm.block * var Seq.t =
   match block with
-  | Cont (args', e1) -> begin
-      let asm1, vars = expr_to_asm e1 vars in
-      (args', asm1), vars
-    end
-  | Return (arg, args', e1) -> begin
-      let asm1, vars = expr_to_asm e1 vars in
-      (arg :: args', asm1), vars
-    end
-  | Clos (body_free_variables, args', e1) -> begin
+  | Cont (args') -> (args', asm1), vars
+  | Return (arg, args') -> (arg :: args', asm1), vars
+  | Clos (body_free_variables, args') -> begin
       let environment_id, vars = inc vars in
-      let asm1, vars = expr_to_asm e1 vars in
       let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
       (environment_id :: args', body), vars
     end
-  | If_branch (args, fvs, e) -> begin
-      let asm1, vars = expr_to_asm e vars in
-      (args @ fvs, asm1), vars
-    end
-  | If_join (arg, args, e) -> begin
-      let asm1, vars = expr_to_asm e vars in
-      (arg :: args, asm1), vars
-    end
-  | Match_branch (body_free_variables, args', fvs, e) -> begin
+  | If_branch (args, fvs) -> (args @ fvs, asm1), vars
+  | If_join (arg, args) -> (arg :: args, asm1), vars
+  | Match_branch (body_free_variables, args', fvs) -> begin
       let environment_id, vars = inc vars in
-      let asm1, vars = expr_to_asm e vars in
       let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
       (environment_id :: args' @ fvs, body), vars
     end
-  | Match_join (arg, args, e) -> begin
-      let asm1, vars = expr_to_asm e vars in
-      (arg :: args, asm1), vars
-    end
+  | Match_join (arg, args) -> (arg :: args, asm1), vars
 
-let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = BlockMap.fold (fun k block (blocks, vars) -> begin
-    let block, vars = block_to_asm block vars in
+let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = BlockMap.fold (fun k (block, expr) (blocks, vars) -> begin
+    let asm, vars = expr_to_asm expr vars in  
+    let block, vars = block_to_asm block asm vars in
     Asm.BlockMap.add k block blocks, vars
   end) blocks (Asm.BlockMap.empty, vars)
 
@@ -346,13 +260,13 @@ let rec size_expr (cps : expr): int =
 
 let size_block (block: block): int =
   match block with
-  | Cont (args', e1) -> List.length args' + size_expr e1
-  | Return (_, args', e1) -> 1 + List.length args' + size_expr e1
-  | Clos (body_free_variables, args', e1) -> List.length body_free_variables + List.length args' + size_expr e1
-  | If_branch (args, fvs, e) -> List.length fvs + List.length args + size_expr e
-  | If_join (_, args, e) -> 1 + List.length args + size_expr e
-  | Match_branch (body_free_variables, args', fvs, e) -> List.length body_free_variables + List.length fvs + List.length args' + size_expr e
-  | Match_join (_, args, e) -> 1 + List.length args + size_expr e
+  | Cont (args') -> List.length args'
+  | Return (_, args') -> 1 + List.length args'
+  | Clos (body_free_variables, args') -> List.length body_free_variables + List.length args'
+  | If_branch (args, fvs) -> List.length fvs + List.length args
+  | If_join (_, args) -> 1 + List.length args
+  | Match_branch (body_free_variables, args', fvs) -> List.length body_free_variables + List.length fvs + List.length args'
+  | Match_join (_, args) -> 1 + List.length args
 
 let size_blocks (blocks: blocks): int =
-  BlockMap.fold (fun _ block size -> size + size_block block) blocks 0
+  BlockMap.fold (fun _ (block, expr) size -> size + size_block block + size_expr expr) blocks 0

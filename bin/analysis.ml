@@ -38,19 +38,8 @@ type cont = Cps.blocks
 
 let get_cont (cont: cont) k =
 match Cps.BlockMap.find_opt k cont with
-| Some (Cont (args, e1)) -> args, e1
+| Some (Cont args, e1) -> args, e1
 | _ -> assert false
-
-let get_clos (cont: cont) k =
-  match Cps.BlockMap.find_opt k cont with
-  | Some (Clos (env, args, e1)) -> env, args, e1
-  | _ -> assert false
-  
-
-let get_return (cont: cont) k =
-  match Cps.BlockMap.find_opt k cont with
-  | Some (Return (arg, args, e1)) -> arg, args, e1
-  | _ -> assert false
 
 let pp_alloc fmt (alloc: Values.t) = Format.fprintf fmt "{ "; Values.iter (fun i -> Format.fprintf fmt "%d " i) alloc; Format.fprintf fmt "}"
 
@@ -228,11 +217,11 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | _ -> assert false
     end
 
-let analysis_block (block1: Cps.block) (block2: cont_type) (stack: ((pointer * Values.t list) list)) (allocations: value_domain Allocations.t) =
+let block_env (block1: Cps.block) (block2: cont_type) =
   match block1, block2 with
-  | Cont (args1, expr), Cont args2 -> analysis_cont expr stack (map_values args1 args2) allocations
-  | Clos (env1, args1, expr), Clos (env2, args2) -> analysis_cont expr stack ((map_values args1 args2) @ (map_values env1 env2)) allocations
-  | Return (arg1, args1, expr), Return (arg2, args2) -> analysis_cont expr stack ((arg1, arg2) :: (map_values args1 args2)) allocations
+  | Cont args1, Cont args2 -> map_values args1 args2
+  | Clos (env1, args1), Clos (env2, args2) -> (map_values args1 args2) @ (map_values env1 env2)
+  | Return (arg1, args1), Return (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
   | _, _ -> assert false
 
 let has3 context var env = List.exists (fun ((var', _), env') -> var = var' && env = env') context
@@ -267,18 +256,18 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
             | [] -> assert false
             | (k', args) :: _ -> analysis ((k', Return (Values.empty, args), stack, new_allocations) :: conts') prog map
           end else begin
-            let block = Cps.BlockMap.find k prog in
-            let next_conts = analysis_block block block' stack new_allocations in
+            let block, expr = Cps.BlockMap.find k prog in
+            let next_conts = analysis_cont expr stack (block_env block block') new_allocations in
             analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),block')::old_context) map)
           end
         end else begin
-          let block = Cps.BlockMap.find k prog in
-          let next_conts = analysis_block block block' stack allocations in
+          let block, expr = Cps.BlockMap.find k prog in
+          let next_conts = analysis_cont expr stack (block_env block block') allocations in
           analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),block')::old_context) map)
         end
       end else begin
-        let block = Cps.BlockMap.find k prog in
-        let next_conts = analysis_block block block' stack allocations in
+        let block, expr = Cps.BlockMap.find k prog in
+        let next_conts = analysis_cont expr stack (block_env block block') allocations in
         analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),block'] map)
       end
     end
@@ -353,23 +342,10 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
     end
   | Call_direct (k, x, args, stack) -> Call_direct (k, x, args, stack)
 
-let propagation_block (cps: Cps.block) (env: Values.t list) (allocations: value_domain Allocations.t): Cps.block =
-  match cps with
-  | Cont (args', e1) -> Cont (args', propagation e1 (map_values args' env) allocations)
-  | Return (arg, args', e1) -> Return (arg, args', propagation e1 (map_values (arg :: args') env) allocations)
-  | Clos (body_free_variables, args', e1) -> Clos (body_free_variables, args', propagation e1 (map_values (body_free_variables @ args') env) allocations)
-  | If_branch (args, fvs, e) -> If_branch (args, fvs, propagation e (map_values (fvs @ args) env) allocations)
-  | If_join (arg, args, e) -> If_join (arg, args, propagation e (map_values (arg :: args) env) allocations)
-  | Match_branch (body_free_variables, args', fvs, e) -> Match_branch (body_free_variables, args', fvs, propagation e (map_values (fvs @ body_free_variables @ args') env) allocations)
-  | Match_join (arg, args, e) -> Match_join (arg, args, propagation e (map_values (arg :: args) env) allocations)
-
 let propagation_blocks (blocks: Cps.blocks) (map: (value_domain Allocations.t * cont_type) Analysis.t) =
-  Cps.BlockMap.mapi (fun k block -> begin
+  Cps.BlockMap.mapi (fun k (block, expr) -> begin
     if Analysis.mem k map then
       let allocations, block' = Analysis.find k map in
-      match block' with
-      | Cont env -> propagation_block block env allocations
-      | Clos (env, args) -> propagation_block block (env @ args) allocations
-      | Return (arg, args) -> propagation_block block (arg :: args) allocations
-    else block
+      block, propagation expr (block_env block block') allocations
+    else block, expr
   end) blocks

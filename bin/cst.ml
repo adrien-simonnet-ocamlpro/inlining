@@ -121,7 +121,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> argument_name) body_free_variables in
       let function_id = inc_conts () in
       let closure_id = inc_conts () in
-      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, add_block closure_id (Cps.Clos (body_free_variables, [argument_name], Cps.Apply_block (function_id, argument_name :: body_free_variables))) (add_block function_id (Cps.Cont (argument_name :: body_free_variables, body_cps)) body_continuations)
+      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, add_block closure_id (Cps.Clos (body_free_variables, [argument_name]), Cps.Apply_block (function_id, argument_name :: body_free_variables)) (add_block function_id (Cps.Cont (argument_name :: body_free_variables), body_cps) body_continuations)
     end
   (*
       let var = variable_name in
@@ -213,7 +213,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Cps.Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_block (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
 
       (* *)
-      vars, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), add_block binding_body_closure_continuation_id (Cps.Clos (all_binding_bodies_free_variables, [binding_body_arg_id], binding_body_with_free_and_binding_variables)) (add_block binding_body_function_continuation_id (Cps.Cont (bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings), binding_body_cps)) scope_and_closures_conts')
+      vars, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), add_block binding_body_closure_continuation_id (Cps.Clos (all_binding_bodies_free_variables, [binding_body_arg_id]), binding_body_with_free_and_binding_variables) (add_block binding_body_function_continuation_id (Cps.Cont (bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings)), binding_body_cps) scope_and_closures_conts')
     
     ) (vars, scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
     scope_cps, vars, join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
@@ -245,7 +245,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       
       let cps1, vars, fv1, conts1 = to_cps vars (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
 
-      cps1, vars, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), add_block merge_kid (Cps.Cont (var :: fv0, expr)) (add_block e3_kid (Cps.Cont (false_free_variables_id @ fv0, false_cps)) (add_block e2_kid (Cps.Cont (true_free_variables_id @ fv0, true_cps)) (join_blocks true_continuations (join_blocks false_continuations conts1))))
+      cps1, vars, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), add_block merge_kid (Cps.Cont (var :: fv0), expr) (add_block e3_kid (Cps.Cont (false_free_variables_id @ fv0), false_cps) (add_block e2_kid (Cps.Cont (true_free_variables_id @ fv0), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
     end
     (*
           let closure_id = e1 in
@@ -266,7 +266,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
 
       let cps1, vars, fv1, conts1 = to_cps vars (e1_id :: fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fv0))) in
       let cps2, vars, fv2, conts2 = to_cps vars (join_fv fv1 fv0) e1 e1_id cps1 in
-      cps2, vars, join_fv fv2 fv1, add_block return_kid (Cps.Return (var, fv0, expr)) (join_blocks conts2 conts1)
+      cps2, vars, join_fv fv2 fv1, add_block return_kid (Cps.Return (var, fv0), expr) (join_blocks conts2 conts1)
     end
   (*
 
@@ -297,7 +297,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
         
         (* Branch continuation and body informations. *)
         let branch_continuation_id = inc_conts () in
-        (vars, add_block branch_continuation_id (Cps.Clos (branch_arguments_names, branch_free_variables @ fv0, branch_cps)) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
+        (vars, add_block branch_continuation_id (Cps.Clos (branch_arguments_names, branch_free_variables @ fv0), branch_cps) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
       end) (vars, empty_blocks) branchs in
       
       (* Substitued free variables. *)
@@ -307,7 +307,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let pattern_id, vars = inc vars in
       let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, join_fv fvs fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
 
-      expr'', vars, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), add_block default_continuation_id (Cps.Cont (default_branch_free_variables @ fv0, default_branch_cps)) (add_block return_continuation_id (Cps.Cont (var :: fv0, expr)) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
+      expr'', vars, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), add_block default_continuation_id (Cps.Cont (default_branch_free_variables @ fv0), default_branch_cps) (add_block return_continuation_id (Cps.Cont (var :: fv0), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
     end
     (*
     
