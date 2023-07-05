@@ -324,3 +324,35 @@ let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = B
     let block, vars = block_to_asm block vars in
     Asm.BlockMap.add k block blocks, vars
   end) blocks (Asm.BlockMap.empty, vars)
+
+let size_named (named : named): int =
+  match named with
+  | Prim (_, args) -> 1 + List.length args
+  | Var _ -> 1
+  | Tuple args -> List.length args
+  | Get (_, _) -> 2
+  | Closure (_, args) -> List.length args
+  | Constructor (_, args) -> List.length args
+
+let rec size_expr (cps : expr): int =
+  match cps with
+  | Let (_, named, expr) -> 1 + size_named named + size_expr expr
+  | Apply_block (_, args) -> 1 + List.length args
+  | If (_, matchs, (_, argsf)) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args) 0 matchs + 1 + List.length argsf
+  | Match_pattern (_, matchs, (_, argsf)) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args) 0 matchs + 1 + List.length argsf
+  | Return _ -> 1
+  | Call (_, args, (_, args')) -> 2 + List.length args + 1 + List.length args'
+  | Call_direct (_, _, args, (_, args')) -> 2 + List.length args + 1 + List.length args'
+
+let size_block (block: block): int =
+  match block with
+  | Cont (args', e1) -> List.length args' + size_expr e1
+  | Return (_, args', e1) -> 1 + List.length args' + size_expr e1
+  | Clos (body_free_variables, args', e1) -> List.length body_free_variables + List.length args' + size_expr e1
+  | If_branch (args, fvs, e) -> List.length fvs + List.length args + size_expr e
+  | If_join (_, args, e) -> 1 + List.length args + size_expr e
+  | Match_branch (body_free_variables, args', fvs, e) -> List.length body_free_variables + List.length fvs + List.length args' + size_expr e
+  | Match_join (_, args, e) -> 1 + List.length args + size_expr e
+
+let size_blocks (blocks: blocks): int =
+  BlockMap.fold (fun _ block size -> size + size_block block) blocks 0
