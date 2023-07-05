@@ -52,10 +52,10 @@ let _ =
       let ast = Parser.programme Lexer.jetons source in
       if !show_ast then Ast.pp_expr (Format.formatter_of_out_channel outchan) ast
       else begin
-        let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) [] (Ast.TagMap.empty) in
+        let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) Ast.VarMap.empty Ast.TagMap.empty in
         Env.print_subs (Cst.VarMap.fold (fun i v subs -> (v, i)::subs) _subs []);
-        Env.print_subs _fvs;
-        if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) _subs _fvs) (Format.formatter_of_out_channel outchan) cst
+        Env.print_subs (Ast.VarMap.fold (fun i v subs -> (i, v)::subs) _fvs []);
+        if !show_cst then Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) _subs (Ast.VarMap.fold (fun i v subs -> (i, v)::subs) _fvs [])) (Format.formatter_of_out_channel outchan) cst
         else begin
           let var0, _vars = match Seq.uncons _vars with
           | Some (var0, _vars) -> var0, _vars
@@ -78,7 +78,7 @@ let _ =
               Asm.pp_blocks _subs (Format.formatter_of_out_channel outchan) asm;
               Printf.fprintf outchan ";;\nk0 ()"
             end else begin
-              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var _fvs fv) ; int_of_string (read_line ()) in (fv, Asm.Int i)) fv in
+              let init = List.map (fun fv -> let i = Printf.fprintf outchan "%s = " (Env.get_var (Ast.VarMap.bindings _fvs) fv) ; int_of_string (read_line ()) in (fv, Asm.Int i)) fv in
               let r, _benchmark = Asm.interp_blocks asm 0 init in
                 Asm.pp_benchmark _benchmark (Format.formatter_of_out_channel outchan);
                 Printf.printf "Program size = %d\n" (Asm.size_blocks asm);
