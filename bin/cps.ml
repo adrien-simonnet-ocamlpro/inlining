@@ -155,7 +155,19 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * bloc
   | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), BlockMap.empty, vars
   | Return var -> Return var, BlockMap.empty, vars
+  | If_return (k, arg, args) when BlockMap.mem k blocks -> begin
+      let block, expr = BlockMap.find k blocks in
+      let expr', vars = copy_expr expr vars VarMap.empty in
+      let k_id, vars = inc vars in
+      If_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars
+    end
   | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars
+  | Match_return (k, arg, args) when BlockMap.mem k blocks -> begin
+      let block, expr = BlockMap.find k blocks in
+      let expr', vars = copy_expr expr vars VarMap.empty in
+      let k_id, vars = inc vars in
+      Match_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars
+    end
   | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
