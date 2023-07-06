@@ -119,9 +119,8 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let body_return_id, vars = inc vars in
       let body_cps, vars, body_free_variables, body_continuations = to_cps vars [] body body_return_id (Return body_return_id) in
       let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> argument_name) body_free_variables in
-      let function_id = inc_conts () in
       let closure_id = inc_conts () in
-      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, add_block closure_id (Clos (body_free_variables, [argument_name]), Apply_block (function_id, argument_name :: body_free_variables)) (add_block function_id (Cont (argument_name :: body_free_variables), body_cps) body_continuations)
+      Let (var, Closure (closure_id, body_free_variables), expr), vars, body_free_variables, add_block closure_id (Clos (body_free_variables, [argument_name]), body_cps) body_continuations
     end
   (*
       let var = variable_name in

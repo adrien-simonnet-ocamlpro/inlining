@@ -227,28 +227,29 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
       Let (env_id, Get (clos, 1), Apply_direct (k, env_id :: args, [frame])), vars
     end
 
-let block_to_asm (block: block) (asm1: Asm.expr) (vars: var Seq.t): Asm.block * var Seq.t =
+let block_to_asm (block: block) (asm1: Asm.expr) (vars: var Seq.t): Asm.block * var Seq.t * Asm.blocks =
   match block with
-  | Cont (args') -> (args', asm1), vars
-  | Return (arg, args') -> (arg :: args', asm1), vars
+  | Cont (args') -> (args', asm1), vars, Asm.BlockMap.empty
+  | Return (arg, args') -> (arg :: args', asm1), vars, Asm.BlockMap.empty
   | Clos (body_free_variables, args') -> begin
+      let function_id, vars = inc vars in
       let environment_id, vars = inc vars in
-      let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
-      (environment_id :: args', body), vars
+      let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) (Apply_direct (function_id, args' @ body_free_variables, [])) (List.mapi (fun i fv -> i, fv) body_free_variables) in
+      (environment_id :: args', body), vars, Asm.BlockMap.singleton function_id (args' @ body_free_variables, asm1)
     end
-  | If_branch (args, fvs) -> (args @ fvs, asm1), vars
-  | If_join (arg, args) -> (arg :: args, asm1), vars
+  | If_branch (args, fvs) -> (args @ fvs, asm1), vars, Asm.BlockMap.empty
+  | If_join (arg, args) -> (arg :: args, asm1), vars, Asm.BlockMap.empty
   | Match_branch (body_free_variables, args', fvs) -> begin
       let environment_id, vars = inc vars in
       let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
-      (environment_id :: args' @ fvs, body), vars
+      (environment_id :: args' @ fvs, body), vars, Asm.BlockMap.empty
     end
-  | Match_join (arg, args) -> (arg :: args, asm1), vars
+  | Match_join (arg, args) -> (arg :: args, asm1), vars, Asm.BlockMap.empty
 
 let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = BlockMap.fold (fun k (block, expr) (blocks, vars) -> begin
     let asm, vars = expr_to_asm expr vars in  
-    let block, vars = block_to_asm block asm vars in
-    Asm.BlockMap.add k block blocks, vars
+    let block, vars, blocks' = block_to_asm block asm vars in
+    Asm.BlockMap.add k block (Asm.BlockMap.union (fun _ -> assert false) blocks blocks'), vars
   end) blocks (Asm.BlockMap.empty, vars)
 
 let size_named (named : named): int =
