@@ -240,12 +240,12 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let e3_kid = inc_conts () in
       let merge_kid = inc_conts () in
 
-      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars fv0 e2 e2_id (Apply_block (merge_kid, e2_id :: fv0)) in
-      let false_cps, vars, false_free_variables_id, false_continuations = to_cps vars fv0 e3 e3_id (Apply_block (merge_kid, e3_id :: fv0)) in
+      let true_cps, vars, true_free_variables_id, true_continuations = to_cps vars fv0 e2 e2_id (If_return (merge_kid, e2_id, fv0)) in
+      let false_cps, vars, false_free_variables_id, false_continuations = to_cps vars fv0 e3 e3_id (If_return (merge_kid, e3_id, fv0)) in
       
-      let cps1, vars, fv1, conts1 = to_cps vars (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id @ fv0)], (e2_kid, true_free_variables_id  @ fv0))) in
+      let cps1, vars, fv1, conts1 = to_cps vars (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id)], (e2_kid, true_free_variables_id), fv0)) in
 
-      cps1, vars, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), add_block merge_kid (Cont (var :: fv0), expr) (add_block e3_kid (Cont (false_free_variables_id @ fv0), false_cps) (add_block e2_kid (Cont (true_free_variables_id @ fv0), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
+      cps1, vars, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), add_block merge_kid (If_join (var, fv0), expr) (add_block e3_kid (If_branch (false_free_variables_id, fv0), false_cps) (add_block e2_kid (If_branch (true_free_variables_id, fv0), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
     end
     (*
           let closure_id = e1 in
@@ -277,7 +277,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
 
       (* Default branch cps generation. *)
       let default_branch_return_id, vars = inc vars in
-      let default_branch_cps, vars, default_branch_free_variables, default_branch_continuations = to_cps vars fv0 default_branch_expr default_branch_return_id (Apply_block (return_continuation_id, default_branch_return_id :: fv0)) in
+      let default_branch_cps, vars, default_branch_free_variables, default_branch_continuations = to_cps vars fv0 default_branch_expr default_branch_return_id (Match_return (return_continuation_id, default_branch_return_id, fv0)) in
       
       (* Default branch continuation. *)
       let default_continuation_id = inc_conts () in
@@ -286,7 +286,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
       let (vars, branchs_continuations), branchs_bodies = List.fold_left_map (fun (vars, default_continuation') (branch_index, branch_arguments_names, branch_expr) -> begin
         (* Branch cps generation. *)
         let branch_return_id, vars = inc vars in
-        let branch_cps, vars, branch_free_variables, branch_continuations = to_cps vars fv0 branch_expr branch_return_id (Apply_block (return_continuation_id, branch_return_id::fv0)) in
+        let branch_cps, vars, branch_free_variables, branch_continuations = to_cps vars fv0 branch_expr branch_return_id (Match_return (return_continuation_id, branch_return_id, fv0)) in
                 
         (* Branch free variables that are not passed in arguments. *)
         let branch_free_variables = List.filter (fun branch_free_variable -> not (List.mem branch_free_variable branch_arguments_names)) branch_free_variables in
@@ -297,7 +297,7 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
         
         (* Branch continuation and body informations. *)
         let branch_continuation_id = inc_conts () in
-        (vars, add_block branch_continuation_id (Cps.Clos (branch_arguments_names, branch_free_variables @ fv0), branch_cps) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
+        (vars, add_block branch_continuation_id (Match_branch (branch_arguments_names, branch_free_variables, fv0), branch_cps) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
       end) (vars, empty_blocks) branchs in
       
       (* Substitued free variables. *)
@@ -305,9 +305,9 @@ let rec to_cps (vars: Cps.var Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps
 
       (* Pattern matching. *)
       let pattern_id, vars = inc vars in
-      let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((n, k, _), fvs) -> n, k, join_fv fvs fv0) (List.combine branchs_bodies free_variables_branchs), (default_continuation_id, default_branch_free_variables @ fv0))) in
+      let expr'', vars, fvs, conts = to_cps vars (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((_, branch_arguments_names, _), ((n, k, _), fvs)) -> n, k, branch_arguments_names, fvs) (List.combine branchs (List.combine branchs_bodies free_variables_branchs)), (default_continuation_id, default_branch_free_variables), fv0)) in
 
-      expr'', vars, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), add_block default_continuation_id (Cont (default_branch_free_variables @ fv0), default_branch_cps) (add_block return_continuation_id (Cont (var :: fv0), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
+      expr'', vars, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), add_block default_continuation_id (Match_branch ([], default_branch_free_variables, fv0), default_branch_cps) (add_block return_continuation_id (Match_join (var, fv0), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
     end
     (*
     

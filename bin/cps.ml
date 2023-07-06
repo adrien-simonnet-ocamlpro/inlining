@@ -22,9 +22,11 @@ and expr =
 | Apply_block of pointer * var list
 | Call_direct of pointer * var * var list * frame
 | Call of var * var list * frame
-| If of var * (int * pointer * var list) list * (pointer * var list)
-| Match_pattern of var * (tag * pointer * var list) list * (pointer * var list)
+| If of var * (int * pointer * var list) list * (pointer * var list) * var list
+| Match_pattern of var * (tag * pointer * var list * var list) list * (pointer * var list) * var list
 | Return of var
+| If_return of pointer * var * var list
+| Match_return of pointer * var * var list
 
 type block =
 | Cont of var list
@@ -69,9 +71,11 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (block : expr) :
   match block with
   | Let (var, named, expr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
   | Apply_block (k, args) -> Format.fprintf fmt "\tk%d %a" k (pp_args ~subs ~split: " " ~empty: "") args
-  | If (var, matchs, (kf, argsf)) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
-  | Match_pattern (var, matchs, (kf, argsf)) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> f%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
+  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") (argst @ fvs))) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") (argsf @ fvs)
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, pld, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args ~subs ~empty: "()" ~split: " ") pld kt (pp_args ~subs ~empty: "()" ~split: " ") (argst @ fvs))) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") (argsf @ fvs)
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
+  | If_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (gen_name arg subs) (pp_args ~subs ~split: " " ~empty: "") args
+  | Match_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (gen_name arg subs) (pp_args ~subs ~split: " " ~empty: "") args
   | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
   | Call_direct (k', x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (k%d %s %a) %a" k k' (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_args ~split:" " ~subs ~empty: "()") kargs
 
@@ -104,9 +108,11 @@ let rec clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Let (var, Var var', expr') -> clean_expr expr' (VarMap.add var var' alias)
   | Let (var, named, expr) -> Let (var, clean_named named alias, clean_expr expr alias)
   | Apply_block (k, args) -> Apply_block (k, update_vars args alias)
-  | If (var, matchs, (kf, argsf)) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias))
-  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias))
+  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias), update_vars fvs alias)
+  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, pld, args) -> n, k, pld, update_vars args alias) matchs, (kf, update_vars argsf alias), update_vars fvs alias)
   | Return var -> Return (update_var var alias)
+  | If_return (k, arg, args) -> If_return (k, update_var arg alias, update_vars args alias)
+  | Match_return (k, arg, args) -> Match_return (k, update_var arg alias, update_vars args alias)
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias))
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias))
 
@@ -125,9 +131,11 @@ let rec copy_expr (expr: expr) (vars: var Seq.t) (alias: var VarMap.t): expr * v
       Let (var, clean_named named alias, expr), vars
     end
   | Apply_block (k, args) -> Apply_block (k, update_vars args alias), vars
-  | If (var, matchs, (kf, argsf)) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias)), vars
-  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias)), vars
+  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias), update_vars fvs alias), vars
+  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, pld, args) -> n, k, pld, update_vars args alias) matchs, (kf, update_vars argsf alias), update_vars fvs alias), vars
   | Return var -> Return (update_var var alias), vars
+  | If_return (k, arg, args) -> If_return (k, update_var arg alias, update_vars args alias), vars
+  | Match_return (k, arg, args) -> Match_return (k, update_var arg alias, update_vars args alias), vars
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
 
@@ -144,9 +152,11 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * bloc
       Apply_block (k_id, args), BlockMap.singleton k_id (block, expr'), vars
     end
   | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars
-  | If (var, matchs, (kf, argsf)) -> If (var, matchs, (kf, argsf)), BlockMap.empty, vars
-  | Match_pattern (pattern_id, matchs, (kf, argsf)) -> Match_pattern (pattern_id, matchs, (kf, argsf)), BlockMap.empty, vars
+  | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars
+  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), BlockMap.empty, vars
   | Return var -> Return var, BlockMap.empty, vars
+  | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars
+  | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
       let block, expr = BlockMap.find k blocks in
@@ -198,13 +208,15 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
   match block with
   | Let (var, named, expr) -> named_to_asm var named expr vars
   | Apply_block (k, args) -> Apply_direct (k, args, []), vars
-  | If (var, matchs, (kf, argsf)) -> If (var, matchs, (kf, argsf), []), vars
-  | Match_pattern (cons, matchs, (kf, argsf)) -> begin
+  | If (var, matchs, (kf, argsf), fvs) -> If (var, List.map (fun (n, k, argst) -> n, k, argst @ fvs) matchs, (kf, argsf @ fvs), []), vars
+  | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
       let payload_id, vars = inc vars in
-      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), If (tag_id, List.map (fun (n, k, args) -> (n, k, payload_id :: args)) matchs, (kf, argsf), [])))), vars
+      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), If (tag_id, List.map (fun (n, k, _, args) -> (n, k, payload_id :: args @ fvs)) matchs, (kf, payload_id :: argsf @ fvs), [])))), vars
     end
   | Return var -> Return var, vars
+  | If_return (k, arg, args) -> Apply_direct (k, arg :: args, []), vars
+  | Match_return (k, arg, args) -> Apply_direct (k, arg :: args, []), vars
   | Call (clos, args, frame) -> begin
       let k_id, vars = inc vars in
       let env_id, vars = inc vars in
@@ -252,9 +264,11 @@ let rec size_expr (cps : expr): int =
   match cps with
   | Let (_, named, expr) -> 1 + size_named named + size_expr expr
   | Apply_block (_, args) -> 1 + List.length args
-  | If (_, matchs, (_, argsf)) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args) 0 matchs + 1 + List.length argsf
-  | Match_pattern (_, matchs, (_, argsf)) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args) 0 matchs + 1 + List.length argsf
+  | If (_, matchs, (_, argsf), fvs) -> List.fold_left (fun size (_, _, args) -> size + 1 + List.length args + List.length fvs) 0 matchs + 1 + List.length argsf + List.length fvs
+  | Match_pattern (_, matchs, (_, argsf), fvs) -> List.fold_left (fun size (_, _, pld, args) -> size + 1 + List.length pld + List.length args + List.length fvs) 0 matchs + 1 + List.length argsf + List.length fvs
   | Return _ -> 1
+  | If_return (_, _, args) -> 2 + List.length args
+  | Match_return (_, _, args) -> 2 + List.length args
   | Call (_, args, (_, args')) -> 2 + List.length args + 1 + List.length args'
   | Call_direct (_, _, args, (_, args')) -> 2 + List.length args + 1 + List.length args'
 

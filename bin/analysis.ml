@@ -189,24 +189,24 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | None -> analysis_cont expr stack ((var, Values.empty)::env) allocations
     end
   | Apply_block (k', args) -> [k', Cont (map_args2 args env), stack, allocations]
-  | If (var, matchs, (kf, argsf)) -> begin
+  | If (var, matchs, (kf, argsf), fvs) -> begin
       match get env var allocations with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> [kt, Cont (map_args2 argst env), stack, allocations]
-        | None -> [kf, Cont (map_args2 argsf env), stack, allocations]
+        | Some (_, kt, argst) -> [kt, If_branch (map_args2 argst env, map_args2 fvs env), stack, allocations]
+        | None -> [kf, If_branch (map_args2 argsf env, map_args2 fvs env), stack, allocations]
         end
-      | Some (Int_domain _) | None -> (kf, Cont (map_args2 argsf env), stack, allocations)::(List.map (fun (_, kt, argst) -> kt, Cont (map_args2 argst env), stack, allocations) matchs)
+      | Some (Int_domain _) | None -> (kf, If_branch (map_args2 argsf env, map_args2 fvs env), stack, allocations)::(List.map (fun (_, kt, argst) -> kt, If_branch (map_args2 argst env, map_args2 fvs env), stack, allocations) matchs)
       | _ -> assert false
     end
-  | Match_pattern (var, matchs, (kf, argsf)) -> begin
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
       match get env var allocations with
       | Some (Closure_domain clos) -> List.map (fun (n, env') -> begin
-          match List.find_opt (fun (n', _, _) -> n = n') matchs with
-          | Some (_, k, args) -> k, Clos (env', map_args2 args env), stack, allocations
-          | None -> kf, Cont (map_args2 argsf env), stack, allocations
+          match List.find_opt (fun (n', _, _, _) -> n = n') matchs with
+          | Some (_, k, _, args) -> k, Match_branch (env', map_args2 args env, map_args2 fvs env), stack, allocations
+          | None -> kf, Match_branch ([], map_args2 argsf env, map_args2 fvs env), stack, allocations
           end) (Closures.bindings clos)
-      | None -> (kf, Cont (map_args2 argsf env), stack, allocations)::(List.map (fun (_, kt, argst) -> kt, Cont (map_args2 argst env), stack, allocations) matchs)
+      | None -> (kf, Match_branch ([], map_args2 argsf env, map_args2 fvs env), stack, allocations)::(List.map (fun (_, kt, pld, argst) -> kt, Match_branch (List.map (fun _ -> Values.empty) pld, map_args2 argst env, map_args2 fvs env), stack, allocations) matchs)
       | _ -> assert false
     end
   | Return x -> begin
@@ -214,6 +214,8 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
       | [] -> []
       | (k, args)::stack' -> [k, Return (Env.get2 env x, args), stack', allocations]
     end
+  | If_return (k, arg, args) -> [k, If_join (Env.get2 env arg, map_args2 args env), stack, allocations]
+  | Match_return (k, arg, args) -> [k, Match_join (Env.get2 env arg, map_args2 args env), stack, allocations]
   | Call (x, args, frame) -> begin
       match get env x allocations with
       | Some (Closure_domain clos) -> List.map (fun (k, env') -> k, Clos (env', map_args2 args env), (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
@@ -230,6 +232,11 @@ let block_env (block1: Cps.block) (block2: cont_type) =
   | Cont args1, Cont args2 -> map_values args1 args2
   | Clos (env1, args1), Clos (env2, args2) -> (map_values args1 args2) @ (map_values env1 env2)
   | Return (arg1, args1), Return (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
+  | If_branch (args1, fvs1), If_branch (args2, fvs2) -> (map_values args1 args2) @ (map_values fvs1 fvs2)
+  | If_join (arg1, args1), If_join (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
+  | Match_branch (env1, args1, fvs1), Match_branch (env2, args2, fvs2) -> (map_values env1 env2) @ (map_values args1 args2) @ (map_values fvs1 fvs2)
+  | Match_join (arg1, args1), Match_join (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
+  | Match_join _, If_join _ -> failwith "TESTSTSTSTS"
   | _, _ -> assert false
 
 let has3 context var env = List.exists (fun ((var', _), env') -> var = var' && env = env') context
@@ -330,23 +337,25 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
       | None -> Let (var, named, propagation expr ((var, Values.empty)::env) allocations)
     end
   | Apply_block (k', args) -> Apply_block (k', args)
-  | If (var, matchs, (kf, argsf)) -> begin
+  | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs) (*begin
       match get env var allocations with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
         | Some (_, kt, argst) -> Apply_block (kt, argst)
         | None -> Apply_block (kf, argsf)
         end
-      | Some (Int_domain _) | None -> If (var, matchs, (kf, argsf))
+      | Some (Int_domain _) | None -> If (var, matchs, (kf, argsf), fvs)
       | _ -> assert false
-    end
-  | Match_pattern (var, matchs, (kf, argsf)) -> begin
+    end*)
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
     match get env var allocations with
-    | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf))
-    | None -> Match_pattern (var, matchs, (kf, argsf))
+    | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf), fvs)
+    | None -> Match_pattern (var, matchs, (kf, argsf), fvs)
     | _ -> assert false
   end
   | Return x -> Return x
+  | If_return (k, arg, args) -> If_return (k, arg, args)
+  | Match_return (k, arg, args) -> Match_return (k, arg, args)
   | Call (x, args, stack) -> begin
       match get env x allocations with
       | Some (Closure_domain clos) when Closures.cardinal clos = 1 -> let (k, _) = Closures.choose clos in Call_direct (k, x, args, stack)
