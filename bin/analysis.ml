@@ -236,7 +236,6 @@ let block_env (block1: Cps.block) (block2: cont_type) =
   | If_join (arg1, args1), If_join (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
   | Match_branch (env1, args1, fvs1), Match_branch (env2, args2, fvs2) -> (map_values env1 env2) @ (map_values args1 args2) @ (map_values fvs1 fvs2)
   | Match_join (arg1, args1), Match_join (arg2, args2) -> (arg1, arg2) :: (map_values args1 args2)
-  | Match_join _, If_join _ -> failwith "TESTSTSTSTS"
   | _, _ -> assert false
 
 let has3 context var env = List.exists (fun ((var', _), env') -> var = var' && env = env') context
