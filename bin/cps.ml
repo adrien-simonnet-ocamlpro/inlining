@@ -77,13 +77,13 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (block : expr) :
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
-  | Cont args -> Format.fprintf fmt "%a" (pp_args ~subs ~empty: "()" ~split: " ") args
-  | Clos (env, args) -> Format.fprintf fmt "%a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args
-  | Return (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
-  | If_branch (args, fvs) -> Format.fprintf fmt "%a %a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
-  | If_join (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
-  | Match_branch (env, args, fvs) -> Format.fprintf fmt "%a %a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
-  | Match_join (arg, args) -> Format.fprintf fmt "%s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Cont args -> Format.fprintf fmt "Cont %a" (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Return (arg, args) -> Format.fprintf fmt "Return %s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
+  | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
+  | If_join (arg, args) -> Format.fprintf fmt "If_join %s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
+  | Match_branch (env, args, fvs) -> Format.fprintf fmt "Match_branch %a %a %a" (pp_args ~subs ~empty: "()" ~split: " ") env (pp_args ~subs ~empty: "()" ~split: " ") args (pp_args ~subs ~empty: "()" ~split: " ") fvs
+  | Match_join (arg, args) -> Format.fprintf fmt "Match_join %s %a" (gen_name arg subs) (pp_args ~subs ~empty: "()" ~split: " ") args
   
 let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k (block, expr) -> Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_block subs) block (pp_expr subs) expr) block
 

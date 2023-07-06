@@ -15,6 +15,10 @@ type cont_type =
 | Cont of Values.t list
 | Clos of Values.t list * Values.t list
 | Return of Values.t * Values.t list
+| If_branch of Values.t list * Values.t list
+| If_join of Values.t * Values.t list
+| Match_branch of Values.t list * Values.t list * Values.t list
+| Match_join of Values.t * Values.t list
 
 let value_cmp v1 v2 =
   match v1, v2 with
@@ -61,9 +65,13 @@ let pp_allocations fmt (allocations: value_domain Allocations.t) = Allocations.i
 
 let pp_block fmt block =
   match block with
-  | Cont args -> Format.fprintf fmt "Block %a" (pp_env "") args
+  | Cont args -> Format.fprintf fmt "Cont %a" (pp_env "") args
   | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" (pp_env "") env (pp_env "") args
   | Return (arg, args) -> Format.fprintf fmt "Return %a %a" pp_alloc arg (pp_env "") args
+  | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" (pp_env "") args (pp_env "") fvs
+  | If_join (arg, args) -> Format.fprintf fmt "If_join %a %a" pp_alloc arg (pp_env "") args
+  | Match_branch (env, args, fvs) -> Format.fprintf fmt "Match_branch %a %a %a" (pp_env "") env (pp_env "") args (pp_env "") fvs
+  | Match_join (arg, args) -> Format.fprintf fmt "Match_join %a %a" pp_alloc arg (pp_env "") args
 
 let pp_analysis fmt (map: (value_domain Allocations.t * cont_type) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, block) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k pp_block block pp_allocations allocations) map
 
@@ -238,7 +246,11 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
   | Cont env1, Cont env2 -> Cont (List.map2 Values.union env1 env2)
   | Clos (env1, args1), Clos (env2, args2) -> Clos (List.map2 Values.union env1 env2, List.map2 Values.union args1 args2)
   | Return (arg1, args1), Return (arg2, args2) -> Return (Values.union arg1 arg2, List.map2 Values.union args1 args2)
-  | _ -> assert false
+  | If_branch (args1, fvs1), If_branch (args2, fvs2) -> If_branch (List.map2 Values.union args1 args2, List.map2 Values.union fvs1 fvs2)
+  | If_join (arg1, args1), If_join (arg2, args2) -> If_join (Values.union arg1 arg2, List.map2 Values.union args1 args2)
+  | Match_branch (env1, args1, fvs1), Match_branch (env2, args2, fvs2) -> Match_branch (List.map2 Values.union env1 env2, List.map2 Values.union args1 args2, List.map2 Values.union fvs1 fvs2)
+  | Match_join (arg1, args1), Match_join (arg2, args2) -> Match_join (Values.union arg1 arg2, List.map2 Values.union args1 args2)
+  | _, _ -> assert false
 
 let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Analysis.t) : (value_domain Allocations.t * cont_type) Analysis.t =
   match conts with
