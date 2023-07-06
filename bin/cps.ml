@@ -128,7 +128,7 @@ let rec copy_expr (expr: expr) (vars: var Seq.t) (alias: var VarMap.t): expr * v
   | Let (var, named, expr) -> begin
       let var_id, vars = inc vars in
       let expr, vars = copy_expr expr vars (VarMap.add var var_id alias) in
-      Let (var, clean_named named alias, expr), vars
+      Let (var_id, clean_named named alias, expr), vars
     end
   | Apply_block (k, args) -> Apply_block (k, update_vars args alias), vars
   | If (var, matchs, (kf, argsf), fvs) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_vars args alias) matchs, (kf, update_vars argsf alias), update_vars fvs alias), vars
@@ -159,7 +159,7 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * bloc
   | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
-      let block, expr = BlockMap.find k blocks in
+      let block, expr = BlockMap.find k' blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
       let k_id, vars = inc vars in
       Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id (block, expr'), vars
