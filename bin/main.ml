@@ -24,6 +24,8 @@ let inline_conts = ref ([] : int list)
 
 let inline k = inline_conts := k :: !inline_conts
 
+let threshold = ref 0
+
 let speclist =
   [ "-verbose", Arg.Set verbose, "Output debug information"
   ; "-o", Arg.Set_string output_file, "Set output file name"
@@ -38,6 +40,7 @@ let speclist =
   ; "-asm", Arg.Set show_asm, "Show ASM"
   ; "-copy", Arg.Int copy, "Copy specified block"
   ; "-inline", Arg.Int inline, "Inline specified block"
+  ; "-max", Arg.Set_int threshold, "Copy blocks smaller than specified threshold."
   ]
 ;;
 
@@ -66,12 +69,14 @@ let _ =
           let cps = if !unused_vars then Cps.clean_blocks cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then Analysis.propagation_blocks cps _cps_analysis else cps in
-          let cps, _vars = if List.length !copy_conts > 0 then Cps.copy_blocks cps (Cps.BlockSet.of_list !copy_conts) _vars else cps, _vars in
+          let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
+          Cps.BlockSet.iter (fun k -> Printf.printf "copy %d\n%!" k) to_copy;
+          let cps, _vars = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars in
           if !show_cps then Cps.pp_blocks _subs (Format.formatter_of_out_channel outchan) cps
           else begin
             let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in
-            let asm = if !unused_vars then let cps, _ = Asm.elim_unused_vars_blocks asm in cps else asm in
-            let asm = if List.length !inline_conts > 0 then Asm.inline_blocks asm (Asm.BlockSet.of_list !inline_conts) else asm in
+            let asm, conts' = if !unused_vars then Asm.elim_unused_vars_blocks asm else asm, Array.make 1000 10000 in
+            let asm = Asm.inline_blocks asm (Asm.BlockSet.union (Asm.BlockSet.of_list !inline_conts) (Asm.BlockSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
             let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in
             if !show_asm then begin
               Printf.fprintf outchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n| Environment of value list\n| Closure of value * value\n| Constructor of int * value\n\nlet print (Int i) = Printf.printf \"%%d\" i\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get value pos =\nmatch value with\n| Tuple vs -> List.nth vs pos\n| Environment vs -> List.nth vs pos\n| Closure (f, _) when pos = 0 -> f\n| Closure (_, env) when pos = 1 -> env\n| Constructor (tag, _) when pos = 0 -> Int tag\n| Constructor (_, env) when pos = 1 -> env\n| _ -> assert false\n\nlet call (Function k) = k\n\nlet rec ";
