@@ -72,11 +72,10 @@ let _ =
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then Analysis.propagation_blocks cps _cps_analysis else cps in
           let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
-          Cps.BlockSet.iter (fun k -> Printf.printf "copy %d\n%!" k) to_copy;
-          let cps, _vars = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars in
+          let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
           if !show_cps then Cps.pp_blocks _subs (Format.formatter_of_out_channel outchan) cps
           else begin
-            let asm, _vars = Cps.blocks_to_asm cps (Seq.ints 1000) in
+            let asm, _vars, _pointers = Cps.blocks_to_asm cps _vars _pointers in
             let asm, conts' = if !unused_vars then Asm.elim_unused_vars_blocks asm else asm, Array.make 1000 10000 in
             let asm = Asm.inline_blocks asm (Asm.BlockSet.union (Asm.BlockSet.of_list !inline_conts) (Asm.BlockSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
             let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in

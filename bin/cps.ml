@@ -139,51 +139,51 @@ let rec copy_expr (expr: expr) (vars: var Seq.t) (alias: var VarMap.t): expr * v
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_vars kargs alias)), vars
 
-let rec copy_callee (expr: expr) (vars: var Seq.t) (blocks: blocks): expr * blocks * var Seq.t =
+let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (blocks: blocks): expr * blocks * var Seq.t * pointer Seq.t =
   match expr with
   | Let (var, named, expr) -> begin
-      let expr, blocks', vars = copy_callee expr vars blocks in
-      Let (var, named, expr), blocks', vars
+      let expr, blocks', vars, pointers = copy_callee expr vars pointers blocks in
+      Let (var, named, expr), blocks', vars, pointers
     end
   | Apply_block (k, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let k_id, vars = inc vars in
-      Apply_block (k_id, args), BlockMap.singleton k_id (block, expr'), vars
+      let k_id, pointers = inc pointers in
+      Apply_block (k_id, args), BlockMap.singleton k_id (block, expr'), vars, pointers
     end
-  | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars
-  | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars
-  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), BlockMap.empty, vars
-  | Return var -> Return var, BlockMap.empty, vars
+  | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars, pointers
+  | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars, pointers
+  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), BlockMap.empty, vars, pointers
+  | Return var -> Return var, BlockMap.empty, vars, pointers
   | If_return (k, arg, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let k_id, vars = inc vars in
-      If_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars
+      let k_id, pointers = inc pointers in
+      If_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars, pointers
     end
-  | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars
+  | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars, pointers
   | Match_return (k, arg, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let k_id, vars = inc vars in
-      Match_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars
+      let k_id, pointers = inc pointers in
+      Match_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars, pointers
     end
-  | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars
-  | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars
+  | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars, pointers
+  | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars, pointers
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
       let block, expr = BlockMap.find k' blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let k_id, vars = inc vars in
-      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id (block, expr'), vars
+      let k_id, pointers = inc pointers in
+      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id (block, expr'), vars, pointers
     end
-  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars
+  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars, pointers
 
-let copy_blocks (blocks: blocks) (targets: BlockSet.t) (vars: var Seq.t): blocks * var Seq.t =
+let copy_blocks (blocks: blocks) (targets: BlockSet.t) (vars: var Seq.t) (pointers: pointer Seq.t): blocks * var Seq.t * pointer Seq.t =
   let targets = BlockMap.filter (fun k _ -> BlockSet.mem k targets) blocks in
-  BlockMap.fold (fun k (block, expr) (blocks, vars) -> begin
-    let expr', blocks', vars = copy_callee expr vars targets in
-    BlockMap.union (fun _ _ _ -> assert false) blocks' (BlockMap.add k (block, expr') blocks), vars
-  end) blocks (BlockMap.empty, vars)
+  BlockMap.fold (fun k (block, expr) (blocks, vars, pointers) -> begin
+    let expr', blocks', vars, pointers = copy_callee expr vars pointers targets in
+    BlockMap.union (fun _ _ _ -> assert false) blocks' (BlockMap.add k (block, expr') blocks), vars, pointers
+  end) blocks (BlockMap.empty, vars, pointers)
 
 let rec named_to_asm (var: var) (named: named) (expr: expr) (vars: var Seq.t): Asm.expr * var Seq.t =
   match named with
@@ -239,30 +239,31 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
       Let (env_id, Get (clos, 1), Apply_direct (k, env_id :: args, [frame])), vars
     end
 
-let block_to_asm (block: block) (asm1: Asm.expr) (vars: var Seq.t): Asm.block * var Seq.t * Asm.blocks =
+let block_to_asm (block: block) (asm1: Asm.expr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
   match block with
-  | Cont (args') -> (args', asm1), vars, Asm.BlockMap.empty
-  | Return (arg, args') -> (arg :: args', asm1), vars, Asm.BlockMap.empty
+  | Cont (args') -> (args', asm1), vars, pointers, Asm.BlockMap.empty
+  | Return (arg, args') -> (arg :: args', asm1), vars, pointers, Asm.BlockMap.empty
   | Clos (body_free_variables, args') -> begin
-      let function_id, vars = inc vars in
+      let function_id, pointers = inc pointers in
       let environment_id, vars = inc vars in
       let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) (Apply_direct (function_id, args' @ body_free_variables, [])) (List.mapi (fun i fv -> i, fv) body_free_variables) in
-      (environment_id :: args', body), vars, Asm.BlockMap.singleton function_id (args' @ body_free_variables, asm1)
+      (environment_id :: args', body), vars, pointers, Asm.BlockMap.singleton function_id (args' @ body_free_variables, asm1)
     end
-  | If_branch (args, fvs) -> (args @ fvs, asm1), vars, Asm.BlockMap.empty
-  | If_join (arg, args) -> (arg :: args, asm1), vars, Asm.BlockMap.empty
+  | If_branch (args, fvs) -> (args @ fvs, asm1), vars, pointers, Asm.BlockMap.empty
+  | If_join (arg, args) -> (arg :: args, asm1), vars, pointers, Asm.BlockMap.empty
   | Match_branch (body_free_variables, args', fvs) -> begin
       let environment_id, vars = inc vars in
       let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
-      (environment_id :: args' @ fvs, body), vars, Asm.BlockMap.empty
+      (environment_id :: args' @ fvs, body), vars, pointers, Asm.BlockMap.empty
     end
-  | Match_join (arg, args) -> (arg :: args, asm1), vars, Asm.BlockMap.empty
+  | Match_join (arg, args) -> (arg :: args, asm1), vars, pointers, Asm.BlockMap.empty
 
-let blocks_to_asm (blocks: blocks) (vars: var Seq.t): Asm.blocks * var Seq.t = BlockMap.fold (fun k (block, expr) (blocks, vars) -> begin
+let blocks_to_asm (blocks: blocks) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.blocks * Asm.var Seq.t * Asm.pointer Seq.t =
+  BlockMap.fold (fun k (block, expr) (blocks, vars, pointers) -> begin
     let asm, vars = expr_to_asm expr vars in  
-    let block, vars, blocks' = block_to_asm block asm vars in
-    Asm.BlockMap.add k block (Asm.BlockMap.union (fun _ -> assert false) blocks blocks'), vars
-  end) blocks (Asm.BlockMap.empty, vars)
+    let block, vars, pointers, blocks' = block_to_asm block asm vars pointers in
+    Asm.BlockMap.add k block (Asm.BlockMap.union (fun _ -> assert false) blocks blocks'), vars, pointers
+  end) blocks (Asm.BlockMap.empty, vars, pointers)
 
 let size_named (named : named): int =
   match named with
