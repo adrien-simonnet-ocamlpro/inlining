@@ -77,7 +77,7 @@ let get_abs = VarMap.find
 let has_abs = VarMap.mem
 let empty_abs = VarMap.empty
 let add_abs = VarMap.add
-let union_abs = VarMap.union (fun v i1 i2 -> failwith (Printf.sprintf "Ast.union_abs: %d and %d are both substitued by %s." i1 i2 v))  
+let union_abs = VarMap.union (fun v i1 i2 -> failwith (Printf.sprintf "Ast.union_abs: %d and %d are both substitions for %s." i1 i2 v))  
 let singleton_abs = VarMap.singleton
 
 let empty_subs = Cst.VarMap.empty
