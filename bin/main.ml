@@ -63,9 +63,11 @@ let _ =
           let var0, _vars = match Seq.uncons _vars with
           | Some (var0, _vars) -> var0, _vars
           | None -> assert false in
-          let expr, _vars, fv, conts = Cst.to_cps _vars [] cst var0 (Return var0) in
-          Env.print_fv fv;
-          let cps = Cst.add_block 0 (Cps.Cont fv, expr) conts in
+          let _pointer0, _pointers = match Seq.uncons (Seq.ints 0) with
+          | Some (pointer0, _pointers) -> pointer0, _pointers
+          | None -> assert false in
+          let expr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers [] cst var0 (Return var0) in
+          let cps = Cst.add_block _pointer0 (Cps.Cont fv, expr) conts in
           let cps = if !unused_vars then Cps.clean_blocks cps else cps in
           let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.std_formatter) a; a else Analysis.Analysis.empty in
           let cps = if !prop then Analysis.propagation_blocks cps _cps_analysis else cps in
