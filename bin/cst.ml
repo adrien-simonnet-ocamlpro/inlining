@@ -56,20 +56,9 @@ let join_fvs fvs = List.fold_left (fun fvs fv -> join_fv fvs fv) [] fvs
 exception Failure of string
 
 let rec find x lst =
-    match lst with
-    | [] -> raise (Failure "Not Found")
-    | h :: t -> if x = h then 0 else 1 + find x t
-;;
-
-let add_var env var va = (var, va) :: env
-let has_var_name = Env.has_var
-let get_var_name = Env.get_var
-
-let has_var_id = Env.has_value
-let get_var_id env var =
-  match List.find_opt (fun (v, _) -> var = v) env with
-  | Some (_, v) -> v
-  | None -> assert false
+  match lst with
+  | [] -> raise (Failure "Not Found")
+  | h :: t -> if x = h then 0 else 1 + find x t
 
 let binary_operator_to_prim (binary: binary_operator): Cps.prim =
   match binary with
