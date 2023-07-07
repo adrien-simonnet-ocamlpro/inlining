@@ -1,1 +1,1 @@
-if (if a then b else c) then (if a then b else c) else (if a then b else c)
+if a then b else c

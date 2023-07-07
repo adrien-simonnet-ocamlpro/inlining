@@ -1,2 +1,5 @@
+type t = | Test of int * int
+
+
 match x with
-| _ -> 1
+| Test (i, j) -> y + i + j
