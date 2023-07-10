@@ -82,7 +82,7 @@ let singleton_abs = VarMap.singleton
 
 let empty_subs = Cst.VarMap.empty
 let add_subs = Cst.VarMap.add
-let union_subs = Cst.VarMap.union (fun i v1 v2 -> failwith (Printf.sprintf "Ast.union_subs: %s and %s are both substitued with %d." v1 v2 i))
+let union_subs = Cst.VarMap.union (fun i v1 v2 -> failwith (Printf.sprintf "Ast.union_subs: %s and %s are both substitued by %d." v1 v2 i))
 
 let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Cst.var VarMap.t) (constructors: Cst.var TagMap.t): Cst.expr * Cst.var Seq.t * var Cst.VarMap.t * Cst.var VarMap.t =
   match expr with
