@@ -336,16 +336,16 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
       | None -> Let (var, named, propagation expr ((var, Values.empty)::env) allocations)
     end
   | Apply_block (k', args) -> Apply_block (k', args)
-  | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs) (*begin
+  | If (var, matchs, (kf, argsf), fvs) -> begin
       match get env var allocations with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> Apply_block (kt, argst)
-        | None -> Apply_block (kf, argsf)
+        | Some (_, kt, argst) -> If (var, [], (kt, argst), fvs)
+        | None -> If (var, [], (kf, argsf), fvs)
         end
       | Some (Int_domain _) | None -> If (var, matchs, (kf, argsf), fvs)
       | _ -> assert false
-    end*)
+    end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
     match get env var allocations with
     | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf), fvs)

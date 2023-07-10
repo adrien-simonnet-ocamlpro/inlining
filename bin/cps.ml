@@ -220,6 +220,7 @@ and expr_to_asm (block: expr) (vars: var Seq.t): Asm.expr * int Seq.t =
   match block with
   | Let (var, named, expr) -> named_to_asm var named expr vars
   | Apply_block (k, args) -> Apply_direct (k, args, []), vars
+  | If (_, [], (kf, argsf), fvs) -> Apply_direct (kf, argsf @ fvs, []), vars
   | If (var, matchs, (kf, argsf), fvs) -> If (var, List.map (fun (n, k, argst) -> n, k, argst @ fvs) matchs, (kf, argsf @ fvs), []), vars
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
