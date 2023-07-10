@@ -154,6 +154,7 @@ and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr 
     List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args2) stack;
     Array.set vars var (Array.get vars var + 1);
     List.iter (fun (_, kt, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
     Array.set conts kf (Array.get conts kf + 1);
     If (var, matchs, (kf, argsf), stack)
   | Return x ->
