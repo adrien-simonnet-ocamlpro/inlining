@@ -108,7 +108,7 @@ let rec inline_parent (cps : expr) (blocks: blocks): expr =
   | Let (var, named, expr) -> Let (var, named, inline_parent expr blocks)
   | Apply_direct (k, args, stack') when BlockMap.mem k blocks -> begin
       let args', block = BlockMap.find k blocks in
-      inline block (List.fold_left2 (fun alias arg' arg -> VarMap.add arg' arg alias) VarMap.empty args' args) stack' 
+      inline_parent (inline block (List.fold_left2 (fun alias arg' arg -> VarMap.add arg' arg alias) VarMap.empty args' args) stack') blocks 
     end
   | Apply_direct (k, args, stack') -> Apply_direct (k, args, stack')
   | If (var, matchs, (kf, argsf), stack') -> If (var, matchs, (kf, argsf), stack')
