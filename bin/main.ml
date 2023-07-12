@@ -13,6 +13,7 @@ let show_cst = ref false
 let show_cps = ref false
 let show_aps = ref false
 let show_asm = ref false
+let rounds = ref 0
 
 let unused_vars = ref false
 let anon_fun filename = input_files := filename :: !input_files
@@ -43,8 +44,21 @@ let speclist =
   ; "-copy", Arg.Int copy, "Copy specified block"
   ; "-inline", Arg.Int inline, "Inline specified block"
   ; "-max", Arg.Set_int threshold, "Copy blocks smaller than specified threshold"
+  ; "-rounds", Arg.Set_int rounds, "Repeat tree optimization and inlining phases this many times (default 1). Rounds are numbered starting from zero."
   ]
 ;;
+
+let rec step_analysis cps _vars _pointers count logchan =
+  if count > 0 then begin
+    let cps = Cps.clean_blocks cps in
+    let _cps_analysis = Analysis.start_analysis cps in
+    let cps = Analysis.propagation_blocks cps _cps_analysis in
+    let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
+    Cps.BlockSet.iter (fun k -> Printf.fprintf logchan "copy %d\n%!" k) to_copy;
+    let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
+    let cps = Cps.clean_blocks cps in
+    step_analysis cps _vars _pointers (count-1) logchan
+  end else cps, _vars, _pointers
 
 let _ =
   Arg.parse speclist anon_fun usage_msg;
@@ -74,18 +88,13 @@ let _ =
           | None -> assert false in
           let expr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers [] cst var0 (Return var0) in
           let cps = Cst.add_block _pointer0 (Cps.Cont fv, expr) conts in
-          let cps = if !unused_vars then Cps.clean_blocks cps else cps in
-          let _cps_analysis = if !analysis then let a = Analysis.start_analysis cps in Analysis.pp_analysis (Format.formatter_of_out_channel logchan) a; a else Analysis.Analysis.empty in
-          let cps = if !prop then Analysis.propagation_blocks cps _cps_analysis else cps in
-          let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
-          Cps.BlockSet.iter (fun k -> Printf.fprintf logchan "copy %d\n%!" k) to_copy;
-          let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
+          let cps, _vars, _pointers = step_analysis cps _vars _pointers !rounds logchan in
           Cps.pp_blocks _subs (Format.formatter_of_out_channel logchan) cps;
           if !show_cps then Cps.pp_blocks _subs (Format.formatter_of_out_channel outchan) cps
           else begin
             Printf.fprintf logchan "\n----- ASM -----\n";
             let asm, _vars, _pointers = Cps.blocks_to_asm cps _vars _pointers in
-            let asm, conts' = if !unused_vars then Asm.elim_unused_vars_blocks asm else asm, Array.make 1000 10000 in
+            let asm, conts' = Asm.elim_unused_vars_blocks asm in
             let asm = Asm.inline_blocks asm (Asm.BlockSet.union (Asm.BlockSet.of_list !inline_conts) (Asm.BlockSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
             let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in
             Printf.fprintf logchan "type value =\n| Int of int\n| Tuple of value list\n| Function of (value -> value -> value)\n| Environment of value list\n| Closure of value * value\n| Constructor of int * value\n\nlet print (Int i) = Printf.printf \"%%d\" i\n\nlet add (Int a) (Int b) = Int (a + b)\n\nlet get value pos =\nmatch value with\n| Tuple vs -> List.nth vs pos\n| Environment vs -> List.nth vs pos\n| Closure (f, _) when pos = 0 -> f\n| Closure (_, env) when pos = 1 -> env\n| Constructor (tag, _) when pos = 0 -> Int tag\n| Constructor (_, env) when pos = 1 -> env\n| _ -> assert false\n\nlet call (Function k) = k\n\nlet rec ";
