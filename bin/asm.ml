@@ -53,11 +53,11 @@ let rec pp_stack (fmt: Format.formatter) (stack: stack): unit =
 
 let pp_prim (subs: string VarMap.t) (fmt: Format.formatter) (prim : prim) (args: var list): unit =
   match prim, args with
-  | Const x, _ -> Format.fprintf fmt "Int %d" x
-  | Add, x1 :: x2 :: _ -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Sub, x1 :: x2 :: _ -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Print, x1 :: _ -> Format.fprintf fmt "print %s" (gen_name x1 subs)
-  | _ -> failwith "invalid args"  
+  | Const x, [] -> Format.fprintf fmt "Int %d" x
+  | Add, x1 :: x2 :: [] -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Sub, x1 :: x2 :: [] -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Print, x1 :: [] -> Format.fprintf fmt "print %s" (gen_name x1 subs)
+  | _ -> failwith "Asm.pp_prim: invalid args"
 
 let pp_named (subs: string VarMap.t) (fmt: Format.formatter) (named: named): unit =
   match named with
