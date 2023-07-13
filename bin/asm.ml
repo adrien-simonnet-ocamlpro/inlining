@@ -76,9 +76,9 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): un
   | Apply_direct (k', args, stack) -> Format.fprintf fmt "\tk%d %a [%a]" k' (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
   | _ -> assert false
 
-let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
+let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
 
-let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n" k (pp_block subs) block) block
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n%!" k (pp_block subs) block) block
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
