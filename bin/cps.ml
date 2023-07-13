@@ -148,8 +148,9 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
   | Apply_block (k, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
+      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
       let k_id, pointers = inc pointers in
-      Apply_block (k_id, args), BlockMap.singleton k_id (block, expr'), vars, pointers
+      Apply_block (k_id, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
     end
   | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars, pointers
   | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars, pointers
@@ -158,23 +159,26 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
   | If_return (k, arg, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
+      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
       let k_id, pointers = inc pointers in
-      If_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars, pointers
+      If_return (k_id, arg, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
     end
   | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars, pointers
   | Match_return (k, arg, args) when BlockMap.mem k blocks -> begin
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
+      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
       let k_id, pointers = inc pointers in
-      Match_return (k_id, arg, args), BlockMap.singleton k_id (block, expr'), vars, pointers
+      Match_return (k_id, arg, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
     end
   | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars, pointers
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars, pointers
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
       let block, expr = BlockMap.find k' blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
+      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
       let k_id, pointers = inc pointers in
-      Call_direct (k_id, x, args, (k, kargs)), BlockMap.singleton k_id (block, expr'), vars, pointers
+      Call_direct (k_id, x, args, (k, kargs)), BlockMap.add k_id (block, expr') blocks, vars, pointers
     end
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars, pointers
 
