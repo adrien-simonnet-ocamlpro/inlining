@@ -299,13 +299,13 @@ let propagation_prim (prim : prim) args (env: (address * Values.t) list) (alloca
   match prim, args with
   | Const x, _ -> Prim (prim, args), Some (Int_domain (Int_domain.singleton x))
   | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), args), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), []), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
     | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
     | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
     | _ -> assert false
     end
   | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), args), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), []), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
     | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
     | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
     | _ -> assert false
