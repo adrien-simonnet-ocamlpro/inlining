@@ -59,19 +59,19 @@ let pp_prim (subs: string VarMap.t) (fmt: Format.formatter) (prim : prim) (args:
   | _ -> failwith "invalid args"  
 
 let pp_named (subs: string VarMap.t) (fmt: Format.formatter) named =
-match named with
-| Prim (prim, args) -> pp_prim subs fmt prim args
-| Var x -> Format.fprintf fmt "%s" (gen_name x subs)
-| Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
-| Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (gen_name record subs) pos
-| Closure (k, env) -> Format.fprintf fmt "Closure (f%d, %a)" k (pp_args ~split:" " ~subs ~empty: "()") env
-| Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split: "; " ~subs ~empty: "") env
+  match named with
+  | Prim (prim, args) -> pp_prim subs fmt prim args
+  | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
+  | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
+  | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (gen_name record subs) pos
+  | Closure (k, env) -> Format.fprintf fmt "Closure (f%d, %a)" k (pp_args ~split:" " ~subs ~empty: "()") env
+  | Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split: "; " ~subs ~empty: "") env
 
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (block : expr) : unit =
   match block with
   | Let (var, named, expr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
   | Apply_block (k, args) -> Format.fprintf fmt "\tk%d %a" k (pp_args ~subs ~split: " " ~empty: "") args
-  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") (argst @ fvs))) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") (argsf @ fvs)
+  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") (argst @ fvs))) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") (argsf @ fvs)
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, pld, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args ~subs ~empty: "()" ~split: " ") pld kt (pp_args ~subs ~empty: "()" ~split: " ") (argst @ fvs))) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") (argsf @ fvs)
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | If_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (gen_name arg subs) (pp_args ~subs ~split: " " ~empty: "") args

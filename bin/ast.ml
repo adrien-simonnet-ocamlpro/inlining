@@ -30,14 +30,14 @@ let pp_binary fmt operator =
   | Add -> Format.fprintf fmt "+"
   | Sub -> Format.fprintf fmt "-"
 
-let rec pp_match_pattern fmt (pattern: match_pattern) =
+let pp_match_pattern fmt (pattern: match_pattern) =
   match pattern with
   | Deconstructor (name, []) -> Format.fprintf fmt "%s" name
   | Deconstructor (name, [var]) -> Format.fprintf fmt "%s %s" name var
   | Deconstructor (name, var::vars) -> Format.fprintf fmt "%s (%s)" name (List.fold_left (fun str var' -> str ^ ", " ^ var') var vars)
   | Joker _ -> Format.fprintf fmt "_"
 
-and pp_constructor fmt (name, exprs: tag * expr list) =
+let rec pp_constructor fmt (name, exprs: tag * expr list) =
   match exprs with
   | [] -> Format.fprintf fmt "%s" name
   | [e] -> Format.fprintf fmt "%s %a" name pp_expr e
