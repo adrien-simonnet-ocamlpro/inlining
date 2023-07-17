@@ -271,8 +271,8 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal value_cmp new_allocations old_allocations then begin
             match stack with
-            | [] -> assert false
-            | (k', args) :: _ -> analysis ((k', Return (Values.empty, args), stack, new_allocations) :: conts') prog map
+            | [] -> analysis conts' prog map
+            | (k', args) :: stack' -> analysis ((k', Return (Values.empty, args), stack', new_allocations) :: conts') prog map
           end else begin
             let block, expr = Cps.BlockMap.find k prog in
             let next_conts = analysis_cont expr stack (block_env block block') new_allocations in
