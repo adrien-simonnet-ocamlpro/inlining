@@ -70,11 +70,10 @@ let pp_named (subs: string VarMap.t) (fmt: Format.formatter) (named: named): uni
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): unit =
   match cps with
   | Let (var, named, expr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
-  | If (var, matchs, (kf, argsf), []) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf
+  | If (var, matchs, (kf, argsf), stack) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a [%a]" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a [%a] " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst pp_stack stack)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf pp_stack stack
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Apply_indirect (x, args, stack) -> Format.fprintf fmt "\t!%s %a [%a]" (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
   | Apply_direct (k', args, stack) -> Format.fprintf fmt "\tk%d %a [%a]" k' (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
-  | _ -> assert false
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
 
