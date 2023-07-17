@@ -83,6 +83,9 @@ let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) :
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
 
+let update_frame_vars (alias: var VarMap.t) (k, args: frame): frame = k, update_vars args alias
+let update_stack_vars (alias: var VarMap.t) (stack: stack): stack = List.map (update_frame_vars alias) stack
+
 let rec inline_named (named : named) (alias: var VarMap.t): named =
   match named with
   | Prim (prim, args) -> Prim (prim, update_vars args alias)
@@ -93,15 +96,15 @@ let rec inline_named (named : named) (alias: var VarMap.t): named =
 
 and inline (cps : expr) (alias: var VarMap.t) (stack: (pointer * var list) list): expr =
   match cps with
-  | Let (var, named, expr) -> Let (var, inline_named named alias, inline expr alias stack)
-  | Apply_direct (k, args, stack') -> Apply_direct (k, update_vars args alias, stack' @ stack)
-  | If (var, matchs, (kf, argsf), stack') -> If (var, List.map (fun (n, k, argst) -> n, k, update_vars argst alias) matchs, (kf, update_vars argsf alias), stack' @ stack)
+  | Let (var, named, expr) -> Let (update_var var alias, inline_named named alias, inline expr alias stack)
+  | Apply_direct (k, args, stack') -> Apply_direct (k, update_vars args alias, (update_stack_vars alias stack') @ stack)
+  | If (var, matchs, (kf, argsf), stack') -> If (update_var var alias, List.map (fun (n, k, argst) -> n, k, update_vars argst alias) matchs, (kf, update_vars argsf alias), (update_stack_vars alias stack') @ stack)
   | Return v -> begin
       match stack with
       | [] -> Return (update_var v alias)
       | (k, env') :: stack' -> Apply_direct (k, update_var v alias :: env', stack')
     end
-  | Apply_indirect (x, args, stack') -> Apply_indirect (update_var x alias, update_vars args alias, stack' @ stack)
+  | Apply_indirect (x, args, stack') -> Apply_indirect (update_var x alias, update_vars args alias, (update_stack_vars alias stack') @ stack)
 
 let rec inline_parent (cps : expr) (blocks: blocks): expr =
   match cps with
