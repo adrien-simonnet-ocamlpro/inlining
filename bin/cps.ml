@@ -174,11 +174,16 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
   | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars, pointers
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars, pointers
   | Call_direct (k', x, args, (k, kargs)) when BlockMap.mem k' blocks -> begin
+      let block2, expr2 = BlockMap.find k blocks in
+      let return_id, pointers = inc pointers in
+      let expr2', vars = copy_expr expr2 vars VarMap.empty in
+      let expr2', blocks2, vars, pointers = copy_callee expr2' vars pointers blocks in
+
       let block, expr = BlockMap.find k' blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
       let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
       let k_id, pointers = inc pointers in
-      Call_direct (k_id, x, args, (k, kargs)), BlockMap.add k_id (block, expr') blocks, vars, pointers
+      Call_direct (k_id, x, args, (return_id, kargs)), BlockMap.add return_id (block2, expr2') (BlockMap.add k_id (block, expr') (BlockMap.union (fun _ -> assert false) blocks blocks2)), vars, pointers
     end
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars, pointers
 
