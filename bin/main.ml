@@ -47,6 +47,11 @@ let rec step_analysis cps _vars _pointers count logchan =
     Logger.start "Copying%s\n" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
     let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
+    Logger.start "Eliminating unused variables\n";
+    (*let cps, __vars, __pointers = Cps.count_vars_expr_blocks cps in
+    Array.set __pointers 0 1;
+    let cps = Cps.elim_unused_blocks cps __pointers in*)
+    Logger.stop ();
     Logger.start "Cleaning\n";
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
