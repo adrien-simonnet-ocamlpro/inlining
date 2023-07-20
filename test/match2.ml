@@ -4,10 +4,10 @@ type list =
 let rec sum = fun l ->
  ( match l with
   | Cons (x, y) -> x + (sum y)
-  | _ -> free
+  | _ -> zero
  )
 in
 
-let rec ints3 = fun i -> if i then (Cons (trois, (ints3 (i-1)))) else (Empty)
+let rec ints = fun i -> if i then (Cons (x, (ints (i-1)))) else (Empty)
 
-in (sum (ints3 y))
+in (sum (ints y))
