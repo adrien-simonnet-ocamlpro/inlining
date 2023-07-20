@@ -1,21 +1,13 @@
 
 
-let usage_msg = "cps [-prop] [-clean] [-eval] [-ast] <file1> [<file2>] ... -o <output>"
+let usage_msg = "cps <file1> [<file2>] ... -o <output>"
 let verbose = ref false
 let input_files = ref []
 let log_file = ref ""
 let output_file = ref ""
-let analysis = ref false
-let prop = ref false
-let eval = ref false
-let show_ast = ref false
-let show_cst = ref false
-let show_cps = ref false
-let show_aps = ref false
-let show_asm = ref false
-let rounds = ref 0
+let rounds = ref 1
 
-let unused_vars = ref false
+let unused_vars = ref true
 let anon_fun filename = input_files := filename :: !input_files
 
 let copy_conts = ref ([] : int list)
@@ -26,21 +18,12 @@ let inline_conts = ref ([] : int list)
 
 let inline k = inline_conts := k :: !inline_conts
 
-let threshold = ref 0
+let threshold = ref 5
 
 let speclist =
   [ "-verbose", Arg.Set verbose, "Output debug information"
   ; "-o", Arg.Set_string output_file, "Set output file name"
   ; "-log", Arg.Set_string log_file, "Set log file name"
-  ; "-analysis", Arg.Set analysis, "Analysis"
-  ; "-prop", Arg.Set prop, "Propagation"
-  ; "-clean", Arg.Set unused_vars, "Clean unused vars"
-  ; "-eval", Arg.Set eval, "Eval CPS"
-  ; "-ast", Arg.Set show_ast, "Show AST"
-  ; "-cst", Arg.Set show_cst, "Show CST"
-  ; "-cps", Arg.Set show_cps, "Show CPS"
-  ; "-aps", Arg.Set show_aps, "Show APS"
-  ; "-asm", Arg.Set show_asm, "Show ASM"
   ; "-copy", Arg.Int copy, "Copy specified block"
   ; "-inline", Arg.Int inline, "Inline specified block"
   ; "-max", Arg.Set_int threshold, "Copy blocks smaller than specified threshold"
