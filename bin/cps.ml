@@ -318,3 +318,165 @@ let size_block (block: block): int =
 
 let size_blocks (blocks: blocks): int =
   BlockMap.fold (fun _ (block, expr) size -> size + size_block block + size_expr expr) blocks 0
+
+let count_vars_named (named : named) (vars : int array) (pointers: int array): named =
+  match named with
+  | Prim (prim, args) -> begin
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Prim (prim, args)
+    end
+  | Var x -> begin
+      Array.set vars x (Array.get vars x + 1);
+      Var x
+    end
+  | Tuple args -> begin
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Tuple args
+    end
+  | Get (arg, pos) -> begin
+      Array.set vars arg (Array.get vars arg + 1);
+      Get (arg, pos)
+    end
+  | Closure (k, args) -> begin
+      Array.set pointers k (Array.get pointers k + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Closure (k, args)
+    end
+  | Constructor (tag, args) -> begin
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Constructor (tag, args)
+    end
+      
+
+let rec count_vars_expr (expr : expr) (vars : int array) (conts: int array): expr =
+  match expr with
+  | Let (var, named, expr) -> begin
+      let expr' = count_vars_expr expr vars conts in
+      if Array.get vars var > 0
+      then begin
+        let e1' = count_vars_named named vars conts in
+        Let (var, e1', expr')
+      end
+      else expr'
+    end
+  | Call_direct (k, clos, args, (k', args')) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      Array.set vars clos (Array.get vars clos + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Array.set conts k' (Array.get conts k' + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args';
+      Call_direct (k, clos, args, (k', args'))
+    end
+  | Call (clos, args, (k', args')) -> begin
+    Array.set vars clos (Array.get vars clos + 1);
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+    Array.set conts k' (Array.get conts k' + 1);
+    List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args';
+    Call (clos, args, (k', args'))
+  end
+  | If (var, matchs, (kf, argsf), fvs) -> begin
+      Array.set vars var (Array.get vars var + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) fvs;
+      List.iter (fun (_, kt, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+      Array.set conts kf (Array.get conts kf + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
+      If (var, matchs, (kf, argsf), fvs)
+    end
+  | Return x -> begin
+      Array.set vars x (Array.get vars x + 1);
+      Return x
+    end
+  | If_return (k, arg, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      Array.set vars arg (Array.get vars arg + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      If_return (k, arg, args)
+    end
+  | Match_return (k, arg, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      Array.set vars arg (Array.get vars arg + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Match_return (k, arg, args)
+    end
+  | Apply_block (k, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Apply_block (k, args)
+    end
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
+      Array.set vars var (Array.get vars var + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) fvs;
+      List.iter (fun (_, kt, _, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+      Array.set conts kf (Array.get conts kf + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
+      Match_pattern (var, matchs, (kf, argsf), fvs)
+    end
+
+(*
+let rec accessible_blocks_named (named : named) (blocks: blocks) (visited: int BlockMap.t): int BlockMap.t =
+  match named with
+  | Prim (_, _) -> visited
+  | Var _ -> visited
+  | Tuple _ -> visited
+  | Get (_, _) -> visited
+  | Closure (k, _) when BlockMap.mem k blocks -> BlockMap.add k (BlockMap.find k visited + 1) visited
+  | Closure (k, _) -> begin
+      let (_, expr) = BlockMap.find k blocks in
+      accessible_blocks_expr expr blocks (BlockMap.add k 1 visited)
+    end
+  | Constructor (_, _) -> visited
+
+and accessible_blocks_expr (expr : expr) (blocks: blocks) (visited: int BlockMap.t): int BlockMap.t =
+  match expr with
+  | Let (_, named, expr) -> accessible_blocks_expr expr blocks (accessible_blocks_named named blocks visited)
+  | Call_direct (k, _, _, (_, _)) when BlockMap.mem k blocks -> BlockMap.add k (BlockMap.find k visited + 1) visited
+  | Call_direct (k, _, _, (_, _)) -> begin
+      let (_, expr) = BlockMap.find k blocks in
+      accessible_blocks_expr expr blocks (BlockMap.add k 1 visited)
+    end
+  | Call (_, _, (_, _)) -> visited
+  | If (var, matchs, (kf, argsf), fvs) -> begin
+      Array.set vars var (Array.get vars var + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) fvs;
+      List.iter (fun (_, kt, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+      Array.set conts kf (Array.get conts kf + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
+      If (var, matchs, (kf, argsf), fvs)
+    end
+  | Return x -> begin
+      Array.set vars x (Array.get vars x + 1);
+      Return x
+    end
+  | If_return (k, arg, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      Array.set vars arg (Array.get vars arg + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      If_return (k, arg, args)
+    end
+  | Match_return (k, arg, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      Array.set vars arg (Array.get vars arg + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Match_return (k, arg, args)
+    end
+  | Apply_block (k, args) -> begin
+      Array.set conts k (Array.get conts k + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
+      Apply_block (k, args)
+    end
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
+      Array.set vars var (Array.get vars var + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) fvs;
+      List.iter (fun (_, kt, _, args) -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+      Array.set conts kf (Array.get conts kf + 1);
+      List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
+      Match_pattern (var, matchs, (kf, argsf), fvs)
+    end
+    *)
+
+let count_vars_expr_blocks (blocks : blocks): blocks * var array * pointer array =
+  let vars = Array.make 10000 0 in
+  let conts = Array.make 10000 0 in
+  BlockMap.map (fun (block, expr) -> block, count_vars_expr expr vars conts) blocks, vars, conts
+
+let elim_unused_blocks (blocks : blocks) (conts : int array): blocks = BlockMap.filter (fun k _ -> if Array.get conts k > 0 then true else (Logger.log "Filtred k%d\n" k; false)) blocks
