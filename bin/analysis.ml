@@ -59,7 +59,7 @@ let pp_frame fmt (k, env) = Format.fprintf fmt "(%d: %a)" k (pp_env "") env
 let pp_stack fmt stack =
   Printf.printf "[";
   List.iter (fun frame -> pp_frame fmt frame) stack;
-  Printf.printf "]\n"
+  Printf.printf "]"
 
 let pp_allocations fmt (allocations: value_domain Allocations.t) = Allocations.iter (fun i v -> Format.fprintf fmt "%d: %a\n" i pp_value_domain v) allocations
 
@@ -262,7 +262,8 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
   | (k, block', stack, allocations) :: conts' -> begin
-    (* Format.fprintf Format.std_formatter "/// k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack pp_allocations allocations; *)
+    Logger.start "k%d %a Stack: %a\n" k pp_block  block' pp_stack stack;
+    Logger.stop ();
 
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
