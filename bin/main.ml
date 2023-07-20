@@ -38,6 +38,7 @@ let rec step_analysis cps _vars _pointers count logchan =
     Logger.stop ();
     Logger.start "Analysing\n";
     let _cps_analysis = Analysis.start_analysis cps in
+    let cps = Cps.BlockMap.filter (fun k _ -> if Analysis.Closures.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
     Logger.stop ();
     Logger.start "Propagating\n";
     let cps = Analysis.propagation_blocks cps _cps_analysis in
