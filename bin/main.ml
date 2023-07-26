@@ -33,6 +33,10 @@ let speclist =
 
 let rec step_analysis cps _vars _pointers count logchan =
   if count > 0 then begin
+    let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
+    Logger.start "Copying%s\n" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
+    let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
+    Logger.stop ();
     Logger.start "Cleaning\n";
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
@@ -42,10 +46,6 @@ let rec step_analysis cps _vars _pointers count logchan =
     Logger.stop ();
     Logger.start "Propagating\n";
     let cps = Analysis.propagation_blocks cps _cps_analysis in
-    Logger.stop ();
-    let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
-    Logger.start "Copying%s\n" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
-    let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
     Logger.start "Eliminating unused variables\n";
     (*let cps, __vars, __pointers = Cps.count_vars_expr_blocks cps in
