@@ -198,6 +198,16 @@ type 'a map = (var * 'a) list
 
 type env = value map
 
+let rec pp_value fmt (value: value) =
+  match value with
+  | Int i -> Format.fprintf fmt "%d" i
+  | Tuple values -> Format.fprintf fmt "[%a]" pp_values values
+and pp_values fmt (values: value list) =
+  match values with
+  | [] -> Format.fprintf fmt ""
+  | [ value ] -> Format.fprintf fmt "%a" pp_value value
+  | value :: values' -> Format.fprintf fmt "%a; %a" pp_value value pp_values values'
+
 let get = Env.get2
 
 let interp_prim var (prim : prim) args (env : (var * value) list) (benchmark: benchmark) =
