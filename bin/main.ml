@@ -34,25 +34,25 @@ let speclist =
 let rec step_analysis cps _vars _pointers count logchan =
   if count > 0 then begin
     let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
-    Logger.start "Copying%s\n" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
+    Logger.start "Copying%s\n%!" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
     let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
-    Logger.start "Cleaning\n";
+    Logger.start "Cleaning\n%!";
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
-    Logger.start "Analysing\n";
+    Logger.start "Analysing\n%!";
     let _cps_analysis = Analysis.start_analysis cps in
     let cps = Cps.BlockMap.filter (fun k _ -> if Analysis.Closures.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
     Logger.stop ();
-    Logger.start "Propagating\n";
+    Logger.start "Propagating\n%!";
     let cps = Analysis.propagation_blocks cps _cps_analysis in
     Logger.stop ();
-    Logger.start "Eliminating unused variables\n";
+    Logger.start "Eliminating unused variables\n%!";
     (*let cps, __vars, __pointers = Cps.count_vars_expr_blocks cps in
     Array.set __pointers 0 1;
     let cps = Cps.elim_unused_blocks cps __pointers in*)
     Logger.stop ();
-    Logger.start "Cleaning\n";
+    Logger.start "Cleaning\n%!";
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
     step_analysis cps _vars _pointers (count-1) logchan
@@ -67,15 +67,15 @@ let _ =
     let entree = open_in input_file in
     let source = Lexing.from_channel entree in
     try
-      Logger.start "AST -> %s\n" (input_file ^ ".ast");
+      Logger.start "AST -> %s\n%!" (input_file ^ ".ast");
       let ast = Parser.programme Lexer.jetons source in
       Ast.pp_expr (Format.formatter_of_out_channel (open_out (input_file ^ ".ast"))) ast;
       Logger.stop ();
-      Logger.start "CST -> %s\n" (input_file ^ ".cst");
+      Logger.start "CST -> %s\n%!" (input_file ^ ".cst");
       let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) Ast.VarMap.empty Ast.TagMap.empty in
       Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) _subs (Ast.VarMap.fold (fun i v subs -> (i, v)::subs) _fvs [])) (Format.formatter_of_out_channel (open_out (input_file ^ ".cst"))) cst;
       Logger.stop ();
-      Logger.start "CPS -> %s\n" (input_file ^ ".cps");
+      Logger.start "CPS -> %s\n%!" (input_file ^ ".cps");
       let var0, _vars = match Seq.uncons _vars with
       | Some (var0, _vars) -> var0, _vars
       | None -> assert false in
@@ -87,21 +87,21 @@ let _ =
       let cps, _vars, _pointers = step_analysis cps _vars _pointers !rounds logchan in
       Cps.pp_blocks _subs (Format.formatter_of_out_channel (open_out (input_file ^ ".cps"))) cps;
       Logger.stop ();
-      Logger.start "ASM -> %s\n" (input_file ^ ".asm");
+      Logger.start "ASM -> %s\n%!" (input_file ^ ".asm");
       let asm, _vars, _pointers = Cps.blocks_to_asm cps _vars _pointers in
-      Logger.start " Cleaning...\n";
+      Logger.start " Cleaning...\n%!";
       let asm, conts' = Asm.elim_unused_vars_blocks asm in
       Logger.stop ();
-      Logger.start " Inlining...\n";
+      Logger.start " Inlining...\n%!";
       let asm = Asm.inline_blocks asm (Asm.BlockSet.union (Asm.BlockSet.of_list !inline_conts) (Asm.BlockSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
       Logger.stop ();
-      Logger.start " Cleaning...\n";
+      Logger.start " Cleaning...\n%!";
       let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in
-      Logger.start " Cleaning...\n";
+      Logger.start " Cleaning...\n%!";
       let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in
       Logger.stop ();
       Asm.pp_blocks _subs (Format.formatter_of_out_channel (open_out (input_file ^ ".asm"))) asm;
-      Printf.printf " Size = %d.\n %s\n" (Asm.size_blocks asm) (input_file ^ ".asm");
+      Printf.printf " Size = %d.\n %s\n%!" (Asm.size_blocks asm) (input_file ^ ".asm");
       Logger.stop ();
       let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var (Ast.VarMap.bindings _fvs) fv) ; int_of_string (read_line ()) in (fv, Asm.Int i)) fv in
       let r, _benchmark = Asm.interp_blocks asm 0 init in
