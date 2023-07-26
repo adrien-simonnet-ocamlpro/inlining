@@ -218,12 +218,12 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
   | Match_return (k, arg, args) -> [k, Match_join (Env.get2 env arg, map_args2 args env), stack, allocations]
   | Call (x, args, frame) -> begin
       match get env x allocations with
-      | Some (Closure_domain clos) -> List.map (fun (k, env') -> k, Clos (env', map_args2 args env), (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
+      | Some (Closure_domain clos) -> List.map (fun (k, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Closures.bindings clos)
       | _ -> assert false
     end
   | Call_direct (k, x, args, frame) -> begin
       match get env x allocations with
-      | Some (Closure_domain clos) -> assert (Closures.cardinal clos = 1); List.map (fun (_, env') -> k, Clos (env', map_args2 args env), (join_stack stack (map_stack2 frame env :: stack)), allocations) (Closures.bindings clos)
+      | Some (Closure_domain clos) -> assert (Closures.cardinal clos = 1); List.map (fun (_, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Closures.bindings clos)
       | _ -> assert false
     end
 
@@ -261,9 +261,11 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
 let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Analysis.t) : (value_domain Allocations.t * cont_type) Analysis.t =
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
-  | (k, block', stack, allocations) :: conts' -> begin
-    Logger.start "k%d %a Stack: %a\n" k pp_block  block' pp_stack stack;
+  | (k, block', stack''', allocations) :: conts' -> begin
+    Logger.start "k%d %a Stack: %a\n" k pp_block  block' pp_stack stack''';
     Logger.stop ();
+
+      let stack = (join_stack stack''' stack''') in
 
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
@@ -271,9 +273,9 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
           let old_allocations = get3 old_context stack block' in
           let new_allocations = join_allocations old_allocations allocations in
           if Allocations.equal value_cmp new_allocations old_allocations then begin
-            match stack with
+            match stack''' with
             | [] -> analysis conts' prog map
-            | (k', args) :: stack' -> analysis ((k', Return (Values.empty, args), stack', new_allocations) :: conts') prog map
+            | (k', args) :: _stack' -> analysis ((k', Return (Values.empty, args), _stack', new_allocations) :: conts') prog map
           end else begin
             let block, expr = Cps.BlockMap.find k prog in
             let next_conts = analysis_cont expr stack (block_env block block') new_allocations in
