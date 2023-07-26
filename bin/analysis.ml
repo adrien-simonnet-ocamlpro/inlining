@@ -185,7 +185,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
   | Let (var, named, expr) -> begin
       let value = analysis_named named env allocations in
       match value with
-      | Some value' -> analysis_cont expr stack ((var, Values.singleton var)::env) (Allocations.add var value' allocations)
+      | Some value' -> analysis_cont expr stack ((var, Values.singleton var)::env) (Allocations.update var (fun value'' -> if Option.is_some value'' then Some (join_values (Option.get value'') value') else Some value') allocations)
       | None -> analysis_cont expr stack ((var, Values.empty)::env) allocations
     end
   | Apply_block (k', args) -> [k', Cont (map_args2 args env), stack, allocations]
