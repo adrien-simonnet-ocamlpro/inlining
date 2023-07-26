@@ -104,12 +104,10 @@ let _ =
       Printf.printf " Size = %d.\n %s\n" (Asm.size_blocks asm) (input_file ^ ".asm");
       Logger.stop ();
       let init = List.map (fun fv -> let i = Printf.printf "%s = " (Env.get_var (Ast.VarMap.bindings _fvs) fv) ; int_of_string (read_line ()) in (fv, Asm.Int i)) fv in
-      Logger.log "eval\n";
       let r, _benchmark = Asm.interp_blocks asm 0 init in
-        Asm.pp_benchmark _benchmark Format.std_formatter;
-        match r with
-        | Int i -> Printf.printf "%d\n" i
-        | _ -> Printf.printf "fun\n"
+      Asm.pp_benchmark _benchmark Format.std_formatter;
+      Asm.pp_value Format.std_formatter r;
+      Format.fprintf Format.std_formatter "\n%!"
     with
     | Parsing.Parse_error -> Printf.fprintf stderr "Erreur de parsing au caractère %d.\n" source.Lexing.lex_curr_pos
     | Failure s -> Printf.fprintf stderr "Failure: %s.\n" s
