@@ -266,12 +266,17 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
     Logger.stop ();
 
       let stack = (join_stack stack''' stack''') in
-
+      
+      (* Already seen this block. *)
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
+
+        (* Already seen this context. *)
         if has3 old_context stack block' then begin
           let old_allocations = get3 old_context stack block' in
           let new_allocations = join_allocations old_allocations allocations in
+
+          (* Already seen these allocations. *)
           if Allocations.equal value_cmp new_allocations old_allocations then begin
             match stack''' with
             | [] -> analysis conts' prog map
@@ -350,11 +355,11 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
       | _ -> assert false
     end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
-    match get env var allocations with
-    | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf), fvs)
-    | None -> Match_pattern (var, matchs, (kf, argsf), fvs)
-    | _ -> assert false
-  end
+      match get env var allocations with
+      | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf), fvs)
+      | None -> Match_pattern (var, matchs, (kf, argsf), fvs)
+      | _ -> assert false
+    end
   | Return x -> Return x
   | If_return (k, arg, args) -> If_return (k, arg, args)
   | Match_return (k, arg, args) -> Match_return (k, arg, args)
