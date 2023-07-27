@@ -253,7 +253,7 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
       (* Already seen this block. *)
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
-
+        
         (* Already seen this context. *)
         if has3 old_context stack block' then begin
           let old_allocations = get3 old_context stack block' in
@@ -265,17 +265,17 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
             | (k', args) :: _stack' -> analysis ((k', Return (Values.empty, args), _stack', new_allocations) :: conts') reduce prog map
           end else begin
             let block, expr = Cps.BlockMap.find k prog in
-            let next_conts = analysis_cont expr stack (block_env block block') new_allocations in
+            let next_conts = analysis_cont expr stack''' (block_env block block') new_allocations in
             analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, new_allocations),block')::old_context) map)
           end
         end else begin
           let block, expr = Cps.BlockMap.find k prog in
-          let next_conts = analysis_cont expr stack (block_env block block') allocations in
+          let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
           analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, allocations),block')::old_context) map)
         end
       end else begin
         let block, expr = Cps.BlockMap.find k prog in
-        let next_conts = analysis_cont expr stack (block_env block block') allocations in
+        let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
         analysis (conts'@next_conts) reduce prog (Analysis.add k [(stack, allocations),block'] map)
       end
     end
