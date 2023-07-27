@@ -1,6 +1,0 @@
-type list = constructors 
-
-(let rec in
-(let rec in
-(let rec in
-(sum ((map (fun i -> (i + 10))) (ints y))))))

@@ -1,1 +1,0 @@
-(let rec sum_0 = (fun l_1 -> match) in (let rec map_4 = (fun f_5 -> (fun l_6 -> match)) in (let rec ints_9 = (fun i_10 -> (if i_10 = 0 then constructor else constructor)) in (sum_0 ((map_4 (fun i_11 -> i_11 + 10)) (ints_9 y_12))))))

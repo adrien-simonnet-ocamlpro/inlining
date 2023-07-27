@@ -1,1 +1,0 @@
-(let g_0 = (fun x_1 -> (let y_2 = x_1 + x_1 in (fun z_3 -> y_2 + z_3))) in (let machin_4 = (fun h_5 -> (h_5 150)) in (let truc_6 = (g_0 (if 1 = 0 then 1 else 1000)) in (machin_4 truc_6))))
