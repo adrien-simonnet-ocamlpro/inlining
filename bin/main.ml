@@ -1,3 +1,21 @@
+let rec cherche_motif motif liste =
+  match motif, liste with
+  | [], _ -> true
+  | m'::motif', l'::liste' when m' = l' -> cherche_motif motif' liste'
+  | _, _ -> false
+
+let rec cherche_periode periode liste =
+  match liste with
+  | [] -> 0
+  | l::liste' -> if cherche_motif (periode@[l]) liste' then List.length (periode@[l]) else cherche_periode (periode@[l]) liste'
+
+let rec remove_n_list n list =
+  if n = 0 then list else match list with
+  | _::l' -> remove_n_list (n-1) l'
+  | _ -> assert false
+
+let periodic_stack_heuristic stack = let n = cherche_periode [] stack in remove_n_list n stack
+let cfa n stack = if n < 0 then stack else []
 
 
 let usage_msg = "cps <file1> [<file2>] ... -o <output>"
@@ -6,6 +24,9 @@ let input_files = ref []
 let log_file = ref ""
 let output_file = ref ""
 let rounds = ref 1
+
+let stack_analysis = ref periodic_stack_heuristic
+let set_cfa n = stack_analysis := cfa n
 
 let unused_vars = ref true
 let anon_fun filename = input_files := filename :: !input_files
@@ -28,6 +49,7 @@ let speclist =
   ; "-inline", Arg.Int inline, "Inline specified block"
   ; "-max", Arg.Set_int threshold, "Copy blocks smaller than specified threshold"
   ; "-rounds", Arg.Set_int rounds, "Repeat tree optimization and inlining phases this many times (default 1). Rounds are numbered starting from zero."
+  ; "-cfa", Arg.Int set_cfa, "Set CFA deep (-1 for infinite)."
   ]
 ;;
 
@@ -41,7 +63,7 @@ let rec step_analysis cps _vars _pointers count logchan =
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
     Logger.start "Analysing\n%!";
-    let _cps_analysis = Analysis.start_analysis cps in
+    let _cps_analysis = Analysis.start_analysis !stack_analysis cps in
     let cps = Cps.BlockMap.filter (fun k _ -> if Analysis.Closures.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
     Logger.stop ();
     Logger.start "Propagating\n%!";

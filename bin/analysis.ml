@@ -86,18 +86,6 @@ let _get2 env var =
 
 let map_values args values = List.map2 (fun arg value -> arg, value) args values
 
-let rec cherche_motif motif liste =
-  match motif, liste with
-  | [], _ -> true
-  | m'::motif', l'::liste' when m' = l' -> cherche_motif motif' liste'
-  | _, _ -> false
-
-let rec cherche_periode periode liste =
-  match liste with
-  | [] -> 0
-  | l::liste' -> if cherche_motif (periode@[l]) liste' then List.length (periode@[l]) else cherche_periode (periode@[l]) liste'
-
-
 let join_env (old_env: 'a list) (new_env: 'a list): 'a list = List.map2 Values.union old_env new_env
 
 let join_values v1 v2 = match v1, v2 with
@@ -113,13 +101,6 @@ let rec join_value_list (values: value_domain list): value_domain =
   | [] -> assert false
   | [value] -> value
   | value :: values' -> join_values value (join_value_list values')
-
-let rec remove_n_list n list =
-  if n = 0 then list else match list with
-  | _::l' -> remove_n_list (n-1) l'
-  | _ -> assert false
-
-let join_stack _old_stack new_stack = let n = cherche_periode [] new_stack in remove_n_list n new_stack
 
 let join_allocs allocs allocations =
   if Values.is_empty allocs
@@ -258,15 +239,17 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
   | Match_join (arg1, args1), Match_join (arg2, args2) -> Match_join (Values.union arg1 arg2, List.map2 Values.union args1 args2)
   | _, _ -> assert false
 
-let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Analysis.t) : (value_domain Allocations.t * cont_type) Analysis.t =
+type stack_analysis = (address * Values.t list) list
+
+let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Analysis.t) : (value_domain Allocations.t * cont_type) Analysis.t =
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
   | (k, block', stack''', allocations) :: conts' -> begin
     Logger.start "k%d %a Stack: %a\n" k pp_block  block' pp_stack stack''';
     Logger.stop ();
 
-      let stack = (join_stack stack''' stack''') in
-      
+      let stack = reduce stack''' in
+
       (* Already seen this block. *)
       if Analysis.mem k map then begin
         let old_context = Analysis.find k map in
@@ -275,30 +258,29 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
         if has3 old_context stack block' then begin
           let old_allocations = get3 old_context stack block' in
           let new_allocations = join_allocations old_allocations allocations in
-
           (* Already seen these allocations. *)
           if Allocations.equal value_cmp new_allocations old_allocations then begin
             match stack''' with
-            | [] -> analysis conts' prog map
-            | (k', args) :: _stack' -> analysis ((k', Return (Values.empty, args), _stack', new_allocations) :: conts') prog map
+            | [] -> analysis conts' reduce prog map
+            | (k', args) :: _stack' -> analysis ((k', Return (Values.empty, args), _stack', new_allocations) :: conts') reduce prog map
           end else begin
             let block, expr = Cps.BlockMap.find k prog in
             let next_conts = analysis_cont expr stack (block_env block block') new_allocations in
-            analysis (conts'@next_conts) prog (Analysis.add k (((stack, new_allocations),block')::old_context) map)
+            analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, new_allocations),block')::old_context) map)
           end
         end else begin
           let block, expr = Cps.BlockMap.find k prog in
           let next_conts = analysis_cont expr stack (block_env block block') allocations in
-          analysis (conts'@next_conts) prog (Analysis.add k (((stack, allocations),block')::old_context) map)
+          analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, allocations),block')::old_context) map)
         end
       end else begin
         let block, expr = Cps.BlockMap.find k prog in
         let next_conts = analysis_cont expr stack (block_env block block') allocations in
-        analysis (conts'@next_conts) prog (Analysis.add k [(stack, allocations),block'] map)
+        analysis (conts'@next_conts) reduce prog (Analysis.add k [(stack, allocations),block'] map)
       end
     end
 
-let start_analysis prog = let args, _ = get_cont prog 0 in analysis [0, Cont (List.map (fun _ -> Values.empty) args), [], Allocations.empty] prog (Analysis.empty)
+let start_analysis reduce prog = let args, _ = get_cont prog 0 in analysis [0, Cont (List.map (fun _ -> Values.empty) args), [], Allocations.empty] reduce prog (Analysis.empty)
 
 let map_args2 = map_args2
 let join_allocs = join_allocs
