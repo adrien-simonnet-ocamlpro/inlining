@@ -1,11 +1,9 @@
-module Closures = Map.Make (Int)
-
 module Values = Set.Make (Int)
 
 type value_domain =
   | Int_domain of Int_domain.t
   | Tuple_domain of Values.t list
-  | Closure_domain of (Values.t list) Closures.t
+  | Closure_domain of (Values.t list) Cps.PointerMap.t
 
 type cont_type =
 | Cont of Values.t list
@@ -20,7 +18,7 @@ let value_cmp v1 v2 =
   match v1, v2 with
   | Int_domain d1, Int_domain d2 -> d1 = d2
   | Tuple_domain values1, Tuple_domain values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2
-  | Closure_domain clos1, Closure_domain clos2 -> Closures.equal (fun values1 values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2) clos1 clos2
+  | Closure_domain clos1, Closure_domain clos2 -> Cps.PointerMap.equal (fun values1 values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2) clos1 clos2
   | _ -> assert false
 
 type t = (value_domain list) Cps.PointerMap.t
@@ -46,7 +44,7 @@ let pp_alloc fmt (alloc: Values.t) = Format.fprintf fmt "{ "; Values.iter (fun i
 let rec pp_value_domain fmt = function
 | Int_domain d ->  Int_domain.pp fmt d
 | Tuple_domain values -> Format.fprintf fmt "[%a]" (pp_env "") values
-| Closure_domain clos -> Format.fprintf fmt "Closure:"; Closures.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
+| Closure_domain clos -> Format.fprintf fmt "Closure:"; Cps.PointerMap.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
 
 and pp_env _empty fmt args = Format.fprintf fmt "[ "; List.iter (Format.fprintf fmt "%a " pp_alloc) args; Format.fprintf fmt "]"
 
@@ -87,7 +85,7 @@ let join_env (old_env: 'a list) (new_env: 'a list): 'a list = List.map2 Values.u
 let join_values v1 v2 = match v1, v2 with
 | Int_domain d1, Int_domain d2 -> Int_domain (Int_domain.join d1 d2)
 | Tuple_domain values1, Tuple_domain values2 -> Tuple_domain (List.map2 Values.union values1 values2)
-| Closure_domain clos1, Closure_domain clos2 -> Closure_domain (Closures.union (fun _ env1 env2 -> Some (join_env env1 env2)) clos1 clos2)
+| Closure_domain clos1, Closure_domain clos2 -> Closure_domain (Cps.PointerMap.union (fun _ env1 env2 -> Some (join_env env1 env2)) clos1 clos2)
 | _ -> assert false
 
 
@@ -149,9 +147,9 @@ let analysis_named (named : named) (env: (address * Values.t) list) (allocations
       | None -> None
       | _ -> assert false
     end
-  | Closure (k, values) -> Some (Closure_domain (Closures.singleton k (map_args2 values env)))
+  | Closure (k, values) -> Some (Closure_domain (Cps.PointerMap.singleton k (map_args2 values env)))
   (* TODO *)
-  | Constructor (tag, environment) -> Some (Closure_domain (Closures.singleton tag (map_args2 environment env)))
+  | Constructor (tag, environment) -> Some (Closure_domain (Cps.PointerMap.singleton tag (map_args2 environment env)))
 
 
 let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env: (address * Values.t) list) (allocations: value_domain Cps.VarMap.t): (int * cont_type * ((pointer * Values.t list) list) * value_domain Cps.VarMap.t) list =
@@ -182,7 +180,7 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
           match List.find_opt (fun (n', _, _, _) -> n = n') matchs with
           | Some (_, k, _, args) -> k, Match_branch (env', map_args2 args env, map_args2 fvs env), stack, allocations
           | None -> kf, Match_branch ([], map_args2 argsf env, map_args2 fvs env), stack, allocations
-          end) (Closures.bindings clos)
+          end) (Cps.PointerMap.bindings clos)
       | None -> (kf, Match_branch ([], map_args2 argsf env, map_args2 fvs env), stack, allocations)::(List.map (fun (_, kt, pld, argst) -> kt, Match_branch (List.map (fun _ -> Values.empty) pld, map_args2 argst env, map_args2 fvs env), stack, allocations) matchs)
       | _ -> assert false
     end
@@ -195,12 +193,12 @@ let rec analysis_cont (cps: expr) (stack: ((pointer * Values.t list) list)) (env
   | Match_return (k, arg, args) -> [k, Match_join (Env.get2 env arg, map_args2 args env), stack, allocations]
   | Call (x, args, frame) -> begin
       match get env x allocations with
-      | Some (Closure_domain clos) -> List.map (fun (k, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Closures.bindings clos)
+      | Some (Closure_domain clos) -> List.map (fun (k, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Cps.PointerMap.bindings clos)
       | _ -> assert false
     end
   | Call_direct (k, x, args, frame) -> begin
       match get env x allocations with
-      | Some (Closure_domain clos) -> assert (Closures.cardinal clos = 1); List.map (fun (_, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Closures.bindings clos)
+      | Some (Closure_domain clos) -> assert (Cps.PointerMap.cardinal clos = 1); List.map (fun (_, env') -> k, Clos (env', map_args2 args env), (map_stack2 frame env :: stack), allocations) (Cps.PointerMap.bindings clos)
       | _ -> assert false
     end
 
@@ -310,8 +308,8 @@ match named with
     | None -> Get (var', pos), None
     | _ -> assert false
   end
-| Closure (k, values) -> Closure (k, values), Some (Closure_domain (Closures.singleton k (map_args2 values env)))
-| Constructor (tag, environment) -> Constructor (tag, environment), Some (Closure_domain (Closures.singleton tag (map_args2 environment env)))
+| Closure (k, values) -> Closure (k, values), Some (Closure_domain (Cps.PointerMap.singleton k (map_args2 values env)))
+| Constructor (tag, environment) -> Constructor (tag, environment), Some (Closure_domain (Cps.PointerMap.singleton tag (map_args2 environment env)))
 
 let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocations: value_domain Cps.VarMap.t): expr =
   match cps with
@@ -334,7 +332,7 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
     end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
       match get env var allocations with
-      | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Closures.bindings clos)) matchs, (kf, argsf), fvs)
+      | Some (Closure_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Cps.PointerMap.bindings clos)) matchs, (kf, argsf), fvs)
       | None -> Match_pattern (var, matchs, (kf, argsf), fvs)
       | _ -> assert false
     end
@@ -343,7 +341,7 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
   | Match_return (k, arg, args) -> Match_return (k, arg, args)
   | Call (x, args, stack) -> begin
       match get env x allocations with
-      | Some (Closure_domain clos) when Closures.cardinal clos = 1 -> let (k, _) = Closures.choose clos in Call_direct (k, x, args, stack)
+      | Some (Closure_domain clos) when Cps.PointerMap.cardinal clos = 1 -> let (k, _) = Cps.PointerMap.choose clos in Call_direct (k, x, args, stack)
       | Some _ | None -> Call (x, args, stack)
     end
   | Call_direct (k, x, args, stack) -> Call_direct (k, x, args, stack)
