@@ -125,7 +125,7 @@ let inline_blocks (blocks : blocks) (targets: PointerSet.t): blocks =
   PointerMap.map (fun (args, block) -> args, inline_parent block targets) blocks
 
 
-let rec elim_unused_vars_named (vars : int array) _conts (named : named): named =
+let rec elim_unused_vars_named (vars : int array) conts (named : named): named =
   match named with
   | Prim (prim, args) ->
     List.iter
@@ -141,7 +141,7 @@ let rec elim_unused_vars_named (vars : int array) _conts (named : named): named 
     Array.set vars arg (Array.get vars arg + 1))
   args; Tuple args
   | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
-  | Pointer k -> Pointer k
+  | Pointer k -> Array.set conts k (Array.get conts k + 1); Pointer k
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
   match cps with
