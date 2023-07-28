@@ -4,6 +4,7 @@ type tag = int
 type frame = pointer * var list
 
 module VarMap = Map.Make (Int)
+module VarSet = Set.Make (Int)
 module PointerMap = Map.Make (Int)
 module PointerSet = Set.Make (Int)
 
