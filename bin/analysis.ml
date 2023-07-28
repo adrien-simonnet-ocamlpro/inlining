@@ -219,13 +219,6 @@ let block_env (block1: Cps.block) (block2: cont_type): environment =
   | Match_join (arg1, args1), Match_join (arg2, args2) -> Cps.VarMap.add arg1 arg2 (map_values args1 args2)
   | _, _ -> assert false
 
-let has3 context var env = List.exists (fun ((var', _), env') -> var = var' && env = env') context
-let get3 context var env =
-  match List.find_opt (fun ((var', _'), env') -> var = var' && env = env') context with
-  | Some ((_, allocations), _) -> allocations
-  | None -> assert false
-;;
-
 let join_allocations a b = Cps.VarMap.union (fun _ value1 value2 -> Some (join_values value1 value2)) a b
 
 let join_blocks (b1: cont_type) (b2: cont_type) =
@@ -239,11 +232,19 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
   | Match_join (arg1, args1), Match_join (arg2, args2) -> Match_join (Cps.VarSet.union arg1 arg2, List.map2 Cps.VarSet.union args1 args2)
   | _, _ -> assert false
 
-type stack_analysis = (address * Cps.VarSet.t list) list
+type stack_analysis = (pointer * Cps.VarSet.t list) list
+type context = stack_analysis * cont_type
 
-let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: ((((address * Cps.VarSet.t list) list * allocations) * cont_type) list) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
+module Context = struct
+  type t = context
+  let compare : t -> t -> int = Stdlib.compare
+end
+
+module ContextMap = Map.Make (Context)
+
+let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: (allocations ContextMap.t) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
   match conts with
-  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
+  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), allocations) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, new_env), allocations) = List.hd (ContextMap.bindings contexts) in allocations, new_env) (List.tl (ContextMap.bindings contexts))) map
   | (k, block', stack''', allocations) :: conts' -> begin
     Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_allocations allocations;
     Logger.stop ();
@@ -255,8 +256,8 @@ let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (r
         let old_context = Cps.PointerMap.find k map in
         
         (* Already seen this context. *)
-        if has3 old_context stack block' then begin
-          let old_allocations = get3 old_context stack block' in
+        if ContextMap.mem (stack, block') old_context then begin
+          let old_allocations = ContextMap.find (stack, block') old_context in
           let new_allocations = join_allocations old_allocations allocations in
           (* Already seen these allocations. *)
           if Cps.VarMap.equal value_cmp new_allocations old_allocations then begin
@@ -266,17 +267,17 @@ let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (r
           end else begin
             let block, expr = Cps.PointerMap.find k prog in
             let next_conts = analysis_cont expr stack''' (block_env block block') new_allocations in
-            analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (((stack, new_allocations),block')::old_context) map)
+            analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') new_allocations old_context) map)
           end
         end else begin
           let block, expr = Cps.PointerMap.find k prog in
           let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-          analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (((stack, allocations),block')::old_context) map)
+          analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') allocations old_context) map)
         end
       end else begin
         let block, expr = Cps.PointerMap.find k prog in
         let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-        analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k [(stack, allocations),block'] map)
+        analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.singleton (stack, block') allocations) map)
       end
     end
 
