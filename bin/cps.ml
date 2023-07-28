@@ -18,7 +18,7 @@ type named =
 | Closure of pointer * var list
 | Constructor of tag * var list
 
-and expr =
+type expr =
 | Let of var * named * expr
 | Apply_block of pointer * var list
 | Call_direct of pointer * var * var list * frame
