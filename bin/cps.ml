@@ -149,10 +149,10 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
       Logger.start "Copying k%d\n" k;
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
+      (*let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
       Logger.stop ();
-      Apply_block (k_id, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
+      Apply_block (k_id, args), BlockMap.add k_id (block, expr') BlockMap.empty, vars, pointers
     end
   | Apply_block (k, args) -> Apply_block (k, args), BlockMap.empty, vars, pointers
   | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), BlockMap.empty, vars, pointers
@@ -162,20 +162,20 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
       Logger.start "Copying k%d\n" k;
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
+      (*let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
       Logger.stop ();
-      If_return (k_id, arg, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
+      If_return (k_id, arg, args), BlockMap.add k_id (block, expr') BlockMap.empty, vars, pointers
     end
   | If_return (k, arg, args) -> If_return (k, arg, args), BlockMap.empty, vars, pointers
   | Match_return (k, arg, args) when BlockMap.mem k blocks -> begin
       Logger.start "Copying k%d\n" k;
       let block, expr = BlockMap.find k blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
+      (*let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
       Logger.stop ();
-      Match_return (k_id, arg, args), BlockMap.add k_id (block, expr') blocks, vars, pointers
+      Match_return (k_id, arg, args), BlockMap.add k_id (block, expr') BlockMap.empty, vars, pointers
     end
   | Match_return (k, arg, args) -> Match_return (k, arg, args), BlockMap.empty, vars, pointers
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), BlockMap.empty, vars, pointers
@@ -184,16 +184,16 @@ let rec copy_callee (expr: expr) (vars: var Seq.t) (pointers: pointer Seq.t) (bl
       let block2, expr2 = BlockMap.find k blocks in
       let return_id, pointers = inc pointers in
       let expr2', vars = copy_expr expr2 vars VarMap.empty in
-      let expr2', blocks2, vars, pointers = copy_callee expr2' vars pointers blocks in
+      (*let expr2', blocks2, vars, pointers = copy_callee expr2' vars pointers blocks in*)
       Logger.stop ();
 
       Logger.start "Copying k%d\n" k';
       let block, expr = BlockMap.find k' blocks in
       let expr', vars = copy_expr expr vars VarMap.empty in
-      let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in
+      (*let expr', blocks, vars, pointers = copy_callee expr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
       Logger.stop ();
-      Call_direct (k_id, x, args, (return_id, kargs)), BlockMap.add return_id (block2, expr2') (BlockMap.add k_id (block, expr') (BlockMap.union (fun _ -> assert false) blocks blocks2)), vars, pointers
+      Call_direct (k_id, x, args, (return_id, kargs)), BlockMap.add return_id (block2, expr2') (BlockMap.add k_id (block, expr') BlockMap.empty), vars, pointers
     end
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), BlockMap.empty, vars, pointers
 
