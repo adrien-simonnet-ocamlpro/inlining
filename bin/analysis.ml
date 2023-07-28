@@ -245,7 +245,7 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
   match conts with
   | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
   | (k, block', stack''', allocations) :: conts' -> begin
-    Logger.start "k%d %a Stack: %a\n" k pp_block  block' pp_stack stack''';
+    Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_allocations allocations;
     Logger.stop ();
 
       let stack = reduce stack''' in
