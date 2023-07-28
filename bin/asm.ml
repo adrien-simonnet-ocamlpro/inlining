@@ -5,8 +5,8 @@ type frame = pointer * var list
 type stack = frame list
 
 module VarMap = Map.Make (Int)
-module BlockMap = Map.Make (Int)
-module BlockSet = Set.Make (Int)
+module PointerMap = Map.Make (Int)
+module PointerSet = Set.Make (Int)
 
 type prim =
 | Add
@@ -30,7 +30,7 @@ and expr =
 
 type block = var list * expr
 
-type blocks = block BlockMap.t
+type blocks = block PointerMap.t
 
 let gen_name (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
@@ -53,9 +53,9 @@ let rec pp_stack (fmt: Format.formatter) (stack: stack): unit =
 
 let pp_prim (subs: string VarMap.t) (fmt: Format.formatter) (prim : prim) (args: var list): unit =
   match prim, args with
-  | Const x, [] -> Format.fprintf fmt "%d" x
-  | Add, x1 :: x2 :: [] -> Format.fprintf fmt "%s + %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Sub, x1 :: x2 :: [] -> Format.fprintf fmt "%s - %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Const x, [] -> Format.fprintf fmt "Int %d" x
+  | Add, x1 :: x2 :: [] -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
+  | Sub, x1 :: x2 :: [] -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
   | Print, x1 :: [] -> Format.fprintf fmt "print %s" (gen_name x1 subs)
   | _ -> failwith "Asm.pp_prim: invalid args"
 
@@ -64,20 +64,20 @@ let pp_named (subs: string VarMap.t) (fmt: Format.formatter) (named: named): uni
   | Pointer p -> Format.fprintf fmt "k%d" p
   | Prim (prim, args) -> pp_prim subs fmt prim args
   | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
-  | Tuple (args) -> Format.fprintf fmt "[%a]" (pp_args ~split: "; " ~subs ~empty:"") args
-  | Get (record, pos) -> Format.fprintf fmt "%s[%d]" (gen_name record subs) pos
+  | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
+  | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (gen_name record subs) pos
 
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (cps : expr): unit =
   match cps with
-  | Let (var, named, expr) -> Format.fprintf fmt "\t%s = %a\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
-  | If (var, matchs, (kf, argsf), stack) -> Format.fprintf fmt "\tmatch %s with%s\n\t| _ -> k%d %a [%a]" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "\n\t| %d -> k%d %a [%a] " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst pp_stack stack)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf pp_stack stack
+  | Let (var, named, expr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_named subs) named (pp_expr subs) expr
+  | If (var, matchs, (kf, argsf), stack) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a [%a]" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a [%a] " n kt (pp_args ~subs ~empty: "()" ~split: " ") argst pp_stack stack)) " " matchs) kf (pp_args ~subs ~empty: "()" ~split: " ") argsf pp_stack stack
   | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
   | Apply_indirect (x, args, stack) -> Format.fprintf fmt "\t!%s %a [%a]" (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
   | Apply_direct (k', args, stack) -> Format.fprintf fmt "\tk%d %a [%a]" k' (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
 
-let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a:\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
+let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_expr subs) e
 
-let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = BlockMap.iter (fun k block -> Format.fprintf fmt "k%d %a\n%!" k (pp_block subs) block) block
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = PointerMap.iter (fun k block -> Format.fprintf fmt "and k%d %a\n%!" k (pp_block subs) block) block
 
 let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
 let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
@@ -108,9 +108,9 @@ and inline (cps : expr) (alias: var VarMap.t) (stack: (pointer * var list) list)
 let rec inline_parent (cps : expr) (blocks: blocks): expr =
   match cps with
   | Let (var, named, expr) -> Let (var, named, inline_parent expr blocks)
-  | Apply_direct (k, args, stack') when BlockMap.mem k blocks -> begin
+  | Apply_direct (k, args, stack') when PointerMap.mem k blocks -> begin
       Logger.start "Inlining %d\n" k;
-      let args', block = BlockMap.find k blocks in
+      let args', block = PointerMap.find k blocks in
       let expr' = inline_parent (inline block (List.fold_left2 (fun alias arg' arg -> VarMap.add arg' arg alias) VarMap.empty args' args) stack') blocks in
       Logger.stop ();
       expr'
@@ -120,12 +120,12 @@ let rec inline_parent (cps : expr) (blocks: blocks): expr =
   | Return var -> Return var
   | Apply_indirect (x, args, stack') -> Apply_indirect (x, args, stack')
 
-let inline_blocks (blocks : blocks) (targets: BlockSet.t): blocks =
-  let targets = BlockMap.filter (fun k _ -> BlockSet.mem k targets) blocks in
-  BlockMap.map (fun (args, block) -> args, inline_parent block targets) blocks
+let inline_blocks (blocks : blocks) (targets: PointerSet.t): blocks =
+  let targets = PointerMap.filter (fun k _ -> PointerSet.mem k targets) blocks in
+  PointerMap.map (fun (args, block) -> args, inline_parent block targets) blocks
 
 
-let rec elim_unused_vars_named (vars : int array) conts (named : named): named =
+let rec elim_unused_vars_named (vars : int array) _conts (named : named): named =
   match named with
   | Prim (prim, args) ->
     List.iter
@@ -141,7 +141,7 @@ let rec elim_unused_vars_named (vars : int array) conts (named : named): named =
     Array.set vars arg (Array.get vars arg + 1))
   args; Tuple args
   | Get (arg, pos) -> Array.set vars arg (Array.get vars arg + 1); Get (arg, pos)
-  | Pointer k -> Array.set conts k (Array.get conts k + 1); Pointer k
+  | Pointer k -> Pointer k
 
 and elim_unused_vars (vars : int array) (conts : int array) (cps : expr) : expr =
   match cps with
@@ -184,9 +184,9 @@ let elim_unused_vars_block (conts : int array) ((args', e1) : block) : block =
 
 let elim_unused_vars_blocks (blocks : blocks) : blocks * int array =
   let conts = Array.make 10000 0 in
-  BlockMap.map (elim_unused_vars_block conts) blocks, conts
+  PointerMap.map (elim_unused_vars_block conts) blocks, conts
 
-let elim_unused_blocks (conts : int array) (blocks : blocks) : blocks = BlockMap.filter (fun k _ -> Array.get conts k > 0) blocks
+let elim_unused_blocks (conts : int array) (blocks : blocks) : blocks = PointerMap.filter (fun k _ -> Array.get conts k > 0) blocks
 
 type benchmark = { mutable const: int; mutable write: int; mutable read: int; mutable add: int; mutable sub: int; mutable push: int; mutable pop: int; mutable jmp: int }
 
@@ -252,8 +252,10 @@ let rec interp (stack: (pointer * value list) list) (cps : expr) (env : env) (co
     | Let (var, named, expr) -> benchmark.write <- benchmark.write + 1; interp stack expr (interp_named var named env benchmark @ env) conts benchmark
     | Apply_direct (k, args, stack') -> begin
         benchmark.jmp <- benchmark.jmp + 1;
-        let args', cont = BlockMap.find k conts in
+        if PointerMap.mem k conts then
+        let args', cont = PointerMap.find k conts in
         interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack') @ stack) cont (List.map2 (fun arg' arg -> benchmark.read <- benchmark.read + 1; arg', get env arg) args' args ) conts benchmark
+        else failwith ("k" ^ (string_of_int k) ^ "not found")
       end
     | If (var, matchs, (kf, argsf), stack') -> begin
         benchmark.read <- benchmark.read + 1;
@@ -270,7 +272,7 @@ let rec interp (stack: (pointer * value list) list) (cps : expr) (env : env) (co
         match stack with
         | [] -> benchmark.read <- benchmark.read + 1; get env v
         | (k, env') :: stack' -> begin
-            let args2', cont'' = BlockMap.find k conts in
+            let args2', cont'' = PointerMap.find k conts in
             interp stack' cont'' ((benchmark.read <- benchmark.read + 1; List.hd args2', get env v) :: (List.map2 (fun arg' arg -> benchmark.pop <- benchmark.pop + 1; arg', arg) (List.tl args2') env') ) conts benchmark
           end
       end
@@ -278,14 +280,14 @@ let rec interp (stack: (pointer * value list) list) (cps : expr) (env : env) (co
         benchmark.read <- benchmark.read + 1;
         benchmark.jmp <- benchmark.jmp + 1;
         match get env x with
-        | Int k' -> let args', cont = BlockMap.find k' conts in
+        | Int k' -> let args', cont = PointerMap.find k' conts in
           interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> benchmark.read <- benchmark.read + 1; arg', get env arg) args' args)) conts benchmark
         | _ -> failwith ("invalid type")
        end
 
 let interp_blocks (blocks : blocks) k env: value * benchmark =
   let benchmark = { const =  0; write = 0; read = 0; add =  0; sub =  0; push =  0; pop =  0; jmp =  0 } in
-  let _, e = BlockMap.find k blocks in
+  let _, e = PointerMap.find k blocks in
   interp [] e env blocks benchmark, benchmark
 
 let pp_benchmark (benchmark: benchmark) fmt: unit =
@@ -311,4 +313,4 @@ let size_block (args, expr: block): int =
   List.length args + size_expr expr
 
 let size_blocks (blocks: blocks): int =
-  BlockMap.fold (fun _ block size -> size + size_block block) blocks 0
+  PointerMap.fold (fun _ block size -> size + size_block block) blocks 0

@@ -70,9 +70,9 @@ let inc (vars: Cps.var Seq.t): Cps.var * Cps.var Seq.t =
   | None -> assert false
   | Some (i, vars') -> i, vars'
 
-let empty_blocks = Cps.BlockMap.empty
-let add_block (pointer: Cps.pointer) (block, expr: Cps.block * Cps.expr) (blocks: Cps.blocks) = Cps.BlockMap.add pointer (block, expr) blocks
-let join_blocks = Cps.BlockMap.union (fun k _ _ -> failwith ("Cst.join_blocks: " ^ (string_of_int k) ^ " not uniques"))
+let empty_blocks = Cps.PointerMap.empty
+let add_block (pointer: Cps.pointer) (block, expr: Cps.block * Cps.expr) (blocks: Cps.blocks) = Cps.PointerMap.add pointer (block, expr) blocks
+let join_blocks = Cps.PointerMap.union (fun k _ _ -> failwith ("Cst.join_blocks: " ^ (string_of_int k) ^ " not uniques"))
 
 let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps.expr * Cps.var Seq.t * Cps.pointer Seq.t * int list * Cps.blocks =
   match ast with

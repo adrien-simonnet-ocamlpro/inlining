@@ -1,5 +1,3 @@
-module Analysis = Map.Make (Int)
-
 module Allocations = Map.Make (Int)
 
 module Closures = Map.Make (Int)
@@ -27,7 +25,7 @@ let value_cmp v1 v2 =
   | Closure_domain clos1, Closure_domain clos2 -> Closures.equal (fun values1 values2 -> List.fold_left2 (fun equal value1 value2 -> equal && Values.equal value1 value2) true values1 values2) clos1 clos2
   | _ -> assert false
 
-type t = (value_domain list) Analysis.t
+type t = (value_domain list) Cps.PointerMap.t
 
 type var = Cps.var
 
@@ -41,7 +39,7 @@ type address = pointer
 type cont = Cps.blocks
 
 let get_cont (cont: cont) k =
-match Cps.BlockMap.find_opt k cont with
+match Cps.PointerMap.find_opt k cont with
 | Some (Cont args, e1) -> args, e1
 | _ -> assert false
 
@@ -73,7 +71,7 @@ let pp_block fmt block =
   | Match_branch (env, args, fvs) -> Format.fprintf fmt "Match_branch %a %a %a" (pp_env "") env (pp_env "") args (pp_env "") fvs
   | Match_join (arg, args) -> Format.fprintf fmt "Match_join %a %a" pp_alloc arg (pp_env "") args
 
-let pp_analysis fmt (map: (value_domain Allocations.t * cont_type) Analysis.t) = Format.fprintf fmt "Analysis:\n\n"; Analysis.iter (fun k (allocations, block) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k pp_block block pp_allocations allocations) map
+let pp_analysis fmt (map: (value_domain Allocations.t * cont_type) Cps.PointerMap.t) = Format.fprintf fmt "Cps.PointerMap:\n\n"; Cps.PointerMap.iter (fun k (allocations, block) -> Format.fprintf fmt "k%d %a:\n%a\n\n" k pp_block block pp_allocations allocations) map
 
 let get = Env.get2
 
@@ -241,9 +239,9 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
 
 type stack_analysis = (address * Values.t list) list
 
-let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Analysis.t) : (value_domain Allocations.t * cont_type) Analysis.t =
+let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * value_domain Allocations.t) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: ((((address * Values.t list) list * value_domain Allocations.t) * cont_type) list) Cps.PointerMap.t) : (value_domain Allocations.t * cont_type) Cps.PointerMap.t =
   match conts with
-  | [] -> Analysis.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
+  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, allocations), new_env) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, allocations), new_env) = List.hd contexts in allocations, new_env) (List.tl contexts)) map
   | (k, block', stack''', allocations) :: conts' -> begin
     Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_allocations allocations;
     Logger.stop ();
@@ -251,8 +249,8 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
       let stack = reduce stack''' in
 
       (* Already seen this block. *)
-      if Analysis.mem k map then begin
-        let old_context = Analysis.find k map in
+      if Cps.PointerMap.mem k map then begin
+        let old_context = Cps.PointerMap.find k map in
         
         (* Already seen this context. *)
         if has3 old_context stack block' then begin
@@ -264,23 +262,23 @@ let rec analysis (conts: (int * cont_type * ((pointer * Values.t list) list) * v
             | [] -> analysis conts' reduce prog map
             | (k', args) :: _stack' -> analysis ((k', Return (Values.empty, args), _stack', new_allocations) :: conts') reduce prog map
           end else begin
-            let block, expr = Cps.BlockMap.find k prog in
+            let block, expr = Cps.PointerMap.find k prog in
             let next_conts = analysis_cont expr stack''' (block_env block block') new_allocations in
-            analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, new_allocations),block')::old_context) map)
+            analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (((stack, new_allocations),block')::old_context) map)
           end
         end else begin
-          let block, expr = Cps.BlockMap.find k prog in
+          let block, expr = Cps.PointerMap.find k prog in
           let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-          analysis (conts'@next_conts) reduce prog (Analysis.add k (((stack, allocations),block')::old_context) map)
+          analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (((stack, allocations),block')::old_context) map)
         end
       end else begin
-        let block, expr = Cps.BlockMap.find k prog in
+        let block, expr = Cps.PointerMap.find k prog in
         let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-        analysis (conts'@next_conts) reduce prog (Analysis.add k [(stack, allocations),block'] map)
+        analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k [(stack, allocations),block'] map)
       end
     end
 
-let start_analysis reduce prog = let args, _ = get_cont prog 0 in analysis [0, Cont (List.map (fun _ -> Values.empty) args), [], Allocations.empty] reduce prog (Analysis.empty)
+let start_analysis reduce prog = let args, _ = get_cont prog 0 in analysis [0, Cont (List.map (fun _ -> Values.empty) args), [], Allocations.empty] reduce prog (Cps.PointerMap.empty)
 
 let map_args2 = map_args2
 let join_allocs = join_allocs
@@ -352,10 +350,10 @@ let rec propagation (cps : Cps.expr) (env: (pointer * Values.t) list) (allocatio
     end
   | Call_direct (k, x, args, stack) -> Call_direct (k, x, args, stack)
 
-let propagation_blocks (blocks: Cps.blocks) (map: (value_domain Allocations.t * cont_type) Analysis.t) =
-  Cps.BlockMap.mapi (fun k (block, expr) -> begin
-    if Analysis.mem k map then
-      let allocations, block' = Analysis.find k map in
+let propagation_blocks (blocks: Cps.blocks) (map: (value_domain Allocations.t * cont_type) Cps.PointerMap.t) =
+  Cps.PointerMap.mapi (fun k (block, expr) -> begin
+    if Cps.PointerMap.mem k map then
+      let allocations, block' = Cps.PointerMap.find k map in
       block, propagation expr (block_env block block') allocations
     else block, expr
   end) blocks

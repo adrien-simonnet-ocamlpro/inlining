@@ -55,16 +55,16 @@ let speclist =
 
 let rec step_analysis cps _vars _pointers count logchan =
   if count > 0 then begin
-    let to_copy = Cps.BlockMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.BlockSet.add k to_copy else to_copy) cps Cps.BlockSet.empty in
-    Logger.start "Copying%s\n%!" (Cps.BlockSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
-    let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.BlockSet.union (Cps.BlockSet.of_list !copy_conts) to_copy) _vars _pointers in
+    let to_copy = Cps.PointerMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.PointerSet.add k to_copy else to_copy) cps Cps.PointerSet.empty in
+    Logger.start "Copying%s\n%!" (Cps.PointerSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
+    let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.PointerSet.union (Cps.PointerSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
     Logger.start "Cleaning\n%!";
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
     Logger.start "Analysing\n%!";
     let _cps_analysis = Analysis.start_analysis !stack_analysis cps in
-    let cps = Cps.BlockMap.filter (fun k _ -> if Analysis.Closures.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
+    let cps = Cps.PointerMap.filter (fun k _ -> if Analysis.Closures.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
     Logger.stop ();
     Logger.start "Propagating\n%!";
     let cps = Analysis.propagation_blocks cps _cps_analysis in
@@ -115,7 +115,7 @@ let _ =
       let asm, conts' = Asm.elim_unused_vars_blocks asm in
       Logger.stop ();
       Logger.start " Inlining...\n%!";
-      let asm = Asm.inline_blocks asm (Asm.BlockSet.union (Asm.BlockSet.of_list !inline_conts) (Asm.BlockSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
+      let asm = Asm.inline_blocks asm (Asm.PointerSet.union (Asm.PointerSet.of_list !inline_conts) (Asm.PointerSet.of_list (List.map (fun (b, _) -> b) (List.filter (fun (_, count) -> count = 1) (Array.to_list (Array.mapi (fun i count -> (i, count)) conts')))))) in
       Logger.stop ();
       Logger.start " Cleaning...\n%!";
       let asm = if !unused_vars then let cps, conts = Asm.elim_unused_vars_blocks asm in Array.set conts 0 1; Asm.elim_unused_blocks conts cps else asm in
