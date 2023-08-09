@@ -84,6 +84,15 @@ $$ \text{cfg} ~ e ~ \sigma_2 ~ (\text{Return} ~ \sigma_2) ~ \emptyset \vdash \ep
    \quad \Sigma_2 = \Sigma_1 \setminus \lbrace \sigma_1 \rbrace
    \over \text{cfg} ~ (\text{Fun} ~ \sigma_1 ~ e) ~ \sigma ~ \epsilon ~ \Sigma \vdash (\sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon) ~ \Sigma_2 ~ (\beta \[\rho = \text{Clos} ~ \Sigma_2 ~ \( \sigma_1 \) ~ \epsilon_1\] ) $$
 
+$$ \text{cfg} ~ e_2 ~ \sigma_2 ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_2 ~ \Sigma) ~ \Sigma \vdash \epsilon_2 ~ \Sigma_2 ~ \beta_2
+   \quad \text{cfg} ~ e_3 ~ \sigma_3 ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_3 ~ \Sigma) ~ \Sigma \vdash \epsilon_3 ~ \Sigma_3 ~ \beta_3
+   \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ (\text{If} ~ \sigma_1 ~ \rho_2 ~ \Sigma_2 ~ \rho_3 ~ \Sigma_3 ~ \Sigma) ~ \Sigma_2 \cup \Sigma_3 \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \over \text{cfg} ~ (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2 \cup \Sigma_3) ~ (\beta_1 \cup \beta_2 \cup \beta_3)\[\rho_1 = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon\]\[\rho_2 = \text{Ifbranch} ~ \sigma_2 ~ \Sigma ~ \epsilon_2\] \[\rho_3 = \text{Ifbranch} ~ \sigma_3 ~ \Sigma ~ \epsilon_3\] $$
+
+$$ \text{cfg} ~ e_2 ~ \sigma_2 ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~ \Sigma) ~ \Sigma \cup \lbrace \sigma_1 \rbrace \vdash \epsilon_2 ~ \Sigma_2 ~ \beta_2
+   \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ \epsilon_2 ~ \Sigma_2 \cup \Sigma \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \over \text{cfg} ~ (\text{App} ~ e_1 ~ e_2) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] $$
+
 ### Instruction
 
 Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
