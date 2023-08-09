@@ -64,6 +64,13 @@ Pour l'instant je ne procède à aucune vérification de typage, c'est peu proba
 
 La conversion CFG transforme le CST en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
+$$ \text{cfg} ~ (\text{Int} ~ i) ~ \sigma ~ \epsilon ~ \Sigma
+   \vdash (\sigma = \text{Int} ~ i; \epsilon) ~ \emptyset ~ \emptyset $$
+
+$$ \text{cfg} ~ e_2 ~ \sigma_2 ~ (\sigma = \sigma_1 \diamond \sigma_2; \epsilon) ~ (\sigma_1 :: \Sigma) \vdash \epsilon_2 ~ \Sigma_2 ~ \beta_2
+   \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ \epsilon_2 ~ (\Sigma_2 \cup \Sigma) \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \over \text{cfg} ~ (\text{Binary} ~ \diamond ~ e_1 ~ e_2) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2) $$
+
 ### Instruction
 
 Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
