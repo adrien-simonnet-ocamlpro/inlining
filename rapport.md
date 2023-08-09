@@ -93,6 +93,40 @@ $$ \text{cfg} ~ e_2 ~ \sigma_2 ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~
    \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ \epsilon_2 ~ \Sigma_2 \cup \Sigma \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
    \over \text{cfg} ~ (\text{App} ~ e_1 ~ e_2) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] $$
 
+$$ f = \begin{cases} f_0 =
+      (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
+      f_n = {f_{n-1} = \epsilon_{n-1} ~ \Sigma_{n-1} ~ \beta_{n-1}
+         \quad \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \alpha \setminus \lbrace a_n \rbrace \vdash \epsilon_n ~ \Sigma_n ~ \beta_n
+         \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
+      \end{cases}
+   \over \text{cfg} ~ (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \epsilon ~ \Sigma \vdash f_n $$
+
+
+
+
+$$ \begin{cases}
+      \epsilon_0 = \text{Constructor} ~ t ~ \alpha \\
+      \epsilon_n =
+         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup \alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         \over \epsilon }
+   \end{cases}
+   \begin{cases}
+      \Sigma_0 = \Sigma \\
+      \Sigma_n =
+         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup\alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         \over \Sigma \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace }
+   \end{cases}
+   \begin{cases}
+      \beta_0 = \beta \\
+      \beta_n =
+         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup\alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         \over \beta \cup \beta_{n-1} }
+   \end{cases}
+   \over \text{cfg} ~ (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_n ~ \Sigma_n ~ \beta_n $$
+
+
+
+
 ### Instruction
 
 Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
