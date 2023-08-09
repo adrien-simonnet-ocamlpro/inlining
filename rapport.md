@@ -105,21 +105,21 @@ $$ f = \begin{cases} f_0 =
 
 
 $$ \begin{cases}
-      \epsilon_0 = \text{Constructor} ~ t ~ \alpha \\
+      \epsilon_0 = (\sigma = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
       \epsilon_n =
-         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup \alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         { \text{cfg} ~ a_n ~ \overline{a_n} ~ \epsilon_{n-1} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
          \over \epsilon }
    \end{cases}
    \begin{cases}
-      \Sigma_0 = \Sigma \\
+      \Sigma_0 = \lbrace \overline{a_1}, \dots, \overline{a_n} \rbrace \\
       \Sigma_n =
-         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup\alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
-         \over \Sigma \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace }
+         { \text{cfg} ~ a_n ~ \overline{a_n} ~ \epsilon_{n-1} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         \over \Sigma \cup \Sigma_{n-1} \setminus \lbrace \overline{a_n} \rbrace }
    \end{cases}
    \begin{cases}
-      \beta_0 = \beta \\
+      \beta_0 = \emptyset \\
       \beta_n =
-         { \text{cfg} ~ a_n ~ \alpha_n ~ \epsilon_{n-1} ~ \Sigma \cup\alpha \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
+         { \text{cfg} ~ a_n ~ \overline{a_n} ~ \epsilon_{n-1} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace \vdash \epsilon ~ \Sigma ~ \beta
          \over \beta \cup \beta_{n-1} }
    \end{cases}
    \over \text{cfg} ~ (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_n ~ \Sigma_n ~ \beta_n $$
