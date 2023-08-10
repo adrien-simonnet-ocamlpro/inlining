@@ -124,7 +124,16 @@ $$ \begin{cases}
    \end{cases}
    \over \text{cfg} ~ (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_n ~ \Sigma_n ~ \beta_n $$
 
-
+$$ \text{cfg} ~ d ~ \overline{d} ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) ~ \Sigma \vdash \epsilon_d ~ \Sigma_d ~ \beta_d
+\begin{cases}
+      \beta_0 = \emptyset \\
+      \beta_n =
+         { \text{cfg} ~ e_n ~ \overline{e_n} ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) ~ \Sigma \vdash \epsilon ~ \Sigma_{e_n} ~ \beta
+         \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
+         \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
+   \end{cases}
+   \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ \epsilon_2 ~ \Sigma_2 \cup \Sigma \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \over \text{cfg} ~ (\text{Match} ~ e ~ \left( \langle t_1, \left( a_1^1 \dots a_1^{m_1} \right), e_1 \rangle \dots \langle t_n, \left( a_n^1 \dots a_n^{m_n} \right), e_n \rangle \right) ~ d) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] $$
 
 
 ### Instruction
