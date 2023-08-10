@@ -64,10 +64,10 @@ Pour l'instant je ne procède à aucune vérification de typage, c'est peu proba
 
 La conversion CFG transforme le CST en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
-$$ \text{cfg} ~ (\text{Int} ~ i) ~ \sigma ~ \epsilon ~ \Sigma
+$$ \over \text{cfg} ~ (\text{Int} ~ i) ~ \sigma ~ \epsilon ~ \Sigma
    \vdash (\sigma = \text{Int} ~ i; \epsilon) ~ \emptyset ~ \emptyset $$
 
-$$ \text{cfg} ~ (\text{Var} ~ v) ~ \sigma ~ \epsilon ~ \Sigma
+$$ \over \text{cfg} ~ (\text{Var} ~ v) ~ \sigma ~ \epsilon ~ \Sigma
    \vdash (\sigma = v; \epsilon) ~ \lbrace v \rbrace ~ \emptyset $$
 
 $$ \text{cfg} ~ e_2 ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_2 ~ \Sigma_2 ~ \beta_2
@@ -132,7 +132,10 @@ $$ \text{cfg} ~ d ~ \overline{d} ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overli
          \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
          \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
    \end{cases}
-   \quad \text{cfg} ~ e_1 ~ \sigma_1 ~ \epsilon_2 ~ \Sigma_2 \cup \Sigma \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
+      { \Sigma_{e_n} =
+         \text{cfg} ~ e_n ~ \overline{e_n} ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) ~ \Sigma \vdash \epsilon ~ \Sigma ~ \beta
+         \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace }
+   \quad \text{cfg} ~ e ~ \sigma_e ~ (\text{Matchpattern} ~ \sigma_e ~ \left( \langle t_1, \rho_{e_1}, \left( a_1^1 \dots a_1^{m_1} \right), \Sigma_{e_1} \rangle \dots \langle t_n, \rho_{e_n}, \left( a_n^1 \dots a_n^{m_n} \right), \Sigma_{e_n} \rangle \right) ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma ) ~ \Sigma_d \cup ( \bigcup_{i=1}^{n} \Sigma_n ) \vdash \epsilon_1 ~ \Sigma_1 ~ \beta_1
    \over \text{cfg} ~ (\text{Match} ~ e ~ \left( \langle t_1, \left( a_1^1 \dots a_1^{m_1} \right), e_1 \rangle \dots \langle t_n, \left( a_n^1 \dots a_n^{m_n} \right), e_n \rangle \right) ~ d) ~ \sigma ~ \epsilon ~ \Sigma \vdash \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] $$
 
 
