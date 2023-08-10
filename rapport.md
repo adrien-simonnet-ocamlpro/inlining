@@ -44,6 +44,55 @@ Les jetons de l'analyse lexicale sont générés comme toujours par OCamllex.
 
 L'AST est généré par Menhir.
 
+### Identificateurs
+
+A ce stade, le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
+
+$var \coloneqq string$
+
+$tag \coloneqq string$
+
+### Filtrage par motif
+
+J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. En particulier il n'est pas possible de déconstruire des termes à la volée ni de filtrer plusieurs motifs par la même expression.
+
+$\text{Deconstructor} : tag \times var^{*} \rightarrow matchpattern$
+
+$\text{Joker} : var \rightarrow matchpattern$
+
+### Opérations binaires
+
+$\text{Add} \rightarrow binaryoperator$
+
+$\text{Sub} \rightarrow binaryoperator$
+
+### Expressions
+
+Les expressions constituent la base d'un langage fonctionnel.
+
+$\text{Var} : var \rightarrow expr$
+
+$\text{Fun} : var \times expr \rightarrow expr$
+
+$\text{App} : expr \times expr \rightarrow expr$
+
+$\text{Let} : var \times expr \times expr \rightarrow expr$
+
+$\text{Let-rec} : (var \times expr)^{*} \times expr \rightarrow expr$
+
+$\text{Int} : int \rightarrow expr$
+
+$\text{Binary} : binaryoperator \times expr \times expr \rightarrow expr$
+
+$\text{If} : expr \times expr \times expr \rightarrow expr$
+
+$\text{Type} : var \times (var \times var)^{*} \times expr \rightarrow expr$
+
+$\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
+
+$\text{Match} : expr \times (matchpattern \times expr)^{*} \rightarrow expr$
+
+
 ## Analyse sémantique
 
 Le CST est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs).
