@@ -116,41 +116,41 @@ La conversion CFG transforme le CST en un ensemble (non ordonné) de basic blocs
 $$
    \begin{align}
       \tag{Int}
-      \over (\text{Int} ~ i) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} (\sigma = \text{Int} ~ i; \epsilon) ~ \emptyset ~ \emptyset            \end{align} $$
+      \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset            \end{align} $$
 
 $$
    \begin{align}
       \tag{Var}
-      \over (\text{Var} ~ v) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} (\sigma = v; \epsilon) ~ \lbrace v \rbrace ~ \emptyset
+      \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Let}
       \begin{split}
-         e_2 ~ \sigma ~ \Sigma ~ \epsilon &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \quad \Sigma_3 = \Sigma_2 \setminus \lbrace v \rbrace \\
-         e_1 ~ v ~ \Sigma \cup \Sigma_3 ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+         e_2 ~ \sigma ~ \Sigma ~ \epsilon &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \quad \Sigma_3 = \Sigma_{e_2} \setminus \lbrace v \rbrace \\
+         e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
-      \over (\text{Let} ~ v ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_3 \cup \Sigma_1 ~ \beta_1 \cup \beta_2
+      \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \cup \beta_{e_2} \right)
    \end{align} $$
 
 $$
    \begin{align}
    \tag{Binary}
       \begin{split}
-         e_2 ~ \sigma_2 ~ (\sigma_1 :: \Sigma) ~ (\sigma = \sigma_1 \diamond \sigma_2; \epsilon) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \\
-         e_1 ~ \sigma_1 ~ (\Sigma_2 \cup \Sigma) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+         e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_1 \rbrace \right) ~ (\sigma = \sigma_{e_1} \diamond \sigma_{e_2}; \epsilon) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+         e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
-      \over (\text{Binary} ~ \diamond ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)
+      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \cup \beta_{e_2} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Fun}
       \begin{split}
-         e ~ \sigma_2 ~ \emptyset ~ (\text{Return} ~ \sigma_2) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta \quad \Sigma_2 = \Sigma_1 \setminus \lbrace \sigma_1 \rbrace
+         e ~ \sigma_{e} ~ \emptyset ~ \left( \text{Return} ~ \sigma_{e} \right) \vdash_{\text{cfg}} \epsilon_{e} ~ \Sigma_{e} ~ \beta_{e} \quad \Sigma_2 = \Sigma_{e} \setminus \lbrace \sigma_a \rbrace
       \end{split}
-      \over (\text{Fun} ~ \sigma_1 ~ e) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} (\sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon) ~ \Sigma_2 ~ (\beta \[\rho = \text{Clos} ~ \Sigma_2 ~ \( \sigma_1 \) ~ \epsilon_1\] )
+      \over \left( \text{Fun} ~ \sigma_a ~ e \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon \right) ~ \Sigma_2 ~ \left( \beta_{e} \sqcup \lbrace \rho = \text{Clos} ~ \Sigma_2 ~ \left( \sigma_a \right) ~ \epsilon_{e} \rbrace \right)
    \end{align} $$
 
 $$
