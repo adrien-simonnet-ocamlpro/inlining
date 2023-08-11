@@ -223,9 +223,9 @@ $$
          { \Sigma_{e_n} =
          e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
          \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
-         e ~ \sigma_e ~ \Sigma_d \cup ( \bigcup_{i=1}^{n} \Sigma_n ) ~ (\text{Matchpattern} ~ \sigma_e ~ \left( \langle t_1, \rho_{e_1}, \left( a_1^1 \dots a_1^{m_1} \right), \Sigma_{e_1} \rangle \dots \langle t_n, \rho_{e_n}, \left( a_n^1 \dots a_n^{m_n} \right), \Sigma_{e_n} \rangle \right) ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma ) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+         e ~ \sigma_e ~ \left( \bigcup_{i=1}^{n} \Sigma_{e_i} \cup \Sigma_d \right) ~ \left( \text{Matchpattern} ~ \sigma_e ~ \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, \Sigma_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma \right) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
       \end{split}
-      \over (\text{Match} ~ e ~ \left( \langle t_1, \left( a_1^1 \dots a_1^{m_1} \right), e_1 \rangle \dots \langle t_n, \left( a_n^1 \dots a_n^{m_n} \right), e_n \rangle \right) ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
+      \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
    \end{align} $$
 
 
