@@ -290,7 +290,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : ex
 
       (* Pattern matching. *)
       let pattern_id, vars = inc vars in
-      let expr'', vars, pointers, fvs, conts = to_cps vars pointers (join_fv default_branch_free_variables (join_fvs free_variables_branchs)) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((_, branch_arguments_names, _), ((n, k, _), fvs)) -> n, k, branch_arguments_names, fvs) (List.combine branchs (List.combine branchs_bodies free_variables_branchs)), (default_continuation_id, default_branch_free_variables), fv0)) in
+      let expr'', vars, pointers, fvs, conts = to_cps vars pointers (join_fv fv0 (join_fv default_branch_free_variables (join_fvs free_variables_branchs))) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((_, branch_arguments_names, _), ((n, k, _), fvs)) -> n, k, branch_arguments_names, fvs) (List.combine branchs (List.combine branchs_bodies free_variables_branchs)), (default_continuation_id, default_branch_free_variables), fv0)) in
 
       expr'', vars, pointers, join_fv fvs (join_fv default_branch_free_variables (join_fvs free_variables_branchs)), add_block default_continuation_id (Match_branch ([], default_branch_free_variables, fv0), default_branch_cps) (add_block return_continuation_id (Match_join (var, fv0), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
     end
