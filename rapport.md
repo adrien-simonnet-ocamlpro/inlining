@@ -134,13 +134,24 @@ $$
       \over (\text{Let} ~ v ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_3 \cup \Sigma_1 ~ \beta_1 \cup \beta_2
    \end{align} $$
 
-$$ \begin{align} \tag{Binary} e_2 ~ \sigma_2 ~ (\sigma_1 :: \Sigma) ~ (\sigma = \sigma_1 \diamond \sigma_2; \epsilon) \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2
-   \quad e_1 ~ \sigma_1 ~ (\Sigma_2 \cup \Sigma) ~ \epsilon_2 \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
-   \over (\text{Binary} ~ \diamond ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2) \end{align} $$
+$$
+   \begin{align}
+   \tag{Binary}
+      \begin{split}
+         e_2 ~ \sigma_2 ~ (\sigma_1 :: \Sigma) ~ (\sigma = \sigma_1 \diamond \sigma_2; \epsilon) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \\
+         e_1 ~ \sigma_1 ~ (\Sigma_2 \cup \Sigma) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+      \end{split}
+      \over (\text{Binary} ~ \diamond ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)
+   \end{align} $$
 
-$$ \begin{align} \tag{Fun} e ~ \sigma_2 ~ \emptyset ~ (\text{Return} ~ \sigma_2) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta
-   \quad \Sigma_2 = \Sigma_1 \setminus \lbrace \sigma_1 \rbrace
-   \over (\text{Fun} ~ \sigma_1 ~ e) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} (\sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon) ~ \Sigma_2 ~ (\beta \[\rho = \text{Clos} ~ \Sigma_2 ~ \( \sigma_1 \) ~ \epsilon_1\] ) \end{align} $$
+$$
+   \begin{align}
+      \tag{Fun}
+      \begin{split}
+         e ~ \sigma_2 ~ \emptyset ~ (\text{Return} ~ \sigma_2) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta \quad \Sigma_2 = \Sigma_1 \setminus \lbrace \sigma_1 \rbrace
+      \end{split}
+      \over (\text{Fun} ~ \sigma_1 ~ e) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} (\sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon) ~ \Sigma_2 ~ (\beta \[\rho = \text{Clos} ~ \Sigma_2 ~ \( \sigma_1 \) ~ \epsilon_1\] )
+   \end{align} $$
 
 $$
    \begin{align}
@@ -153,17 +164,26 @@ $$
       \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2 \cup \Sigma_3) ~ (\beta_1 \cup \beta_2 \cup \beta_3)\[\rho_1 = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon\]\[\rho_2 = \text{Ifbranch} ~ \sigma_2 ~ \Sigma ~ \epsilon_2\] \[\rho_3 = \text{Ifbranch} ~ \sigma_3 ~ \Sigma ~ \epsilon_3\]
    \end{align} $$
 
-$$ \begin{align} \tag{App} e_2 ~ \sigma_2 ~ \Sigma \cup \lbrace \sigma_1 \rbrace ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~ \Sigma) \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2
-   \quad e_1 ~ \sigma_1 ~ \Sigma_2 \cup \Sigma ~ \epsilon_2 \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
-   \over (\text{App} ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] \end{align} $$
+$$
+   \begin{align}
+      \tag{App}
+      \begin{split}
+         e_2 ~ \sigma_2 ~ \Sigma \cup \lbrace \sigma_1 \rbrace ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \\
+         e_1 ~ \sigma_1 ~ \Sigma_2 \cup \Sigma ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+      \end{split}
+      \over (\text{App} ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
+   \end{align} $$
 
-$$ \begin{align} \tag{Constructor} f = \begin{cases} f_0 =
+$$
+   \begin{align}
+      \tag{Constructor} f = \begin{cases} f_0 =
       (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
       f_n = {f_{n-1} = \epsilon_{n-1} ~ \Sigma_{n-1} ~ \beta_{n-1}
          \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
          \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
       \end{cases}
-   \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n \end{align} $$
+      \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n
+   \end{align} $$
 
 
 
@@ -188,19 +208,25 @@ $$ \begin{align} \begin{cases}
    \end{cases}
    \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n \end{align} $$
 
-$$ \begin{align} d ~ \overline{d} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) \vdash_{\text{cfg}} \epsilon_d ~ \Sigma_d ~ \beta_d
-\begin{cases}
-      \beta_0 = \emptyset \\
-      \beta_n =
-         { e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma_{e_n} ~ \beta
-         \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
-         \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
-   \end{cases}
-      { \Sigma_{e_n} =
+$$
+   \begin{align}
+      \tag{Match}
+      \begin{split}
+         d ~ \overline{d} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) \vdash_{\text{cfg}} \epsilon_d ~ \Sigma_d ~ \beta_d \\
+         \begin{cases}
+            \beta_0 = \emptyset \\
+             \beta_n =
+            { e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma_{e_n} ~ \beta
+            \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
+            \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
+         \end{cases} \\
+         { \Sigma_{e_n} =
          e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
-         \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace }
-   \quad e ~ \sigma_e ~ \Sigma_d \cup ( \bigcup_{i=1}^{n} \Sigma_n ) ~ (\text{Matchpattern} ~ \sigma_e ~ \left( \langle t_1, \rho_{e_1}, \left( a_1^1 \dots a_1^{m_1} \right), \Sigma_{e_1} \rangle \dots \langle t_n, \rho_{e_n}, \left( a_n^1 \dots a_n^{m_n} \right), \Sigma_{e_n} \rangle \right) ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma ) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
-   \over (\text{Match} ~ e ~ \left( \langle t_1, \left( a_1^1 \dots a_1^{m_1} \right), e_1 \rangle \dots \langle t_n, \left( a_n^1 \dots a_n^{m_n} \right), e_n \rangle \right) ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\] \end{align} $$
+         \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
+         e ~ \sigma_e ~ \Sigma_d \cup ( \bigcup_{i=1}^{n} \Sigma_n ) ~ (\text{Matchpattern} ~ \sigma_e ~ \left( \langle t_1, \rho_{e_1}, \left( a_1^1 \dots a_1^{m_1} \right), \Sigma_{e_1} \rangle \dots \langle t_n, \rho_{e_n}, \left( a_n^1 \dots a_n^{m_n} \right), \Sigma_{e_n} \rangle \right) ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma ) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+      \end{split}
+      \over (\text{Match} ~ e ~ \left( \langle t_1, \left( a_1^1 \dots a_1^{m_1} \right), e_1 \rangle \dots \langle t_n, \left( a_n^1 \dots a_n^{m_n} \right), e_n \rangle \right) ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
+   \end{align} $$
 
 
 ### Instruction
