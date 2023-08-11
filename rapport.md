@@ -56,15 +56,15 @@ $tag \coloneqq string$
 
 J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. En particulier il n'est pas possible de déconstruire des termes à la volée ni de filtrer plusieurs motifs par la même expression.
 
-$\text{Deconstructor} : tag \times var^{*} \rightarrow matchpattern$
+$\text{Deconstructor} : tag \times var^{*} \rightarrow mp$
 
-$\text{Joker} : var \rightarrow matchpattern$
+$\text{Joker} : var \rightarrow mp$
 
 ### Opérations binaires
 
-$\text{Add} \rightarrow binaryoperator$
+$\text{Add} : bop$
 
-$\text{Sub} \rightarrow binaryoperator$
+$\text{Sub} : bop$
 
 ### Expressions
 
@@ -82,7 +82,7 @@ $\text{Let-rec} : (var \times expr)^{*} \times expr \rightarrow expr$
 
 $\text{Int} : int \rightarrow expr$
 
-$\text{Binary} : binaryoperator \times expr \times expr \rightarrow expr$
+$\text{Binary} : bop \times expr \times expr \rightarrow expr$
 
 $\text{If} : expr \times expr \times expr \rightarrow expr$
 
@@ -90,12 +90,50 @@ $\text{Type} : var \times (var \times var)^{*} \times expr \rightarrow expr$
 
 $\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
 
-$\text{Match} : expr \times (matchpattern \times expr)^{*} \rightarrow expr$
+$\text{Match} : expr \times (mp \times expr)^{*} \rightarrow expr$
 
 
 ## Analyse sémantique
 
 Le CST est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs).
+
+### Identificateurs
+
+A ce stade, le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
+
+$var \coloneqq int$
+
+$tag \coloneqq int$
+
+### Opérations binaires
+
+$\text{Add} : bop$
+
+$\text{Sub} : bop$
+
+### Expressions
+
+Si ce n'est le type des identificateurs, il y a peu de changements.
+
+$\text{Var} : var \rightarrow expr$
+
+$\text{Fun} : var \times expr \rightarrow expr$
+
+$\text{App} : expr \times expr \rightarrow expr$
+
+$\text{Let} : var \times expr \times expr \rightarrow expr$
+
+$\text{Let-rec} : (var \times expr)^{*} \times expr \rightarrow expr$
+
+$\text{Int} : int \rightarrow expr$
+
+$\text{Binary} : bop \times expr \times expr \rightarrow expr$
+
+$\text{If} : expr \times expr \times expr \rightarrow expr$
+
+$\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
+
+$\text{Match} : expr \times (tag \times var^{\*} \times expr)^{\*} \times expr \rightarrow expr$
 
 ### Alpha-conversion
 
