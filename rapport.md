@@ -135,7 +135,7 @@ $$ \begin{align} \tag{Fun} e ~ \sigma_2 ~ (\text{Return} ~ \sigma_2) ~ \emptyset
 
 $$ \begin{align} \tag{If} e_2 ~ \sigma_2 ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_2 ~ \Sigma) ~ \Sigma \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2
    \quad e_3 ~ \sigma_3 ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_3 ~ \Sigma) ~ \Sigma \vdash_{\text{cfg}} \epsilon_3 ~ \Sigma_3 ~ \beta_3
-   \quad e_1 ~ \sigma_1 ~ (\text{If} ~ \sigma_1 ~ \rho_2 ~ \Sigma_2 ~ \rho_3 ~ \Sigma_3 ~ \Sigma) ~ \Sigma_2 \cup \Sigma_3 \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \quad e_1 ~ \sigma_1 ~ (\text{If} ~ \sigma_1 ~ \rho_2 ~ \Sigma_2 ~ \rho_3 ~ \Sigma_3 ~ \Sigma) ~ (\Sigma \cup \Sigma_2 \cup \Sigma_3) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
    \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \epsilon ~ \Sigma \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2 \cup \Sigma_3) ~ (\beta_1 \cup \beta_2 \cup \beta_3)\[\rho_1 = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon\]\[\rho_2 = \text{Ifbranch} ~ \sigma_2 ~ \Sigma ~ \epsilon_2\] \[\rho_3 = \text{Ifbranch} ~ \sigma_3 ~ \Sigma ~ \epsilon_3\] \end{align} $$
 
 $$ \begin{align} \tag{App} e_2 ~ \sigma_2 ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~ \Sigma) ~ \Sigma \cup \lbrace \sigma_1 \rbrace \vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2

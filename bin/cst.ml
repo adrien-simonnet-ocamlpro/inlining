@@ -228,7 +228,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : ex
       let true_cps, vars, pointers, true_free_variables_id, true_continuations = to_cps vars pointers fv0 e2 e2_id (If_return (merge_kid, e2_id, fv0)) in
       let false_cps, vars, pointers, false_free_variables_id, false_continuations = to_cps vars pointers fv0 e3 e3_id (If_return (merge_kid, e3_id, fv0)) in
       
-      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (join_fv true_free_variables_id false_free_variables_id) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id)], (e2_kid, true_free_variables_id), fv0)) in
+      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (join_fv fv0 (join_fv true_free_variables_id false_free_variables_id)) e1 e1_id (If (e1_id, [(0, e3_kid, false_free_variables_id)], (e2_kid, true_free_variables_id), fv0)) in
 
       cps1, vars, pointers, join_fv fv1 (join_fv true_free_variables_id false_free_variables_id), add_block merge_kid (If_join (var, fv0), expr) (add_block e3_kid (If_branch (false_free_variables_id, fv0), false_cps) (add_block e2_kid (If_branch (true_free_variables_id, fv0), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
     end
