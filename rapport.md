@@ -131,7 +131,7 @@ $$
          e_2 ~ \sigma ~ \Sigma ~ \epsilon &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \quad \Sigma_3 = \Sigma_{e_2} \setminus \lbrace v \rbrace \\
          e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
-      \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \cup \beta_{e_2} \right)
+      \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
    \end{align} $$
 
 $$
@@ -141,7 +141,7 @@ $$
          e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_1 \rbrace \right) ~ (\sigma = \sigma_{e_1} \diamond \sigma_{e_2}; \epsilon) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
          e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
-      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \cup \beta_{e_2} \right)
+      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
    \end{align} $$
 
 $$
@@ -157,21 +157,22 @@ $$
    \begin{align}
       \tag{If}
       \begin{split}
-         e_2 ~ \sigma_2 ~ \Sigma ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_2 ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \\
-         e_3 ~ \sigma_3 ~ \Sigma ~ (\text{Ifreturn} ~ \rho_1 ~ \sigma_3 ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_3 ~ \Sigma_3 ~ \beta_3 \\
-         e_1 ~ \sigma_1 ~ (\Sigma \cup \Sigma_2 \cup \Sigma_3) ~ (\text{If} ~ \sigma_1 ~ \rho_2 ~ \Sigma_2 ~ \rho_3 ~ \Sigma_3 ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
-      \end{split}
-      \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_1 ~ (\Sigma_1 \cup \Sigma_2 \cup \Sigma_3) ~ (\beta_1 \cup \beta_2 \cup \beta_3)\[\rho_1 = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon\]\[\rho_2 = \text{Ifbranch} ~ \sigma_2 ~ \Sigma ~ \epsilon_2\] \[\rho_3 = \text{Ifbranch} ~ \sigma_3 ~ \Sigma ~ \epsilon_3\]
+         e_2 ~ \sigma_{e_2} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_2} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+         e_3 ~ \sigma_{e_3} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_3} ~ \Sigma_{e_3} ~ \beta_{e_3} \\
+         e_1 ~ \sigma_{e_1} ~ (\Sigma \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ (\text{If} ~ \sigma_{e_1} ~ \rho_{e_2} ~ \Sigma_{e_2} ~ \rho_{e_3} ~ \Sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+      \end{split} \\
+      \beta_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ \sigma_{e_2} ~ \Sigma ~ \epsilon_{e_2}, \rho_{e_3} = \text{Ifbranch} ~ \sigma_{e_3} ~ \Sigma ~ \epsilon_{e_3} \rbrace
+      \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ (\Sigma_{e_1} \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \beta_{e_3} \sqcup \beta_{e_1e_2e_3} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{App}
       \begin{split}
-         e_2 ~ \sigma_2 ~ \Sigma \cup \lbrace \sigma_1 \rbrace ~ (\text{Call} ~ \sigma_1 ~ ( \sigma_2 ) ~ \rho ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_2 ~ \beta_2 \\
-         e_1 ~ \sigma_1 ~ \Sigma_2 \cup \Sigma ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+         e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_{e_1} \rbrace \right) ~ \left( \text{Call} ~ \sigma_{e_1} ~ \left( \sigma_{e_2} \right) ~ \rho ~ \Sigma \right) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+         e_1 ~ \sigma_{e_1} ~ \left( \Sigma_{e_2} \cup \Sigma \right) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
-      \over (\text{App} ~ e_1 ~ e_2) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
+      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \lbrace \rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon \rbrace \right)
    \end{align} $$
 
 $$
