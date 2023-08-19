@@ -139,6 +139,28 @@ $\text{Match} : expr \times (tag \times var^{\*} \times expr)^{\*} \times expr \
 
 Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du CST). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
 
+$$
+   \begin{align}
+      \tag{Int}
+      \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{cst}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
+   \end{align} $$
+
+$$
+   \begin{align}
+      \tag{Int}
+      \begin{split}
+         e_1 ~ S ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( S \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+      \end{split}
+      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ S ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \end{align} $$
+
+
+
+
+
+
+
 ### Indexation
 
 Les noms des constructeurs ont reçus un index relatif à leur position dans la déclaration du type qui sera par la suite utilisé dans les filtrages par motifs.
