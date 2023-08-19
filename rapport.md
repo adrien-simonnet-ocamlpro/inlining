@@ -226,13 +226,24 @@ $$
    
 $$
    \begin{align}
-      \tag{Binary}
+      \tag{Constructor}
       \begin{split}
          e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
          \dots \\
          e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{cst}} e_n' ~ S_{e_n} ~ V_{e_n}
       \end{split}
       \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Constructor} ~ C\[s\] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+   \end{align} $$
+
+$$
+   \begin{align}
+      \tag{Letrec}
+      \begin{split}
+         e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         \dots \\
+         e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{cst}} e_n' ~ S_{e_n} ~ V_{e_n}
+      \end{split}
+      \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
    \end{align} $$
 
 
