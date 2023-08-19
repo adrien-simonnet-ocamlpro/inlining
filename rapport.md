@@ -203,6 +203,40 @@ $$
       \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
    \end{align} $$
 
+$$
+   \begin{align}
+      \tag{App}
+      \begin{split}
+         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+      \end{split}
+      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \end{align} $$
+
+
+
+$$
+   \begin{align}
+      \tag{Type}
+      \begin{split}
+         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i \[|1, n\|] \rbrace \right) &\vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+      \end{split}
+      \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+   \end{align} $$
+   
+$$
+   \begin{align}
+      \tag{Binary}
+      \begin{split}
+         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         \dots \\
+         e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{cst}} e_n' ~ S_{e_n} ~ V_{e_n}
+      \end{split}
+      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Constructor} ~ C\[s\] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+   \end{align} $$
+
+
+
 
 
 
