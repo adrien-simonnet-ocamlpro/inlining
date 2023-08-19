@@ -147,16 +147,40 @@ $$
 
 $$
    \begin{align}
-      \tag{Int}
+      \tag{Binary}
       \begin{split}
-         e_1 ~ S ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( S \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
-      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ S ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
    \end{align} $$
 
+$$
+   \begin{align}
+      \tag{Fun}
+      \begin{split}
+         e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+      \end{split}
+      \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
+   \end{align} $$
 
+$$
+   \begin{align}
+      \tag{Var1}
+      \begin{split}
+         x \in D(A)
+      \end{split}
+      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
+   \end{align} $$
 
+$$
+   \begin{align}
+      \tag{Var2}
+      \begin{split}
+         x \notin D(A)
+      \end{split}
+      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
+   \end{align} $$
 
 
 
