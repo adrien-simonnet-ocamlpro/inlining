@@ -182,6 +182,27 @@ $$
       \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
    \end{align} $$
 
+$$
+   \begin{align}
+      \tag{Let}
+      \begin{split}
+         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+      \end{split}
+      \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \end{align} $$
+
+$$
+   \begin{align}
+      \tag{If}
+      \begin{split}
+         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2} \\
+         e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{cst}} e_3' ~ S_{e_3} ~ V_{e_3}
+      \end{split}
+      \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
+   \end{align} $$
+
 
 
 
