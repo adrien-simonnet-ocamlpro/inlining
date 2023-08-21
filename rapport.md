@@ -305,6 +305,62 @@ $$
 
 La conversion CFG transforme le CST en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
+### Graphe de flôt de contrôle
+
+#### Identificateurs
+
+$var \coloneqq int$
+
+$pointer \coloneqq int$
+
+$tag \coloneqq int$
+
+$frame \coloneqq pointer \times var^{*}$
+
+#### Instructions élémentaires
+
+$\text{Prim} : prim \times var^{*} \rightarrow instruction$
+
+$\text{Var} : var \rightarrow instruction$
+
+$\text{Tuple} : var^{*} \rightarrow instruction$
+
+$\text{Get} : var \times int \rightarrow instruction$
+
+$\text{Closure} : pointer \times var^{*} \rightarrow instruction$
+
+$\text{Constructor} : tag \times var^{*} \rightarrow instruction$
+
+#### Expressions
+
+$\text{Let} : var \times instruction \times expr \rightarrow expr$
+
+$\text{ApplyBlock} : pointer \times var^{*} \rightarrow expr$
+
+$\text{CallDirect} : pointer \times var \times var^{*} \times frame \rightarrow expr$
+
+$\text{Call} : var \times var^{*} \times frame \rightarrow expr$
+
+$\text{If} : var \times (pointer \times var^{\*}) \times (pointer \times var^{\*}) \times var^{\*} \rightarrow expr$
+
+$\text{MatchPattern} : var \times (tag \times var^{\*} \times pointer \times var^{\*})^{\*} \times (pointer \times var^{\*}) \times var^{\*} \rightarrow expr$
+
+$\text{Return} : var \rightarrow expr$
+
+$\text{IfReturn} : pointer \times var \times var^{*} \rightarrow expr$
+
+$\text{MatchReturn} : pointer \times var \times var^{*} \rightarrow expr$
+
+#### Blocs
+
+$\text{Cont} : var^{*}
+$\text{Clos} : var^{*} \times var^{*}
+$\text{Return} : var \times var^{*}
+$\text{If_branch} : var^{*} \times var^{*}
+$\text{If_join} : var \times var^{*}
+$\text{Match_branch} : var^{*} \times var^{*} \times var^{*}
+$\text{Match_join} : var \times var^{*}
+
 $$
    \begin{align}
       \tag{Int}
