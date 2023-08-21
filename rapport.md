@@ -362,6 +362,16 @@ $blocks \coloneqq pointer \rightarrow (block \times expr)$
 
 ### Algorithme de génération du CFG
 
+L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \times var_{cfg}^{\*} \times expr_{cfg} \rightarrow expr_cfg \times var_{cfg}^{\*} \times blocks$.
+
+- Le premier argument, noté $e$, correspond à l'expression sous forme d'AST' à intégrer au CFG.
+- Le deuxième argument, noté $\sigma$, correspond au nom de la variable dans lequel devrait être conservé le résultat de l'évaluation de $e$.
+- Le troisième argument, noté $\Sigma$, correspond aux variables devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $\sigma$).
+- Le quatrième argument, noté $\epsilon$, correspond à l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle doit faire usage de $\sigma$ et chaque variable libre qui y apparaît doit figurer dans $\Sigma$.
+- Le premier résultat, noté $\epsilon'$, correspond à $e$ transpilée.
+- Le second résultat, noté $\Sigma'$, correspond aux variables libres apparaissant dans $e$ (en théorie, les variables libres de $\epsilon'$ sont exactement $\Sigma \cup \Sigma'$).
+- Le troisième résultat, noté $\beta$, est l'ensemble des blocs générés par la transpilation de $e$.
+
 $$
    \begin{align}
       \tag{Int}
