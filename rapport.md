@@ -1,6 +1,6 @@
 # Contexte
 
-L'objectif du stage a été de proposer des heuristiques d'inlining pour le compilateur d'OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'ai évolué sur un langage "jouet" qui n'est rien d'autre qu'une petite partie du noyeau fonctionnel d'OCaml. La première moitié du stage a donc consisté à implémenter les différentes phases de la compilation (langages intermédiaires et transformations) nécessaires pour mettre en place et tester lors de la seconde moitié du stage toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
+L'objectif du stage a été de proposer des heuristiques d'inlining pour le compilateur du langage OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'ai évolué sur un langage "jouet" qui n'est rien d'autre qu'une petite partie du noyeau fonctionnel d'OCaml. La première moitié du stage a donc consisté à implémenter les différentes phases de la compilation (langages intermédiaires et transformations) nécessaires pour mettre en place et tester lors de la seconde moitié du stage toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
 
 ## Langage source
 
@@ -64,7 +64,7 @@ Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml
 
 ## Analyse syntaxique
 
-L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
+L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
 
 ### Arbre de syntaxe abstraite (AST)
 
@@ -74,7 +74,15 @@ Le nom des variables et le nom des constructeurs sont des chaînes de caractère
 
 $var \coloneqq string$
 
+$typename \coloneqq string$
+
 $tag \coloneqq string$
+
+#### Types
+
+Je ne réalise aucune vérification de typage, c'est pour cela que je traite les types comme de simples chaînes de caractères.
+
+$string \coloneqq type$
 
 #### Filtrage par motif
 
@@ -102,7 +110,7 @@ $\text{App} : expr \times expr \rightarrow expr$
 
 $\text{Let} : var \times expr \times expr \rightarrow expr$
 
-$\text{Letrec} : (var \times expr)^{*} \times expr \rightarrow expr$
+$\text{Letrec} : (var \times expr)^{\*} \times expr \rightarrow expr$
 
 $\text{Int} : int \rightarrow expr$
 
@@ -110,11 +118,11 @@ $\text{Binary} : bop \times expr \times expr \rightarrow expr$
 
 $\text{If} : expr \times expr \times expr \rightarrow expr$
 
-$\text{Type} : var \times (var \times var)^{*} \times expr \rightarrow expr$
+$\text{Type} : typename \times (tag \times type)^{\*} \times expr \rightarrow expr$
 
-$\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
+$\text{Constructor} : tag \times expr^{\*} \rightarrow expr$
 
-$\text{Match} : expr \times (mp \times expr)^{*} \rightarrow expr$
+$\text{Match} : expr \times (mp \times expr)^{\*} \rightarrow expr$
 
 ### Analyseur syntaxique
 
@@ -166,31 +174,31 @@ $\text{Match} : expr \times (tag \times var^{\*} \times expr)^{\*} \times expr \
 
 ### Analyseur sémantique
 
-Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du CST). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
+Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du AST'). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
 
 $$
    \begin{align}
       \tag{Int}
-      \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{cst}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
+      \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Binary}
       \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
-      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Fun}
       \begin{split}
-         e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+         e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
       \end{split}
-      \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
+      \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
    \end{align} $$
 
 $$
@@ -199,7 +207,7 @@ $$
       \begin{split}
          x \in D(A)
       \end{split}
-      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
+      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
    \end{align} $$
 
 $$
@@ -208,38 +216,38 @@ $$
       \begin{split}
          x \notin D(A)
       \end{split}
-      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
+      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Let}
       \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
-      \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+      \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{If}
       \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2} \\
-         e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{cst}} e_3' ~ S_{e_3} ~ V_{e_3}
+         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2} \\
+         e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ V_{e_3}
       \end{split}
-      \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
+      \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{App}
       \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{cst}} e_2' ~ S_{e_2} ~ V_{e_2}
+         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
-      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
    \end{align} $$
 
 
@@ -248,31 +256,31 @@ $$
    \begin{align}
       \tag{Type}
       \begin{split}
-         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i \[|1, n\|] \rbrace \right) &\vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i \[|1, n\|] \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
       \end{split}
-      \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{cst}} e' ~ S_{e} ~ V_{e}
+      \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
    \end{align} $$
    
 $$
    \begin{align}
       \tag{Constructor}
       \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
          \dots \\
-         e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{cst}} e_n' ~ S_{e_n} ~ V_{e_n}
+         e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
       \end{split}
-      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Constructor} ~ C\[s\] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ C\[s\] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
    \end{align} $$
 
 $$
    \begin{align}
       \tag{Letrec}
       \begin{split}
-         e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{cst}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+         e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
          \dots \\
-         e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{cst}} e_n' ~ S_{e_n} ~ V_{e_n}
+         e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
       \end{split}
-      \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{cst}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+      \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
    \end{align} $$
 
 
@@ -280,7 +288,7 @@ $$
 
 ## CFG
 
-La conversion CFG transforme le CST en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
+La conversion CFG transforme l'AST' en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
 ### Graphe de flôt de contrôle
 
