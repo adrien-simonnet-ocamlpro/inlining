@@ -38,21 +38,68 @@ Depuis le premier jour de stage j'ai considérablement augmenté le nombre de la
 
 ## Analyse lexicale
 
-Les jetons de l'analyse lexicale sont générés comme toujours par OCamllex.
+L'analyse lexicale est la première étape de la compilation et convertit le programme source vu comme une chaîne de caractères en une liste de jetons.
+
+### Lexique
+
+Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/lex.html) pour supporter les fonctionnalités qui m'intéressent.
+
+$$
+(*
+*)
+(
+)
++
+-
+if
+then
+else
+fun
+->
+let
+rec
+and
+=
+in
+match
+with
+type
+of
+|
+*
+:
+,
+.
+_
+$$
+
+```
+['0'-'9']+
+['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']*
+['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']*
+[' ' '\t' '\n' '\r']
+
+```
+
+### Analyseur lexical
+
+Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml.org/manual/lexyacc.html).
 
 ## Analyse syntaxique
 
-L'AST est généré par Menhir.
+L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
 
-### Identificateurs
+### Arbre de syntaxe abstraite (AST)
 
-A ce stade, le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
+#### Identificateurs
+
+Le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
 
 $var \coloneqq string$
 
 $tag \coloneqq string$
 
-### Filtrage par motif
+#### Filtrage par motif
 
 J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. En particulier il n'est pas possible de déconstruire des termes à la volée ni de filtrer plusieurs motifs par la même expression.
 
@@ -60,13 +107,13 @@ $\text{Deconstructor} : tag \times var^{*} \rightarrow mp$
 
 $\text{Joker} : var \rightarrow mp$
 
-### Opérations binaires
+#### Opérateurs binaires
 
 $\text{Add} : bop$
 
 $\text{Sub} : bop$
 
-### Expressions
+#### Expressions
 
 Les expressions constituent la base d'un langage fonctionnel.
 
@@ -78,7 +125,7 @@ $\text{App} : expr \times expr \rightarrow expr$
 
 $\text{Let} : var \times expr \times expr \rightarrow expr$
 
-$\text{Let-rec} : (var \times expr)^{*} \times expr \rightarrow expr$
+$\text{Letrec} : (var \times expr)^{*} \times expr \rightarrow expr$
 
 $\text{Int} : int \rightarrow expr$
 
@@ -92,6 +139,9 @@ $\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
 
 $\text{Match} : expr \times (mp \times expr)^{*} \rightarrow expr$
 
+### Analyseur syntaxique
+
+L'AST est généré par [Menhir](https://ocaml.org/p/menhir/).
 
 ## Analyse sémantique
 
