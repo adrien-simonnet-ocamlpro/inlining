@@ -1,14 +1,14 @@
 # Contexte
 
-L'objectif du stage est de proposer des heuristiques d'inlining pour le compilateur d'OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée est de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'évolue sur un langage "jouet" qui n'est rien d'autre qu'une infime partie d'OCaml. La première moitié du stage a donc consisté à implémenter les différentes phases de la compilation (langages intermédiaires et transformations) nécessaires pour mettre en place et tester lors de la seconde moitié du stage toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
+L'objectif du stage a été de proposer des heuristiques d'inlining pour le compilateur d'OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'ai évolué sur un langage "jouet" qui n'est rien d'autre qu'une petite partie du noyeau fonctionnel d'OCaml. La première moitié du stage a donc consisté à implémenter les différentes phases de la compilation (langages intermédiaires et transformations) nécessaires pour mettre en place et tester lors de la seconde moitié du stage toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
 
 ## Langage source
 
-Dans le cadre du stage je ne traite que les fonctionnalités d'OCaml nécessaires pour traiter toutes les cas intéressants de l'inlining et suffisantes pour obtenir un langage Turing-complet. En particulier je me concentre uniquement sur le noyau fonctionnel d'OCaml, les objets, références, exceptions ou autre sont ignorés. Ces choix pourront bien évidemment évoluer en fonction des besoins.
+Dans le cadre du stage je n'ai traité que les fonctionnalités d'OCaml nécessaires pour aborder la plupart des cas intéressants de l'inlining et suffisantes pour obtenir un langage Turing-complet. En particulier comme je ne me suis concentré que sur le noyau fonctionnel d'OCaml, les objets, références, exceptions ou autres fonctionnalités du langage ont été ignorés.
 
 ### Lambda-calcul
 
-Les trois règles du lambda-calcul que sont les variables, l'application et l'abstraction sont évidemment des fonctionnalités indispensables.
+Les [trois règles du lambda-calcul](https://fr.wikipedia.org/wiki/Lambda-calcul#Syntaxe) que sont les variables, l'application et l'abstraction sont évidemment des fonctionnalités indispensables.
 
 ### Opérations élémentaires
 
@@ -16,7 +16,7 @@ La manipulation des entiers et le branchement conditionnel sont incontournables 
 
 ### Fermetures (mutuellement) récursives
 
-La prise en compte de la récursivité est fondamentale, premièrement en terme d'expressivité du langage (je vais être amené à réalisé des tests poussés), deuxièmement il est intéressant de prendre en compte la complexité liée à l'impossibilité d'inliner tous les appels récursifs potentiels. La récursivité mutuelle permet d'ajouter une couche de complexité notamment lors de l'analyse.
+La prise en compte de la récursivité est fondamentale, premièrement en terme d'expressivité du langage (pour réaliser des tests poussés), deuxièmement il est intéressant de prendre en compte la complexité liée à l'impossibilité d'inliner tous les appels récursifs potentiels. La récursivité mutuelle permet d'ajouter une couche de complexité notamment lors de l'analyse.
 
 ### Types Somme et filtrage par motifs
 
@@ -24,17 +24,17 @@ La possibilité de construire des types Somme est une des fonctionnalités essen
 
 ## Langage utilisé
 
-Il va de soit qu'OCaml est le meilleur langage pour créer un compilateur pour OCaml, la question ne se pose même pas.
+J'ai réalisé le compilateur en OCaml, en cohérence avec le langage source et les fondamentaux d'OCamlPro.
 
 # Phases de compilation
 
 Depuis le premier jour de stage j'ai considérablement augmenté le nombre de langages intermédiaires et transformations au fur et à mesure que la complexité des tâches à réaliser augmentait. J'ai fait des choix qui n'étaient pas toujours judicieux et dû faire machine arrière plusieurs fois ce qui m'a amené à me fixer les règles suivantes :
 
-- Toujours, dans la mesure du raisonnable, pouvoir re-concrétiser après abstraction en gardant sous la main les informations nécessaires à la reconstruction (conserver par exemple la liste des alpha-conversions pour le débogage) ;
+- Toujours, dans la mesure du raisonnable, réaliser les transformations en gardant sous la main les informations nécessaires à la transformation inverse (conserver par exemple la liste des alpha-conversions utiles pour le débogage) ;
 - Ne pas réaliser plusieurs transformations à la fois, je pense qu'il est préférable d'avoir un langage intermédiaire en trop plutôt que d'avoir une transformation de l'un vers l'autre trop compliquée ;
 - Éviter au mieux les constructions du langage qui ne sont pas utilisées lors d'une transformation mais utilisées dans la suivante, cas dans lequel il peut être pertinent de créer un langage intermédiaire.
 
-Évidemment il est possible que ces règles que je m'applique de respecter ne soient valables que dans le cadre d'un projet de petite taille.
+Évidemment il est possible que ces règles que j'ai appliquées ne soient valables que dans le cadre d'un projet de petite taille.
 
 ## Analyse lexicale
 
