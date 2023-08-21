@@ -44,42 +44,19 @@ L'analyse lexicale est la première étape de la compilation et convertit le pro
 
 Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/lex.html) pour supporter les fonctionnalités qui m'intéressent.
 
-$$
-(*
-*)
-(
-)
-+
--
-if
-then
-else
-fun
-->
-let
-rec
-and
-=
-in
-match
-with
-type
-of
-|
-*
-:
-,
-.
-_
-$$
-
-```
-['0'-'9']+
-['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']*
-['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']*
-[' ' '\t' '\n' '\r']
-
-```
+- `(* *)` pour les commentaires
+- `( )` pour le parenthésage
+- `+ -` pour les opérations sur les entiers
+- `if then else` pour le branchement conditionnel
+- `fun ->` pour la création de fermeture
+- `let rec = and in` pour les déclarations (mutuellement récursives)
+- `type of | *` pour la déclaration d'un type somme
+- `,` pour les constructeurs
+- `match with | _` pour le filtrage par motif
+- `['0'-'9']+` pour la déclaration d'un entier (positif)
+- `['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']*` pour désigner un constructeur
+- `['a'-'z']['a'-'z''A'-'Z''0'-'9''_']*` pour désigner une variable
+- `[' ' '\t' '\n' '\r']` pour l'indentation et les sauts de ligne/retours chariot
 
 ### Analyseur lexical
 
@@ -331,7 +308,9 @@ $\text{Closure} : pointer \times var^{*} \rightarrow instruction$
 
 $\text{Constructor} : tag \times var^{*} \rightarrow instruction$
 
-#### Expressions
+#### Expression
+
+Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
 
 $\text{Let} : var \times instruction \times expr \rightarrow expr$
 
@@ -351,15 +330,29 @@ $\text{IfReturn} : pointer \times var \times var^{*} \rightarrow expr$
 
 $\text{MatchReturn} : pointer \times var \times var^{*} \rightarrow expr$
 
+#### Bloc
+
+Chaque bloc est construit différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement.
+
+$\text{Cont} : var^{\*} \rightarrow block$
+
+$\text{Clos} : var^{\*} \times var^{\*} \rightarrow block$
+
+$\text{Return} : var \times var^{\*} \rightarrow block$
+
+$\text{IfBranch} : var^{\*} \times var^{\*} \rightarrow block$
+
+$\text{IfJoin} : var \times var^{*} \rightarrow block$
+
+$\text{MatchBranch} : var^{\*} \times var^{\*} \times var^{\*} \rightarrow block$
+
+$\text{MatchJoin} : var \times var^{\*} \rightarrow block$
+
 #### Blocs
 
-$\text{Cont} : var^{*}
-$\text{Clos} : var^{*} \times var^{*}
-$\text{Return} : var \times var^{*}
-$\text{If_branch} : var^{*} \times var^{*}
-$\text{If_join} : var \times var^{*}
-$\text{Match_branch} : var^{*} \times var^{*} \times var^{*}
-$\text{Match_join} : var \times var^{*}
+$blocks \coloneqq pointer \rightarrow (block \times expr)$
+
+### Algorithme de génération du CFG
 
 $$
    \begin{align}
@@ -477,14 +470,6 @@ $$
       \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
    \end{align} $$
 
-
-### Instruction
-
-Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
-
-### Basic blocks
-
-Chaque bloc est construit différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement.
 
 ## CFG analysé
 
