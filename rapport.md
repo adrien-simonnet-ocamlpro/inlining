@@ -541,13 +541,40 @@ $allocations \coloneqq pointer \rightarrow value_domain$
 
 Lors de l'analyse, les blocs conserveront désormais un ensemble de points d'allocations pour chacune de ses variables.
 
-$block_a \coloneqq \text{block}\[var/\mathcal{P}(var)\]$
+$cont_type \coloneqq \text{block}\[var/\mathcal{P}(var)\]$
+
+Une frame correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
+
+$frame \coloneqq pointer \times (\mathcal{P}(var))^{\*}
+
+La pile d'appel est une liste ordonnée d'appels.
+
+$stack_allocs \coloneqq frame^{\*}
+
+Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'appel et enfin au contexte d'allocations du moment où il est appelé.
+
+$bbloc \coloneqq pointer \times cont_type \times stack_allocs \times allocations
+
+Une fonction qui réduit la taille de la pile.
+
+$stack_reduce \coloneqq stack_allocs \rightarrow stack_allocs$
+
+Le contexte d'appel contient la pile d'appel et les arguments d'appel.
+
+> Il est important de noter que si l'on suppose la pile d'appel comme ayant une taille finie (garantie après réduction), la dimension d'un contexte est bornée, ce qui est essentiel pour garantir la terminaison.
+
+$context \coloneqq stack_allocs \times cont_type$
+
+Un contexte d'allocations associe un contexte à l'état de ses allocations.
+
+> La dimension d'un contexte étant bornée, les contextes sont donc dénombrables (on peut donc implémenter la table d'association correspondante).
+
+$alloccontexte \coloneqq context \rightarrow allocations$
+
+$(allocations ContextMap.t) Cps.PointerMap.t$
 
 
-
-$\text{analysis} : (pointer \times block_a \times stack_allocs \times allocations)^{\*} ->
-(stack_analysis -> stack_analysis) ->
-cont ->
+$\text{analysis} : bbloc^{\*} \times stack_reduce \times blocks \times var 
 allocations ContextMap.t Asm.VarMap.t ->
 (allocations * cont_type) Asm.VarMap.t$
 
