@@ -593,50 +593,52 @@ $analysis \coloneqq pointer \rightarrow callanalysed$
 
 $\text{analysis} : bbloc^{\*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
 
+---
+header-includes:
+  - \usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+---
 
 
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{conts reduce prog map}
+\BlankLine
+\eIf{$conts$ est vide}{
+    map2 $\gets \emptyset$\;
+    \For{$b \in map$}{
+        map2[b] $\gets$ union de toutes les allocations et paramètres\;
+    }
+    \Return map2
+}{
+   k, block', stack''', allocations $\gets$ hd(conts)\;
+   conts' $\gets$ tl(conts)\;
+   stack $\gets$ reduce(stack''')\;
 
-```ocaml
-let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_allocs -> stack_allocs) (prog: cont) (map: (allocations ContextMap.t) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
-  match conts with
-  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), allocations) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, new_env), allocations) = List.hd (ContextMap.bindings contexts) in allocations, new_env) (List.tl (ContextMap.bindings contexts))) map
-  | (k, block', stack''', allocations) :: conts' -> begin
-    Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_allocations allocations;
-    Logger.stop ();
+   \eIf{$k \in \mathcal{D}(map)$}{
+    oldcontexts $\gets$ map(k)\;
 
-      let stack = reduce stack''' in
+    \eIf{$(stack, block') \in \mathcal{D}(oldcontexts)$}{
+        oldallocations $\gets$ oldcontexts((stack, block'))\;
+        newallocations $\gets$ oldallocations $\cup$ allocations\;
 
-      (* Already seen this block. *)
-      if Cps.PointerMap.mem k map then begin
-        let old_contexts = Cps.PointerMap.find k map in
-        
-        (* Already seen this context. *)
-        if ContextMap.mem (stack, block') old_contexts then begin
-          let old_allocations = ContextMap.find (stack, block') old_contexts in
-          let new_allocations = join_allocations old_allocations allocations in
-          (* Already seen these allocations. *)
-          if Cps.VarMap.equal value_cmp new_allocations old_allocations then begin
-            match stack''' with
-            | [] -> analysis conts' reduce prog map
-            | (k', args) :: _stack' -> analysis ((k', Return (Cps.VarSet.empty, args), _stack', new_allocations) :: conts') reduce prog map
-          end else begin
-            let block, expr = Cps.PointerMap.find k prog in
-            let next_conts = analysis_cont expr stack''' (block_env block block') new_allocations in
-            analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') new_allocations old_contexts) map)
-          end
-        end else begin
-          let block, expr = Cps.PointerMap.find k prog in
-          let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-          analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') allocations old_contexts) map)
-        end
-      end else begin
-        let block, expr = Cps.PointerMap.find k prog in
-        let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
-        analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.singleton (stack, block') allocations) map)
-      end
-    end
-```
+        \eIf{newallocations = oldallocations}{
 
+        }{
+            block, expr $\gets$ prog(k)\;
+            nextconts $\gets$ analysiscont(expr, stack''', (blockenv block block'), newallocations)\;
+            \Return {analysis(conts'nextconts, reduce, prog, add k (add (stack, block') newallocations oldcontexts) map)}
+        }
+    }{
+
+    }
+   }{
+
+   }
+}
+\caption{Analyse du programme}
+\end{algorithm}
 
 ### Abstractions
 
