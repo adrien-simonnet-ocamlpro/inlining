@@ -320,6 +320,8 @@ $\text{Constructor} : tag \times var^{*} \rightarrow instruction$
 
 Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
 
+> `CallDirect` est un branchement qui n'est pas atteignable depuis le programme source et n'apparaît qu'après une étape d'analyse.
+
 $\text{Let} : var \times instruction \times expr \rightarrow expr$
 
 $\text{ApplyBlock} : pointer \times var^{*} \rightarrow expr$
@@ -489,11 +491,13 @@ $$
    \end{align} $$
 
 
-## CFG analysé
+## Analyse
 
-L'analyse est l'étape la plus compliquée et probablement la plus importante. Elle s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (et donc de conserver certaines relations) et les informations sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Comme après alpha-conversion chaque nom de variable est unique, on peut identifier les valeurs par un ensemble de noms de variables (ce qui correspond aux endroits potentiels où elles ont été déclarées et initialisées). Pour exploiter l'analyse il m'a été nécessaire dans l'immédiat de cloner le CFG pour intégrer les informations issues de l'analyse. Cela concerne exclusivement les appels indirects transformés en appels directs mais pour lesquels je ne peux pas les transformer en saut (directs) pour rester conforme à la sémantique.
+L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer le meieux possible les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (et donc de conserver certaines relations) tout en disposant des informations nécessaires sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation, c'est à dire que les paramètres des blocs sont identifiés par un ensemble de points d'allocation et chaque point d'allocation contient une valeur abstraite. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par un nom de variable. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes).
 
 ### Domaines
+
+
 
 #### Entiers
 
@@ -532,11 +536,11 @@ Une valeur abstraite est soit un entier soit une fermeture.
 
 $\text{IntDomain} : int_d \rightarrow value_domain$
 
-$\text{IntDomain} : closure_d \rightarrow value_domain$
+$\text{ClosureDomain} : closure_d \rightarrow value_domain$
 
 Comme chaque valeur est toujours initialisée et déclarée avec un identifiant unique, elles sont conservées dans une table d'association correspondant aux allocations.
 
-$allocations \coloneqq pointer \rightarrow value_domain$
+$allocations \coloneqq var \rightarrow value_domain$
 
 
 Lors de l'analyse, les blocs conserveront désormais un ensemble de points d'allocations pour chacune de ses variables.
@@ -545,15 +549,15 @@ $cont_type \coloneqq \text{block}\[var/\mathcal{P}(var)\]$
 
 Une frame correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
 
-$frame \coloneqq pointer \times (\mathcal{P}(var))^{\*}
+$frame \coloneqq pointer \times (\mathcal{P}(var))^{\*}$
 
 La pile d'appel est une liste ordonnée d'appels.
 
-$stack_allocs \coloneqq frame^{\*}
+$stack_allocs \coloneqq frame^{\*}$
 
 Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'appel et enfin au contexte d'allocations du moment où il est appelé.
 
-$bbloc \coloneqq pointer \times cont_type \times stack_allocs \times allocations
+$bbloc \coloneqq pointer \times cont_type \times stack_allocs \times allocations$
 
 Une fonction qui réduit la taille de la pile.
 
@@ -565,20 +569,71 @@ Le contexte d'appel contient la pile d'appel et les arguments d'appel.
 
 $context \coloneqq stack_allocs \times cont_type$
 
-Un contexte d'allocations associe un contexte à l'état de ses allocations.
+Une table de contextes d'allocations associe un contexte à l'état de ses allocations.
 
 > La dimension d'un contexte étant bornée, les contextes sont donc dénombrables (on peut donc implémenter la table d'association correspondante).
 
 $alloccontexte \coloneqq context \rightarrow allocations$
 
-$(allocations ContextMap.t) Cps.PointerMap.t$
+Une table de contextes de blocs associe chaque bloc à ses contextes d'allocation.
+
+$bloccontexte \coloneqq pointer \rightarrow alloccontexte$
+
+Un appel analysé est une paire associant les paramètres passés avec leurs allocations correspondantes.
+
+$callanalysed \coloneqq cont_type \times allocations$
+
+Un programme analyse (càd le résultat de l'analyse) est une table associant chaque bloc à son appel analysé.
+
+$analysis \coloneqq pointer \rightarrow callanalysed$
+
+### Algorithme d'analyse
+
+$\text{analysis} : bbloc^{\*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
 
 
-$\text{analysis} : bbloc^{\*} \times stack_reduce \times blocks \times var 
-allocations ContextMap.t Asm.VarMap.t ->
-(allocations * cont_type) Asm.VarMap.t$
 
 
+```ocaml
+let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_allocs -> stack_allocs) (prog: cont) (map: (allocations ContextMap.t) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
+  match conts with
+  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), allocations) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, new_env), allocations) = List.hd (ContextMap.bindings contexts) in allocations, new_env) (List.tl (ContextMap.bindings contexts))) map
+  | (k, block', stack''', allocations) :: conts' -> begin
+    Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_allocations allocations;
+    Logger.stop ();
+
+      let stack = reduce stack''' in
+
+      (* Already seen this block. *)
+      if Cps.PointerMap.mem k map then begin
+        let old_contexts = Cps.PointerMap.find k map in
+        
+        (* Already seen this context. *)
+        if ContextMap.mem (stack, block') old_contexts then begin
+          let old_allocations = ContextMap.find (stack, block') old_contexts in
+          let new_allocations = join_allocations old_allocations allocations in
+          (* Already seen these allocations. *)
+          if Cps.VarMap.equal value_cmp new_allocations old_allocations then begin
+            match stack''' with
+            | [] -> analysis conts' reduce prog map
+            | (k', args) :: _stack' -> analysis ((k', Return (Cps.VarSet.empty, args), _stack', new_allocations) :: conts') reduce prog map
+          end else begin
+            let block, expr = Cps.PointerMap.find k prog in
+            let next_conts = analysis_cont expr stack''' (block_env block block') new_allocations in
+            analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') new_allocations old_contexts) map)
+          end
+        end else begin
+          let block, expr = Cps.PointerMap.find k prog in
+          let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
+          analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.add (stack, block') allocations old_contexts) map)
+        end
+      end else begin
+        let block, expr = Cps.PointerMap.find k prog in
+        let next_conts = analysis_cont expr stack''' (block_env block block') allocations in
+        analysis (conts'@next_conts) reduce prog (Cps.PointerMap.add k (ContextMap.singleton (stack, block') allocations) map)
+      end
+    end
+```
 
 
 ### Abstractions
