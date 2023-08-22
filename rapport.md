@@ -517,6 +517,17 @@ $constructor_d \coloneqq tag \rightarrow \mathcal{P}(var)^{\*}$
 
 En pratique, $pointer = tag = int$, c'est pour cela que j'utilise le même domaine pour les constructeurs et les tags.
 
+L'union de deux domaines de fermetures consiste à conserver les entrées distinctes et d'unir les valeurs des entrées communes.
+
+> Deux entrées communes sont censées avoir le même nombre de valeurs.
+
+$$x \cup_{closure} y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
+   \begin{cases}
+      \left( x(z)\_i \cup y(z)\_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
+      x(z) \text{ si } z \in \mathcal{D}(x) \\
+      y(z) \text{ si } z \in \mathcal{D}(y)
+   \end{cases}$$
+
 ### Abstractions
 
 Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du langage. La première pour les entiers qui est simplement le domaine singleton. La deuxième pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
