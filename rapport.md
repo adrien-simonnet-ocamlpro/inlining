@@ -528,6 +528,32 @@ $$x \cup_{closure} y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
       y(z) \text{ si } z \in \mathcal{D}(y)
    \end{cases}$$
 
+Une valeur abstraite est soit un entier soit une fermeture.
+
+$\text{IntDomain} : int_d \rightarrow value_domain$
+
+$\text{IntDomain} : closure_d \rightarrow value_domain$
+
+Comme chaque valeur est toujours initialisée et déclarée avec un identifiant unique, elles sont conservées dans une table d'association correspondant aux allocations.
+
+$allocations \coloneqq pointer \rightarrow value_domain$
+
+
+Lors de l'analyse, les blocs conserveront désormais un ensemble de points d'allocations pour chacune de ses variables.
+
+$block_a \coloneqq \text{block}\[var/\mathcal{P}(var)\]$
+
+
+
+$\text{analysis} : (pointer \times block_a \times stack_allocs \times allocations)^{\*} ->
+(stack_analysis -> stack_analysis) ->
+cont ->
+allocations ContextMap.t Asm.VarMap.t ->
+(allocations * cont_type) Asm.VarMap.t$
+
+
+
+
 ### Abstractions
 
 Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du langage. La première pour les entiers qui est simplement le domaine singleton. La deuxième pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
