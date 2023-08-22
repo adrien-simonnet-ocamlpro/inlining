@@ -1,3 +1,16 @@
+---
+Title:    Rapport de stage STL
+Author:   Adrien Simonnet
+Date:     Avril - Septembre 2023
+header-includes:
+  - \usepackage{mathtools}
+  - \usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+geometry: margin=2.5cm
+fontsize: 12pt
+toc: true
+toc-title: Table des matières
+---
+
 # Contexte
 
 L'objectif du stage a été de proposer des heuristiques d'inlining pour le compilateur du langage OCaml. L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Découvrir et travailler sur un compilateur complexe comme celui d'OCaml n'a pas été jugé envisageable par mes tuteurs de stage, c'est la raison pour laquelle j'ai évolué sur un langage "jouet" qui n'est rien d'autre qu'une petite partie du noyeau fonctionnel d'OCaml. La première moitié du stage a donc consisté à implémenter les différentes phases de la compilation (langages intermédiaires et transformations) nécessaires pour mettre en place et tester lors de la seconde moitié du stage toutes les heuristiques d'inlining possibles qui me semblent pertinentes.
@@ -176,13 +189,13 @@ $\text{Match} : expr \times (tag \times var^{\*} \times expr)^{\*} \times expr \
 
 Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du AST'). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
 
-$$
+
    \begin{align}
       \tag{Int}
       \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
-   \end{align} $$
+   \end{align}
 
-$$
+
    \begin{align}
       \tag{Binary}
       \begin{split}
@@ -190,36 +203,36 @@ $$
          e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
       \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Fun}
       \begin{split}
          e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
       \end{split}
       \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Var1}
       \begin{split}
          x \in D(A)
       \end{split}
       \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Var2}
       \begin{split}
          x \notin D(A)
       \end{split}
       \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Let}
       \begin{split}
@@ -227,9 +240,9 @@ $$
          e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
       \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{If}
       \begin{split}
@@ -238,9 +251,9 @@ $$
          e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ V_{e_3}
       \end{split}
       \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{App}
       \begin{split}
@@ -248,20 +261,20 @@ $$
          e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
       \end{split}
       \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} $$
+   \end{align} 
 
 
 
-$$
+
    \begin{align}
       \tag{Type}
       \begin{split}
-         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i \[|1, n\|] \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i [|1, n|] \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
       \end{split}
       \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
-   \end{align} $$
+   \end{align} 
    
-$$
+
    \begin{align}
       \tag{Constructor}
       \begin{split}
@@ -269,10 +282,10 @@ $$
          \dots \\
          e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
       \end{split}
-      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ C\[s\] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
-   \end{align} $$
+      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ C[s] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Letrec}
       \begin{split}
@@ -281,7 +294,7 @@ $$
          e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
       \end{split}
       \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
-   \end{align} $$
+   \end{align} 
 
 
 
@@ -374,18 +387,18 @@ L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \time
 - Le second résultat, noté $\Sigma'$, correspond aux variables libres apparaissant dans $e$ (en théorie, les variables libres de $\epsilon'$ sont exactement $\Sigma \cup \Sigma'$).
 - Le troisième résultat, noté $\beta$, est l'ensemble des blocs générés par la transpilation de $e$.
 
-$$
+
    \begin{align}
       \tag{Int}
-      \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset            \end{align} $$
+      \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset            \end{align} 
 
-$$
+
    \begin{align}
       \tag{Var}
       \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Let}
       \begin{split}
@@ -393,9 +406,9 @@ $$
          e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
       \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
    \tag{Binary}
       \begin{split}
@@ -403,18 +416,18 @@ $$
          e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
       \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Fun}
       \begin{split}
          e ~ \sigma_{e} ~ \emptyset ~ \left( \text{Return} ~ \sigma_{e} \right) \vdash_{\text{cfg}} \epsilon_{e} ~ \Sigma_{e} ~ \beta_{e} \quad \Sigma_2 = \Sigma_{e} \setminus \lbrace \sigma_a \rbrace
       \end{split}
       \over \left( \text{Fun} ~ \sigma_a ~ e \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon \right) ~ \Sigma_2 ~ \left( \beta_{e} \sqcup \lbrace \rho = \text{Clos} ~ \Sigma_2 ~ \left( \sigma_a \right) ~ \epsilon_{e} \rbrace \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{If}
       \begin{split}
@@ -424,9 +437,9 @@ $$
       \end{split} \\
       \beta_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ \sigma_{e_2} ~ \Sigma ~ \epsilon_{e_2}, \rho_{e_3} = \text{Ifbranch} ~ \sigma_{e_3} ~ \Sigma ~ \epsilon_{e_3} \rbrace
       \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ (\Sigma_{e_1} \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \beta_{e_3} \sqcup \beta_{e_1e_2e_3} \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{App}
       \begin{split}
@@ -434,9 +447,9 @@ $$
          e_1 ~ \sigma_{e_1} ~ \left( \Sigma_{e_2} \cup \Sigma \right) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_{e_1} ~ \beta_{e_1}
       \end{split}
       \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \lbrace \rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon \rbrace \right)
-   \end{align} $$
+   \end{align} 
 
-$$
+
    \begin{align}
       \tag{Constructor} f = \begin{cases} f_0 =
       (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
@@ -445,12 +458,12 @@ $$
          \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
       \end{cases}
       \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n
-   \end{align} $$
+   \end{align} 
 
 
 
 
-$$ \begin{align} \begin{cases}
+ \begin{align} \begin{cases}
       \epsilon_0 = (\sigma = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
       \epsilon_n =
          { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
@@ -468,9 +481,9 @@ $$ \begin{align} \begin{cases}
          { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
          \over \beta \cup \beta_{n-1} }
    \end{cases}
-   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n \end{align} $$
+   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n \end{align} 
 
-$$
+
    \begin{align}
       \tag{Match}
       \begin{split}
@@ -487,8 +500,8 @@ $$
          \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
          e ~ \sigma_e ~ \left( \bigcup_{i=1}^{n} \Sigma_{e_i} \cup \Sigma_d \cup \Sigma \right) ~ \left( \text{Matchpattern} ~ \sigma_e ~ \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, \Sigma_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma \right) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
       \end{split}
-      \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)\[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon\]
-   \end{align} $$
+      \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon]
+   \end{align} 
 
 
 ## Analyse
@@ -547,7 +560,7 @@ $allocations \coloneqq var \rightarrow value_domain$
 
 Lors de l'analyse, les blocs conserveront désormais un ensemble de points d'allocations pour chacune de ses variables.
 
-$cont_type \coloneqq \text{block}\[var/\mathcal{P}(var)\]$
+$cont_type \coloneqq \text{block}[var/\mathcal{P}(var)]$
 
 Une frame correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
 
@@ -592,12 +605,6 @@ $analysis \coloneqq pointer \rightarrow callanalysed$
 ### Algorithme d'analyse
 
 $\text{analysis} : bbloc^{\*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
-
----
-header-includes:
-  - \usepackage[ruled,vlined,linesnumbered]{algorithm2e}
----
-
 
 \begin{algorithm}[H]
 \DontPrintSemicolon
