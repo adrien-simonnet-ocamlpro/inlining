@@ -493,6 +493,30 @@ $$
 
 L'analyse est l'étape la plus compliquée et probablement la plus importante. Elle s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (et donc de conserver certaines relations) et les informations sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Comme après alpha-conversion chaque nom de variable est unique, on peut identifier les valeurs par un ensemble de noms de variables (ce qui correspond aux endroits potentiels où elles ont été déclarées et initialisées). Pour exploiter l'analyse il m'a été nécessaire dans l'immédiat de cloner le CFG pour intégrer les informations issues de l'analyse. Cela concerne exclusivement les appels indirects transformés en appels directs mais pour lesquels je ne peux pas les transformer en saut (directs) pour rester conforme à la sémantique.
 
+### Domaines
+
+#### Entiers
+
+J'ai choisi de représenter les entiers de la manière la plus simple qui soit, c'est à dire des singletons munis de Top ($Z$).
+
+$\text{Top} : int_d$
+
+$\text{Singleton} : int \rightarrow int_d$
+
+L'union de deux entiers donne toujours Top sauf lorsqu'il s'agit de deux singletons de même valeur.
+
+$u = v \Rightarrow \lbrace u \rbrace \cup_{int_d} \lbrace v \rbrace = \lbrace u \rbrace$
+
+$x \cup_{int_d} y = Top$
+
+Le domaine pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
+
+$closure_d \coloneqq pointer \rightarrow \mathcal{P}(var)^{\*}$
+
+$constructor_d \coloneqq tag \rightarrow \mathcal{P}(var)^{\*}$
+
+En pratique, $pointer = tag = int$, c'est pour cela que j'utilise le même domaine pour les constructeurs et les tags.
+
 ### Abstractions
 
 Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du langage. La première pour les entiers qui est simplement le domaine singleton. La deuxième pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
