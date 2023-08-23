@@ -1,7 +1,7 @@
 ---
-Title:    Rapport de stage STL
-Author:   Adrien Simonnet
-Date:     Avril - Septembre 2023
+title:    Rapport de stage STL
+author:   Adrien Simonnet
+date:     Avril - Septembre 2023
 header-includes:
   - \usepackage{mathtools}
   - \usepackage[ruled,vlined,linesnumbered]{algorithm2e}
@@ -10,6 +10,8 @@ fontsize: 12pt
 toc: true
 toc-title: Table des matières
 ---
+
+\newpage
 
 # Contexte
 
@@ -39,6 +41,8 @@ La possibilité de construire des types Somme est une des fonctionnalités essen
 
 J'ai réalisé le compilateur en OCaml, en cohérence avec le langage source et les fondamentaux d'OCamlPro.
 
+\newpage
+
 # Phases de compilation
 
 Depuis le premier jour de stage j'ai considérablement augmenté le nombre de langages intermédiaires et transformations au fur et à mesure que la complexité des tâches à réaliser augmentait. J'ai fait des choix qui n'étaient pas toujours judicieux et dû faire machine arrière plusieurs fois ce qui m'a amené à me fixer les règles suivantes :
@@ -49,7 +53,9 @@ Depuis le premier jour de stage j'ai considérablement augmenté le nombre de la
 
 Évidemment il est possible que ces règles que j'ai appliquées ne soient valables que dans le cadre d'un projet de petite taille.
 
-## Analyse lexicale
+\newpage
+
+# Analyse lexicale
 
 L'analyse lexicale est la première étape de la compilation et convertit le programme source vu comme une chaîne de caractères en une liste de jetons.
 
@@ -75,7 +81,9 @@ Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/r
 
 Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml.org/manual/lexyacc.html).
 
-## Analyse syntaxique
+\newpage
+
+# Analyse syntaxique
 
 L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
 
@@ -141,7 +149,9 @@ $\text{Match} : expr \times (mp \times expr)^{\*} \rightarrow expr$
 
 L'AST est généré par [Menhir](https://ocaml.org/p/menhir/).
 
-## Analyse sémantique
+\newpage
+
+# Analyse sémantique
 
 L'AST' est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs). Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
 
@@ -297,9 +307,9 @@ Toutes les variables sont alpha-converties et retournées à part (la liste des 
    \end{align} 
 
 
+\newpage
 
-
-## CFG
+# CFG
 
 La conversion CFG transforme l'AST' en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
@@ -343,7 +353,7 @@ $\text{CallDirect} : pointer \times var \times var^{*} \times frame \rightarrow 
 
 $\text{Call} : var \times var^{*} \times frame \rightarrow expr$
 
-$\text{If} : var \times (pointer \times var^{\*}) \times (pointer \times var^{\*}) \times var^{\*} \rightarrow expr$
+$\text{If} : var \times (pointer \times var^{*}) \times (pointer \times var^{*}) \times var^{*} \rightarrow expr$
 
 $\text{MatchPattern} : var \times (tag \times var^{\*} \times pointer \times var^{\*})^{\*} \times (pointer \times var^{\*}) \times var^{\*} \rightarrow expr$
 
@@ -395,6 +405,7 @@ L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \time
 
    \begin{align}
       \tag{Var}
+      \label{Var}
       \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
    \end{align} 
 
@@ -504,17 +515,49 @@ L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \time
    \end{align} 
 
 
-## Analyse
+### Nettoyage des alias
 
-L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer le meieux possible les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (et donc de conserver certaines relations) tout en disposant des informations nécessaires sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation, c'est à dire que les paramètres des blocs sont identifiés par un ensemble de points d'allocation et chaque point d'allocation contient une valeur abstraite. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par un nom de variable. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). 
+Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias.
+
+### Taille
+
+Déterminer la taille du CFG est nécessaire pour certaines heuristiques. Comme le CFG n'est pas le langage qui sera compilé ou éxécuté, le calcul de cette taille est seulement indicatif et n'est en aucun cas précis. La taille du CFG correspond à la somme de la taille de tous ses blocs. La taille d'un bloc correspond au nombre de ses paramètres plus la somme de la taille de ses instructions. La taille d'une instruction dépend principalement du nombre de ses arguments.
+
+### Recensement des variables et appels de blocs
+
+Plusieurs optimisations ont besoin de connaître le nombre de fois qu'une variable est utilisée ou qu'un bloc est appelé. Un tel algorithme de recensement semble trivial mais en fait ne l'est pas du tout. Mon implémentation actuelle ne prend pas en compte la vivacité des blocs, c'est pour cela qu'un bloc appelé par par un bloc mort sera considéré vivant. De plus, étant donné qu'il est impossible de déterminer sans une analyse complète quel bloc sera appelé par un appel indirect, je me contente de supposer un appel à chaque création de fermeture. Il est évident que ces erreurs doivent être corrigées, mais cela ne peut pas se faire sans une approche globale des opimisations qui suivent, en particulier le nettoyage des variables inutilisées et des blocs morts.
+
+### Spécialisation
+
+La spécialisation consiste à copier des blocs. Les appels directs vers les blocs concernés reçoivent un nouveau pointeur vers un bloc fraîchement copié. La copie d'un bloc a pour effet immédiat d'améliorer la précision de l'analyse, et c'est également la première étape de l'inlining.
+
+#### Algorithme de spécialisation
+
+L'implémentation actuelle de la spécialisation des blocs n'est pas poussée à son maximum. Les blocs à copier sont toujours copiés indépendamment de l'appel. Il serait intéressant d'intégrer la possibilité de choisir les appels à spécialiser, autrement dit de traiter des couples bloc appelant/bloc appelé. Néammoins un tel couple me paraîtrait insuffisant notamment lorsqu'un même bloc peut être appelé de différentes manières par une même instruction (en théorie c'est le cas du filtrage par motif même si mon implémentation actuelle ne le permet pas). Une solution possible serait de choisir dynamiquement lors de l'analyse de spécialiser tel ou tel appel. Cette solution apporterait certes des réponses mais apporterait probablement de trop nombreux problèmes.
+
+Lors de la copie d'un bloc il est évidemment indispensable de conserver les invariants qui s'appliquent au CFG, en particulier l'unicité des noms de variable, c'est pour cela que chaque copie s'accompagne d'une nouvelle étape de renommage.
+
+#### Choix des blocs à spécialiser
+
+Les blocs à spécialiser sont actuellement sélectionnés uniquement selon que leur taille se trouve ou non sous un certain seuil statique.
+
+### Analyse
+
+L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer au mieux les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (en conservant certaines relations) tout en disposant des informations nécessaires sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation, c'est à dire que les paramètres des blocs sont identifiés par un ensemble de points d'allocation et chaque point d'allocation contient une valeur abstraite. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par un nom de variable. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). 
 
 > Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
 
-### Domaines
 
 
 
-#### Entiers
+
+Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels
+
+#### Domaines
+
+
+
+##### Entiers
 
 J'ai choisi de représenter les entiers de la manière la plus simple qui soit, c'est à dire des singletons munis de Top ($Z$).
 
@@ -655,17 +698,134 @@ Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du
 
 Les noms de variables, par extension les zones d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidement fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
 
-## CFG concret
+### Propagation
+
+La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. En particulier c'est ici que sont transformés les appels indirects en appels directs.
+
+\newpage
+
+# CFG concret
 
 Le CFG concret est construit à partir du CFG en concretisant quasiment tous les traits de langage propres à OCaml. A chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
+
+### Définition
+
+#### Identifiants
+
+$var \coloneqq int$
+
+$pointer \coloneqq int$
+
+$tag \coloneqq int$
+
+$frame \coloneqq pointer \times var^{*}$
+
+$stack \coloneqq frame^{*}$
+
+#### Expressions
+
+$\text{Const} : int \mapsto expr$
+
+$\text{Add} : var \times var \mapsto expr$
+
+$\text{Sub} : var \times var \mapsto expr$
+
+$\text{Var} : var \mapsto expr$
+
+$\text{Tuple} : var^{*} \mapsto expr$
+
+$\text{Get} : var \times int \mapsto expr$
+
+$\text{Pointer} : pointer \mapsto expr$
+
+#### Instructions
+
+$\text{Let} : var \times expr \times instr \mapsto instr$
+
+$\text{ApplyDirect} : pointer \times var^{*} \times stack \mapsto instr$
+
+$\text{ApplyIndirect} : var \times var^{*} \times stack \mapsto instr$
+
+$\text{If} : var \times (int \times pointer \times var^{*})^{*} \times (pointer \times var^{*}) \times stack \mapsto instr$
+
+$\text{Return} : var \mapsto instr$
+
+#### Bloc
+
+$block \coloneqq var^{*} \times instr$
+
+#### Blocs
+
+$blocks \coloneqq pointer \rightarrow block$
+
+### Génération du CFG concret
+
+La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
+
+$cfg : block_{cfg} \times instr \mapsto block \times blocks$
+
+\begin{align}
+   \tag{Cont}
+   \over \left( \text{Cont} ~ args \right) ~ i \vdash_{\text{cfg'}} args ~ i ~ \emptyset
+\end{align}
+
+\begin{align}
+   \tag{Return}
+   \over \left( \text{Return} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+\end{align}
+
+\begin{align}
+   \tag{Clos}
+   \begin{cases}
+      i_0 = \text{ApplyDirect} ~ p ~ \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right) ~ \left( \right) \\
+      i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
+   \end{cases}
+   \over \left( \text{Clos} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m \right) ~ i_n ~ \lbrace p = \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right), i \rbrace
+\end{align}
+
+\begin{align}
+   \tag{IfBranch}
+   \over \left( \text{IfBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=m} ~ i ~ \emptyset
+\end{align}
+
+\begin{align}
+   \tag{IfJoin}
+   \over \left( \text{IfJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+\end{align}
+
+\begin{align}
+   \tag{MatchBranch}
+   \begin{cases}
+      i_0 = i \\
+      i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
+   \end{cases}
+   \over \left( \text{MatchBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} ~ \left( a_i \right)_{i=m+1}^{i=o} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m, a_{m+1}, \dots, a_o \right) ~ i_n ~ \emptyset
+\end{align}
+
+\begin{align}
+   \tag{MatchJoin}
+   \over \left( \text{MatchJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+\end{align}
+
+### Taille
+
+Calculer la taille du CFG concret est uniquement intéressant d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
+
+### Recensement des variables et appels de blocs
+
+De la même manière que lors de la phase CFG, les variables et les appels de blocs sont recensés afin de supprimer les variables inutilisées et les blocs morts.
 
 ### Inlining
 
 L'inlining a lieu sur le CFG concret car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile. Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement). Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction.
 
+> Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs spécialisés sont ainsi tous conernés).
+
 ### Interprétation
 
 C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations. Pour la suite du stage je serai amené à extraire de nombreuses informations issues de l'interprétation pour vérifier la pertinance des heuristiques mises en place.
+
+\newpage
 
 # Heuristiques d'inlining
 
