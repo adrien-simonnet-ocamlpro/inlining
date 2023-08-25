@@ -62,9 +62,11 @@ Depuis le premier jour de stage j'ai considérablement augmenté le nombre de la
 
 L'analyse lexicale est la première étape de la compilation et convertit le programme source vu comme une chaîne de caractères en une liste de jetons.
 
-### Lexique
+## Lexique
 
 Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/lex.html) pour supporter les fonctionnalités qui m'intéressent.
+
+> Je n'ai pas jugé pertinent d'indiquer le nom des jetons.
 
 - `(* *)` pour les commentaires
 - `( )` pour le parenthésage
@@ -80,7 +82,7 @@ Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/r
 - `['a'-'z']['a'-'z''A'-'Z''0'-'9''_']*` pour désigner une variable
 - `[' ' '\t' '\n' '\r']` pour l'indentation et les sauts de ligne/retours chariot
 
-### Analyseur lexical
+## Analyseur lexical
 
 Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml.org/manual/lexyacc.html).
 
@@ -90,67 +92,63 @@ Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml
 
 L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
 
-### Arbre de syntaxe abstraite (AST)
+## Arbre de syntaxe abstraite (AST)
 
-#### Identificateurs
+### Identificateurs
 
 Le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
 
-$var \coloneqq string$
+$\mathbb{S} \coloneqq string$ (chaînes de caractères)
 
-$typename \coloneqq string$
+$\mathbb{V} \coloneqq \mathbb{S}$ (variables)
 
-$tag \coloneqq string$
+$\mathbb{T} \coloneqq \mathbb{S}$ (tags)
 
-#### Types
-
-Je ne réalise aucune vérification de typage, c'est pour cela que je traite les types comme de simples chaînes de caractères.
-
-$string \coloneqq type$
-
-#### Filtrage par motif
+### Filtrage par motif
 
 J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. En particulier il n'est pas possible de déconstruire des termes à la volée ni de filtrer plusieurs motifs par la même expression.
 
-$\text{Deconstructor} : tag \times var^{*} \rightarrow mp$
+$\text{Deconstructor} : \mathbb{T} \times \mathbb{V}^{*} \mapsto \mathbb{M}$ pour filtrer un tag.
 
-$\text{Joker} : var \rightarrow mp$
+$\text{Joker} : \mathbb{V} \mapsto \mathbb{M}$ pour filtrer tous les cas restants.
 
-#### Opérateurs binaires
+### Opérateurs binaires
 
-$\text{Add} : bop$
+Les opérateurs binaires se limitent pour l'instant aux opérations sur les entiers.
 
-$\text{Sub} : bop$
+$\text{Add} : \mathbb{B}$ correspond à l'addition.
 
-#### Expressions
+$\text{Sub} : \mathbb{B}$ correspond à la soustraction.
 
-Les expressions constituent la base d'un langage fonctionnel.
+### Expressions
 
-$\text{Var} : var \rightarrow expr$
+Les expressions constituent la base d'un langage fonctionnel. Je ne réalise aucune vérification de typage, c'est pour cela que je traite les types comme de simples chaînes de caractères.
 
-$\text{Fun} : var \times expr \rightarrow expr$
+$\text{Var} : \mathbb{V} \mapsto \mathbb{E}$ désigne une variable.
 
-$\text{App} : expr \times expr \rightarrow expr$
+$\text{Fun} : \mathbb{V} \times \mathbb{E} \mapsto \mathbb{E}$ fabrique une fermeture.
 
-$\text{Let} : var \times expr \times expr \rightarrow expr$
+$\text{App} : \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ applique une fermeture à son argument.
 
-$\text{Letrec} : (var \times expr)^{\*} \times expr \rightarrow expr$
+$\text{Let} : \mathbb{V} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ associe le résultat d'une expression à une variable.
 
-$\text{Int} : int \rightarrow expr$
+$\text{LetRec} : (\mathbb{V} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ définit des fermetures récursives (uniquement des fermetures).
 
-$\text{Binary} : bop \times expr \times expr \rightarrow expr$
+$\text{Int} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{If} : expr \times expr \times expr \rightarrow expr$
+$\text{Binary} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
 
-$\text{Type} : typename \times (tag \times type)^{\*} \times expr \rightarrow expr$
+$\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ est le branchement conditionnel.
 
-$\text{Constructor} : tag \times expr^{\*} \rightarrow expr$
+$\text{Type} : \mathbb{S} \times (\mathbb{T} \times \mathbb{S})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ fabrique un type (ses constructeurs).
 
-$\text{Match} : expr \times (mp \times expr)^{\*} \rightarrow expr$
+$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une union taggée à partir d'un constructeur.
 
-### Analyseur syntaxique
+$\text{Match} : \mathbb{E} \times (\mathbb{M} \times \mathbb{E})^{*} \mapsto \mathbb{E}$ filtre une union taggée.
 
-L'AST est généré par [Menhir](https://ocaml.org/p/menhir/).
+## Analyseur syntaxique
+
+L'AST est généré par [Menhir](https://ocaml.org/p/menhir/) à l'aide des jetons générés par l'analyse lexicale.
 
 \newpage
 
@@ -158,157 +156,134 @@ L'AST est généré par [Menhir](https://ocaml.org/p/menhir/).
 
 L'AST' est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs). Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
 
-### Arbre de syntaxe abstraite' (AST')
+## Arbre de syntaxe abstraite' (AST')
 
-#### Identificateurs
+### Identificateurs
 
-Le nom des variables et le nom des constructeurs deviennent des symboles représentés par des entiers.
+Le nom des variables et le nom des constructeurs deviennent des symboles représentés par des entiers naturels.
 
-$var \coloneqq int$
+$\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
-$tag \coloneqq int$
+$\mathbb{T} \coloneqq \mathbb{N}$ (tags)
 
-#### Opérateurs binaires
+### Opérateurs binaires
 
-$\text{Add} : bop$
+Les opérateurs binaires se limitent pour l'instant aux opérations sur les entiers.
 
-$\text{Sub} : bop$
+$\text{Add} : \mathbb{B}$ correspond à l'addition.
 
-#### Expressions
+$\text{Sub} : \mathbb{B}$ correspond à la soustraction.
+
+### Expressions
 
 Les noms des constructeurs ont reçus un index relatif à leur position dans la déclaration du type qui sera par la suite utilisé dans les filtrages par motifs.
 
-$\text{Var} : var \rightarrow expr$
+$\text{Var} : \mathbb{V} \mapsto \mathbb{E}$ désigne une variable.
 
-$\text{Fun} : var \times expr \rightarrow expr$
+$\text{Fun} : \mathbb{V} \times \mathbb{E} \mapsto \mathbb{E}$ fabrique une fermeture.
 
-$\text{App} : expr \times expr \rightarrow expr$
+$\text{App} : \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ applique une fermeture à son argument.
 
-$\text{Let} : var \times expr \times expr \rightarrow expr$
+$\text{Let} : \mathbb{V} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ associe le résultat d'une expression à une variable.
 
-$\text{Letrec} : (var \times expr)^{*} \times expr \rightarrow expr$
+$\text{LetRec} : (\mathbb{V} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ définit des fermetures récursives (uniquement des fermetures).
 
-$\text{Int} : int \rightarrow expr$
+$\text{Int} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{Binary} : bop \times expr \times expr \rightarrow expr$
+$\text{Binary} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
 
-$\text{If} : expr \times expr \times expr \rightarrow expr$
+$\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ est le branchement conditionnel.
 
-$\text{Constructor} : tag \times (expr^{*}) \rightarrow expr$
+$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une union taggée à partir d'un tag.
 
-$\text{Match} : expr \times (tag \times var^{\*} \times expr)^{\*} \times expr \rightarrow expr$
+$\text{Match} : \mathbb{E} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ filtre une union taggée.
 
-### Analyseur sémantique
+## Analyseur sémantique
 
 Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du AST'). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
-
-
-   \begin{align}
-      \tag{Int}
-      \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
-   \end{align}
-
-
-   \begin{align}
-      \tag{Binary}
-      \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
-      \end{split}
-      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Fun}
-      \begin{split}
-         e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
-      \end{split}
-      \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Var1}
-      \begin{split}
-         x \in D(A)
-      \end{split}
-      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Var2}
-      \begin{split}
-         x \notin D(A)
-      \end{split}
-      \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Let}
-      \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
-      \end{split}
-      \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{If}
-      \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2} \\
-         e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ V_{e_3}
-      \end{split}
-      \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{App}
-      \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
-      \end{split}
-      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
-   \end{align} 
-
-
-
-
-   \begin{align}
-      \tag{Type}
-      \begin{split}
-         e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i [|1, n|] \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
-      \end{split}
-      \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
-   \end{align} 
-   
-
-   \begin{align}
-      \tag{Constructor}
-      \begin{split}
-         e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         \dots \\
-         e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
-      \end{split}
-      \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ C[s] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Letrec}
-      \begin{split}
-         e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-         \dots \\
-         e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
-      \end{split}
-      \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
-   \end{align} 
-
+\begin{gather}
+   \tag{Int}
+   \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
+\end{gather}
+\begin{gather}
+   \tag{Binary}
+   \begin{split}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+   \end{split}
+   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+\end{gather}
+\begin{gather}
+   \tag{Fun}
+   \begin{split}
+      e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+   \end{split}
+   \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
+\end{gather}
+\begin{gather}
+   \tag{Var1}
+   \begin{split}
+      x \in D(A)
+   \end{split}
+   \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
+\end{gather}
+\begin{gather}
+   \tag{Var2}
+   \begin{split}
+      x \notin D(A)
+   \end{split}
+   \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
+\end{gather}
+\begin{gather}
+   \tag{Let}
+   \begin{split}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+   \end{split}
+   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+\end{gather}
+\begin{gather}
+   \tag{If}
+   \begin{split}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2} \\
+      e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ V_{e_3}
+   \end{split}
+   \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
+\end{gather}
+\begin{gather}
+   \tag{App}
+   \begin{split}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+   \end{split}
+   \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+\end{gather}
+\begin{gather}
+   \tag{Type}
+   \begin{split}
+      e ~ A ~ \left( C \cup \lbrace v_i = i, \forall i [|1, n|] \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+   \end{split}
+   \over \left( \text{Type} ~ s ~ \left( v_i \right)^{i=1 \dots i=n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+\end{gather}
+\begin{gather}
+   \tag{Constructor}
+   \begin{split}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      \dots \\
+      e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
+   \end{split}
+   \over \left( \text{Constructor} ~ s ~ \left( e_i \right)^{i=1 \dots n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ C[s] ~ \left( e_i' \right)^{i=1 \dots n} \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+\end{gather}
+\begin{gather}
+   \tag{Letrec}
+   \begin{split}
+      e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      \dots \\
+      e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
+   \end{split}
+   \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+\end{gather}
 
 \newpage
 
@@ -316,77 +291,77 @@ Toutes les variables sont alpha-converties et retournées à part (la liste des 
 
 La conversion CFG transforme l'AST' en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
-### Graphe de flôt de contrôle
+## Langage
 
-#### Identificateurs
+### Identificateurs
 
-$var \coloneqq int$
+$\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
-$pointer \coloneqq int$
+$\mathbb{P} \coloneqq \mathbb{N}$ (pointeurs)
 
-$tag \coloneqq int$
+$\mathbb{T} \coloneqq \mathbb{N}$ (tags)
 
-$frame \coloneqq pointer \times var^{*}$
+$\mathbb{F} \coloneqq \mathbb{P} \times \mathbb{V}^{*}$ (contexte d'appel)
 
-#### Instructions élémentaires
+### Expressions
 
-$\text{Prim} : prim \times var^{*} \rightarrow instruction$
+$\text{Const} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{Var} : var \rightarrow instruction$
+$\text{Var} : \mathbb{V} \mapsto \mathbb{E}$ crée un alias de variable.
 
-$\text{Tuple} : var^{*} \rightarrow instruction$
+$\text{Add} : \mathbb{V} \times \mathbb{V} \mapsto \mathbb{E}$ additionne deux entiers.
 
-$\text{Get} : var \times int \rightarrow instruction$
+$\text{Sub} : \mathbb{V} \times \mathbb{V} \mapsto \mathbb{E}$ soustrait deux entiers.
 
-$\text{Closure} : pointer \times var^{*} \rightarrow instruction$
+$\text{Closure} : \mathbb{P} \times \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique une fermeture.
 
-$\text{Constructor} : tag \times var^{*} \rightarrow instruction$
+$\text{Constructor} : \mathbb{T} \times \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique une union taggée.
 
-#### Expression
+### Instructions
 
-Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
+Une instruction est soit une déclaration soit un branchement. Une déclaration construit une valeur à partir d'une expression et l'associe à un identifiant unique. Les valeurs ne peuvent être construites qu'à partir de constantes ou identifiants. Un branchement représente le transfert d'un basic block à un autre que ce soit par le biais d'un appel (fermeture), d'un retour de fonction (return) ou d'un saut conditionnel (filtrage par motif).
 
 > `CallDirect` est un branchement qui n'est pas atteignable depuis le programme source et n'apparaît qu'après une étape d'analyse.
 
-$\text{Let} : var \times instruction \times expr \rightarrow expr$
+$\text{Let} : \mathbb{V} \times \mathbb{E} \times \mathbb{I} \mapsto \mathbb{I}$
 
-$\text{ApplyBlock} : pointer \times var^{*} \rightarrow expr$
+$\text{ApplyBlock} : \mathbb{P} \times \mathbb{V}^{*} \mapsto \mathbb{I}$
 
-$\text{CallDirect} : pointer \times var \times var^{*} \times frame \rightarrow expr$
+$\text{CallDirect} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{F} \mapsto \mathbb{I}$
 
-$\text{Call} : var \times var^{*} \times frame \rightarrow expr$
+$\text{Call} : \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{F} \mapsto \mathbb{I}$
 
-$\text{If} : var \times (pointer \times var^{*}) \times (pointer \times var^{*}) \times var^{*} \rightarrow expr$
+$\text{If} : \mathbb{V} \times (\mathbb{P} \times \mathbb{V}^{*}) \times (\mathbb{P} \times \mathbb{V}^{*}) \times \mathbb{V}^{*} \mapsto \mathbb{I}$
 
-$\text{MatchPattern} : var \times (tag \times var^{\*} \times pointer \times var^{\*})^{\*} \times (pointer \times var^{\*}) \times var^{\*} \rightarrow expr$
+$\text{MatchPattern} : \mathbb{V} \times (\mathbb{T} \times \mathbb{V}^{\*} \times \mathbb{P} \times \mathbb{V}^{\*})^{\*} \times (\mathbb{P} \times \mathbb{V}^{\*}) \times \mathbb{V}^{\*} \mapsto \mathbb{I}$
 
-$\text{Return} : var \rightarrow expr$
+$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$
 
-$\text{IfReturn} : pointer \times var \times var^{*} \rightarrow expr$
+$\text{IfReturn} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{I}$
 
-$\text{MatchReturn} : pointer \times var \times var^{*} \rightarrow expr$
+$\text{MatchReturn} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{I}$
 
-#### Bloc
+### Blocs
 
 Chaque bloc est construit différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement.
 
-$\text{Cont} : var^{\*} \rightarrow block$
+$\text{Cont} : \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-$\text{Clos} : var^{\*} \times var^{\*} \rightarrow block$
+$\text{Clos} : \mathbb{V}^{\*} \times \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-$\text{Return} : var \times var^{\*} \rightarrow block$
+$\text{Return} : \mathbb{V} \times \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-$\text{IfBranch} : var^{\*} \times var^{\*} \rightarrow block$
+$\text{IfBranch} : \mathbb{V}^{\*} \times \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-$\text{IfJoin} : var \times var^{*} \rightarrow block$
+$\text{IfJoin} : \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{B}$
 
-$\text{MatchBranch} : var^{\*} \times var^{\*} \times var^{\*} \rightarrow block$
+$\text{MatchBranch} : \mathbb{V}^{\*} \times \mathbb{V}^{\*} \times \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-$\text{MatchJoin} : var \times var^{\*} \rightarrow block$
+$\text{MatchJoin} : \mathbb{V} \times \mathbb{V}^{\*} \mapsto \mathbb{B}$
 
-#### Blocs
+### Ensemble de blocs
 
-$blocks \coloneqq pointer \rightarrow (block \times expr)$
+$blocks \coloneqq \mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I})$
 
 ### Algorithme de génération du CFG
 
@@ -401,83 +376,67 @@ L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \time
 - Le troisième résultat, noté $\beta$, est l'ensemble des blocs générés par la transpilation de $e$.
 
 
-   \begin{align}
-      \tag{Int}
-      \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset            \end{align} 
-
-
-   \begin{align}
-      \tag{Var}
-      \label{Var}
-      \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Let}
-      \begin{split}
-         e_2 ~ \sigma ~ \Sigma ~ \epsilon &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \quad \Sigma_3 = \Sigma_{e_2} \setminus \lbrace v \rbrace \\
-         e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
-      \end{split}
-      \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
-   \end{align} 
-
-
-   \begin{align}
-   \tag{Binary}
-      \begin{split}
-         e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_1 \rbrace \right) ~ (\sigma = \sigma_{e_1} \diamond \sigma_{e_2}; \epsilon) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-         e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
-      \end{split}
-      \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Fun}
-      \begin{split}
-         e ~ \sigma_{e} ~ \emptyset ~ \left( \text{Return} ~ \sigma_{e} \right) \vdash_{\text{cfg}} \epsilon_{e} ~ \Sigma_{e} ~ \beta_{e} \quad \Sigma_2 = \Sigma_{e} \setminus \lbrace \sigma_a \rbrace
-      \end{split}
-      \over \left( \text{Fun} ~ \sigma_a ~ e \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon \right) ~ \Sigma_2 ~ \left( \beta_{e} \sqcup \lbrace \rho = \text{Clos} ~ \Sigma_2 ~ \left( \sigma_a \right) ~ \epsilon_{e} \rbrace \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{If}
-      \begin{split}
-         e_2 ~ \sigma_{e_2} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_2} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-         e_3 ~ \sigma_{e_3} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_3} ~ \Sigma_{e_3} ~ \beta_{e_3} \\
-         e_1 ~ \sigma_{e_1} ~ (\Sigma \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ (\text{If} ~ \sigma_{e_1} ~ \rho_{e_2} ~ \Sigma_{e_2} ~ \rho_{e_3} ~ \Sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
-      \end{split} \\
-      \beta_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ \sigma_{e_2} ~ \Sigma ~ \epsilon_{e_2}, \rho_{e_3} = \text{Ifbranch} ~ \sigma_{e_3} ~ \Sigma ~ \epsilon_{e_3} \rbrace
-      \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ (\Sigma_{e_1} \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \beta_{e_3} \sqcup \beta_{e_1e_2e_3} \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{App}
-      \begin{split}
-         e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_{e_1} \rbrace \right) ~ \left( \text{Call} ~ \sigma_{e_1} ~ \left( \sigma_{e_2} \right) ~ \rho ~ \Sigma \right) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-         e_1 ~ \sigma_{e_1} ~ \left( \Sigma_{e_2} \cup \Sigma \right) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_{e_1} ~ \beta_{e_1}
-      \end{split}
-      \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \lbrace \rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon \rbrace \right)
-   \end{align} 
-
-
-   \begin{align}
-      \tag{Constructor} f = \begin{cases} f_0 =
-      (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
-      f_n = {f_{n-1} = \epsilon_{n-1} ~ \Sigma_{n-1} ~ \beta_{n-1}
-         \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
-         \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
-      \end{cases}
-      \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n
-   \end{align} 
-
-
-
-
- \begin{align} \begin{cases}
+\begin{gather}
+   \tag{Int}
+   \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset
+\end{gather}
+\begin{gather}
+   \tag{Var}
+   \label{Var}
+   \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
+\end{gather}
+\begin{gather}
+   \tag{Let}
+   \begin{split}
+      e_2 ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \quad \Sigma_3 = \Sigma_{e_2} \setminus \lbrace v \rbrace \\
+      e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} \vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+   \end{split}
+   \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
+\end{gather}
+\begin{gather}
+\tag{Binary}
+   \begin{split}
+      e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_1 \rbrace \right) ~ (\sigma = \sigma_{e_1} \diamond \sigma_{e_2}; \epsilon) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+      e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+   \end{split}
+   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
+\end{gather}
+\begin{gather}
+   \tag{Fun}
+   \begin{split}
+      e ~ \sigma_{e} ~ \emptyset ~ \left( \text{Return} ~ \sigma_{e} \right) \vdash_{\text{cfg}} \epsilon_{e} ~ \Sigma_{e} ~ \beta_{e} \quad \Sigma_2 = \Sigma_{e} \setminus \lbrace \sigma_a \rbrace
+   \end{split}
+   \over \left( \text{Fun} ~ \sigma_a ~ e \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon \right) ~ \Sigma_2 ~ \left( \beta_{e} \sqcup \lbrace \rho = \text{Clos} ~ \Sigma_2 ~ \left( \sigma_a \right) ~ \epsilon_{e} \rbrace \right)
+\end{gather}
+\begin{gather}
+   \tag{If}
+   \begin{split}
+      e_2 ~ \sigma_{e_2} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_2} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+      e_3 ~ \sigma_{e_3} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_3} ~ \Sigma_{e_3} ~ \beta_{e_3} \\
+      e_1 ~ \sigma_{e_1} ~ (\Sigma \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ (\text{If} ~ \sigma_{e_1} ~ \rho_{e_2} ~ \Sigma_{e_2} ~ \rho_{e_3} ~ \Sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+   \end{split} \\
+   \beta_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ \sigma_{e_2} ~ \Sigma ~ \epsilon_{e_2}, \rho_{e_3} = \text{Ifbranch} ~ \sigma_{e_3} ~ \Sigma ~ \epsilon_{e_3} \rbrace
+   \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ (\Sigma_{e_1} \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \beta_{e_3} \sqcup \beta_{e_1e_2e_3} \right)
+\end{gather}
+\begin{gather}
+   \tag{App}
+   \begin{split}
+      e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_{e_1} \rbrace \right) ~ \left( \text{Call} ~ \sigma_{e_1} ~ \left( \sigma_{e_2} \right) ~ \rho ~ \Sigma \right) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_{e_2} ~ \beta_{e_2} \\
+      e_1 ~ \sigma_{e_1} ~ \left( \Sigma_{e_2} \cup \Sigma \right) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_{e_1} ~ \beta_{e_1}
+   \end{split}
+   \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \lbrace \rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon \rbrace \right)
+\end{gather}
+\begin{gather}
+   \tag{Constructor} f = \begin{cases} f_0 =
+   (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
+   f_n = {f_{n-1} = \epsilon_{n-1} ~ \Sigma_{n-1} ~ \beta_{n-1}
+      \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
+      \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
+   \end{cases}
+   \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n
+\end{gather}
+\begin{gather}
+   \begin{cases}
       \epsilon_0 = (\sigma = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
       \epsilon_n =
          { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
@@ -495,27 +454,26 @@ L'algorithme a la signature suivante : $cfg : expr_{ast'} \times var_{cfg} \time
          { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
          \over \beta \cup \beta_{n-1} }
    \end{cases}
-   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n \end{align} 
-
-
-   \begin{align}
-      \tag{Match}
-      \begin{split}
-         d ~ \overline{d} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) \vdash_{\text{cfg}} \epsilon_d ~ \Sigma_d ~ \beta_d \\
-         \begin{cases}
-            \beta_0 = \emptyset \\
-             \beta_n =
-            { e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma_{e_n} ~ \beta
-            \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
-            \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
-         \end{cases} \\
-         { \Sigma_{e_n} =
-         e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
-         \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
-         e ~ \sigma_e ~ \left( \bigcup_{i=1}^{n} \Sigma_{e_i} \cup \Sigma_d \cup \Sigma \right) ~ \left( \text{Matchpattern} ~ \sigma_e ~ \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, \Sigma_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma \right) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
-      \end{split}
-      \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon]
-   \end{align} 
+   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
+\end{gather}
+\begin{gather}
+   \tag{Match}
+   \begin{split}
+      d ~ \overline{d} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) \vdash_{\text{cfg}} \epsilon_d ~ \Sigma_d ~ \beta_d \\
+      \begin{cases}
+         \beta_0 = \emptyset \\
+            \beta_n =
+         { e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma_{e_n} ~ \beta
+         \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
+         \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
+      \end{cases} \\
+      { \Sigma_{e_n} =
+      e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
+      \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
+      e ~ \sigma_e ~ \left( \bigcup_{i=1}^{n} \Sigma_{e_i} \cup \Sigma_d \cup \Sigma \right) ~ \left( \text{Matchpattern} ~ \sigma_e ~ \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, \Sigma_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma \right) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+   \end{split}
+   \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon]
+\end{gather}
 
 
 ### Nettoyage des alias
@@ -723,7 +681,7 @@ $\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
 $\mathbb{P} \coloneqq \mathbb{N}$ (pointeurs de blocs)
 
-$\mathbb{F} \coloneqq \mathbb{P} \times \mathbb{V}^{*}$ (contextes)
+$\mathbb{F} \coloneqq \mathbb{P} \times \mathbb{V}^{*}$ (contexte d'appel)
 
 $\mathbb{S} \coloneqq \mathbb{F}^{*}$ (pile)
 
@@ -731,7 +689,7 @@ $\mathbb{S} \coloneqq \mathbb{F}^{*}$ (pile)
 
 De la même manière que pour les identifiants, on retrouve ici la plupart des expressions du CFG. Le principal changement est la transformation des constructeurs et fermetures qui deviennent des n-uplets.
 
-$\text{Const} : \mathbb{N} \mapsto \mathbb{E}$ génère un entier.
+$\text{Const} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
 $\text{Pointer} : \mathbb{P} \mapsto \mathbb{E}$ génère un pointeur vers un bloc.
 
@@ -775,50 +733,44 @@ $blocks \coloneqq \mathbb{P} \rightarrow \mathbb{B}$
 
 La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
 
-$cfg : block_{cfg} \times instr \mapsto block \times blocks$
+$\vdash_{\text{cfg'}} : \mathbb{B}_{cfg} \times \mathbb{I} \mapsto \mathbb{B} \times blocks$
 
-\begin{align}
+\begin{gather}
    \tag{Cont}
    \over \left( \text{Cont} ~ args \right) ~ i \vdash_{\text{cfg'}} args ~ i ~ \emptyset
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{Return}
    \over \left( \text{Return} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{Clos}
    \begin{cases}
       i_0 = \text{ApplyDirect} ~ p ~ \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right) ~ \left( \right) \\
       i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
    \end{cases}
    \over \left( \text{Clos} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m \right) ~ i_n ~ \lbrace p = \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right), i \rbrace
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{IfBranch}
    \over \left( \text{IfBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=m} ~ i ~ \emptyset
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{IfJoin}
    \over \left( \text{IfJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{MatchBranch}
    \begin{cases}
       i_0 = i \\
       i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
    \end{cases}
    \over \left( \text{MatchBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} ~ \left( a_i \right)_{i=m+1}^{i=o} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m, a_{m+1}, \dots, a_o \right) ~ i_n ~ \emptyset
-\end{align}
-
-\begin{align}
+\end{gather}
+\begin{gather}
    \tag{MatchJoin}
    \over \left( \text{MatchJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
-\end{align}
+\end{gather}
 
 ### Taille
 
