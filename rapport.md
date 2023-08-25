@@ -9,6 +9,9 @@ geometry: margin=2.5cm
 fontsize: 12pt
 toc: true
 toc-title: Table des matières
+abstract: |
+  An achievement-driven methodology strives to give students more control over their learning with enough flexibility to engage them in deeper learning. (more stuff continues)
+include-before: \newpage
 ---
 
 \newpage
@@ -706,59 +709,69 @@ La propagation modifie le CFG pour y faire apparaître les résultats de l'analy
 
 # CFG concret
 
-Le CFG concret est construit à partir du CFG en concretisant quasiment tous les traits de langage propres à OCaml. A chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
+L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG concret car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
 
-### Définition
+## Langage
 
-#### Identifiants
+Le CFG concret est très similaire au CFG, si ce n'est que tous les quasiment tous les traits de langage propres à OCaml ont été concrétisés. A chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
 
-$var \coloneqq int$
+### Identifiants
 
-$pointer \coloneqq int$
+On retrouve ici les identifiants du CFG auxquels s'ajoutent de nouveaux identifiants pour gérer les contextes de pile.
 
-$tag \coloneqq int$
+$\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
-$frame \coloneqq pointer \times var^{*}$
+$\mathbb{P} \coloneqq \mathbb{N}$ (pointeurs de blocs)
 
-$stack \coloneqq frame^{*}$
+$\mathbb{F} \coloneqq \mathbb{P} \times \mathbb{V}^{*}$ (contextes)
 
-#### Expressions
+$\mathbb{S} \coloneqq \mathbb{F}^{*}$ (pile)
 
-$\text{Const} : int \mapsto expr$
+### Expressions
 
-$\text{Add} : var \times var \mapsto expr$
+De la même manière que pour les identifiants, on retrouve ici la plupart des expressions du CFG. Le principal changement est la transformation des constructeurs et fermetures qui deviennent des n-uplets.
 
-$\text{Sub} : var \times var \mapsto expr$
+$\text{Const} : \mathbb{N} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{Var} : var \mapsto expr$
+$\text{Pointer} : \mathbb{P} \mapsto \mathbb{E}$ génère un pointeur vers un bloc.
 
-$\text{Tuple} : var^{*} \mapsto expr$
+$\text{Var} : \mathbb{V} \mapsto \mathbb{E}$ crée un alias de variable.
 
-$\text{Get} : var \times int \mapsto expr$
+$\text{Add} : \mathbb{V} \times \mathbb{V} \mapsto \mathbb{E}$ additionne deux entiers.
 
-$\text{Pointer} : pointer \mapsto expr$
+$\text{Sub} : \mathbb{V} \times \mathbb{V} \mapsto \mathbb{E}$ soustrait deux entiers.
 
-#### Instructions
+$\text{Tuple} : \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique un n-uplet.
 
-$\text{Let} : var \times expr \times instr \mapsto instr$
+$\text{Get} : \mathbb{V} \times \mathbb{N} \mapsto \mathbb{E}$ accède à un champs d'un n-uplet.
 
-$\text{ApplyDirect} : pointer \times var^{*} \times stack \mapsto instr$
+### Instructions
 
-$\text{ApplyIndirect} : var \times var^{*} \times stack \mapsto instr$
+Les instructions sont assez similaires, si ce n'est que les branchements permettent désormais d'ajouter des contextes de piles. Le filtrage par motif et le if classique fusionnent en une seule instruction.
 
-$\text{If} : var \times (int \times pointer \times var^{*})^{*} \times (pointer \times var^{*}) \times stack \mapsto instr$
+$\text{Let} : \mathbb{V} \times \mathbb{E} \times \mathbb{I} \mapsto \mathbb{I}$ assigne le résultat d'une expression à une variable.
 
-$\text{Return} : var \mapsto instr$
+$\text{ApplyDirect} : \mathbb{P} \times \mathbb{V}^{*} \times \mathbb{S} \mapsto \mathbb{I}$ réalise un saut direct vers le bloc associé.
 
-#### Bloc
+$\text{ApplyIndirect} : \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{S} \mapsto \mathbb{I}$ réalise un saut indirect au bloc associé au pointeur contenu dans la variable.
 
-$block \coloneqq var^{*} \times instr$
+$\text{If} : \mathbb{V} \times (\mathbb{N} \times \mathbb{P} \times \mathbb{V}^{*})^{*} \times (\mathbb{P} \times \mathbb{V}^{*}) \times \mathbb{S} \mapsto \mathbb{I}$ réalise un saut vers le bloc associé à la valeur de la condition ou vers le bloc par défaut.
 
-#### Blocs
+$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ retourne le résultat contenu dans la variable.
 
-$blocks \coloneqq pointer \rightarrow block$
+### Bloc
 
-### Génération du CFG concret
+Il n'existe plus de sémantique pour chaque type de bloc, l'ordre des arguments est maintenant fixé.
+
+$\mathbb{B} \coloneqq \mathbb{V}^{*} \times \mathbb{I}$ (bloc)
+
+### Blocs
+
+Le CFG reste un ensemble de blocs.
+
+$blocks \coloneqq \mathbb{P} \rightarrow \mathbb{B}$
+
+## Génération du CFG concret
 
 La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
 
@@ -815,13 +828,13 @@ Calculer la taille du CFG concret est uniquement intéressant d'un point de vue 
 
 De la même manière que lors de la phase CFG, les variables et les appels de blocs sont recensés afin de supprimer les variables inutilisées et les blocs morts.
 
-### Inlining
+## Inlining
 
-L'inlining a lieu sur le CFG concret car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile. Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement). Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction.
+Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement). Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction.
 
 > Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs spécialisés sont ainsi tous conernés).
 
-### Interprétation
+## Interprétation
 
 C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations. Pour la suite du stage je serai amené à extraire de nombreuses informations issues de l'interprétation pour vérifier la pertinance des heuristiques mises en place.
 
@@ -890,3 +903,5 @@ and g x (p::stack) =
 ```
 
 Évidemment au stade actuel cette heuristique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité. Il est par ailleurs fort probable qu'elle ne soit pas possible à mettre en place dans l'évaluateur de bytecode.
+
+# Conclusion
