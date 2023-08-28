@@ -29,7 +29,8 @@ Dans le cadre du stage je n'ai traité que les fonctionnalités d'OCaml nécessa
 Les [trois règles du lambda-calcul](https://fr.wikipedia.org/wiki/Lambda-calcul#Syntaxe) que sont les variables, l'application et l'abstraction sont évidemment des fonctionnalités indispensables.
 
 ```ocaml
-let x = f y in x
+let id = fun x -> x in
+let x = id y in x
 ```
 
 ### Opérations élémentaires
@@ -77,9 +78,7 @@ L'analyse lexicale est la première étape de la compilation et convertit le pro
 
 ## Lexique
 
-Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/lex.html) pour supporter les fonctionnalités qui m'intéressent.
-
-> Je n'ai pas jugé pertinent d'indiquer le nom des jetons.
+Le lexique source est un sous-ensemble de celui d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/lex.html) pour supporter les fonctionnalités qui m'intéressent. Je n'ai pas jugé pertinent d'indiquer le nom des jetons.
 
 - `(* *)` pour les commentaires
 - `( )` pour le parenthésage
@@ -103,13 +102,15 @@ Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml
 
 # Analyse syntaxique
 
-L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite. Les règles de syntaxe sont les mêmes que celles d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
+L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite.
 
 ## Arbre de syntaxe abstraite (AST)
 
+La grammaire est la même que celle d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
+
 ### Identificateurs
 
-Le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel jeu de caractères OCaml est censé supporter.
+Le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel est le jeu de caractères d'OCaml.
 
 $\mathbb{S} \coloneqq string$ (chaînes de caractères)
 
@@ -167,13 +168,17 @@ L'AST est généré par [Menhir](https://ocaml.org/p/menhir/) à l'aide des jeto
 
 # Analyse sémantique
 
-L'AST' est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs). Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
+L'analyse sémantique est la troisième étape de la compilation.
+
+Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
 
 ## Arbre de syntaxe abstraite' (AST')
 
+L'AST' est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs).
+
 ### Identificateurs
 
-Le nom des variables et le nom des constructeurs deviennent des symboles représentés par des entiers naturels.
+Le nom des variables et le nom des constructeurs sont désormais représentés par des entiers naturels uniques.
 
 $\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
@@ -181,7 +186,7 @@ $\mathbb{T} \coloneqq \mathbb{N}$ (tags)
 
 ### Opérateurs binaires
 
-Les opérateurs binaires se limitent pour l'instant aux opérations sur les entiers.
+Les opérateurs binaires se limitent toujours aux opérations sur les entiers.
 
 $\text{Add} : \mathbb{B}$ correspond à l'addition.
 
@@ -189,7 +194,7 @@ $\text{Sub} : \mathbb{B}$ correspond à la soustraction.
 
 ### Expressions
 
-Les noms des constructeurs ont reçus un index relatif à leur position dans la déclaration du type qui sera par la suite utilisé dans les filtrages par motifs.
+Pour toutes les expressions, à l'exception du filtrage par motif, seul le type des identificateurs change. Les noms des constructeurs ont reçus un index relatif à leur position dans la déclaration du type qui sera par la suite utilisé dans les filtrages par motifs.
 
 $\text{Var} : \mathbb{V} \mapsto \mathbb{E}$ désigne une variable.
 
@@ -213,89 +218,110 @@ $\text{Match} : \mathbb{E} \times (\mathbb{T} \times \mathbb{V}^{*} \times \math
 
 ## Analyseur sémantique
 
-Toutes les variables sont alpha-converties et retournées à part (la liste des substitutions ne fait pas partie du AST'). Les variables libres dans le programme sont autorisées, également alpha-converties et retournée à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
+Toutes les variables sont alpha-converties et conservées dans une table des symboles. Les variables libres dans le programme sont autorisées, également alpha-converties et ajoutées dans une table à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
+
+$\mathbb{E}_{ast} \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right) \times \left( \mathbb{T}_{ast} \mapsto \mathbb{T} \right) \vdash_{\text{ast'}} \mathbb{E} \times \left( \mathbb{V} \mapsto \mathbb{V}_{ast} \right) \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right)$
+
+$E ~ A ~ C \vdash_{\text{ast'}} E' ~ S ~ L$
+
+- $E$ est l'expression AST à compiler ;
+- $A$ est la table des abstractions existantes dans la portée de $E$ ;
+- $C$ est la table des constructeurs dans la portée de $E$ ;
+- $E'$ est l'expression générée ;
+- $S$ est la table des variables substituées dans $E'$ ;
+- $L$ est la table des variables libres de $E$.
+
+Par la suite, je note $x'$ l'identifiant unique donné à une variable $x$, $e'$ l'expression générée par l'expression $e$, $\emptyset$ une table vide, $x \coloneqq y$ une entrée de table dont l'étiquette est $x$ et la valeur est $y$ et $X \sqcup Y$ l'union de deux tables disjointes.
+
 \begin{gather}
    \tag{Int}
-   \over \left( \text{Int} ~ i \right) ~ S ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) ~ \emptyset ~ \emptyset
+   \over \left( \text{Int} ~ i \right) A ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) \emptyset ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Binary}
    \begin{split}
-      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
+      e_2 \left( A \sqcup L_{e_1} \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
    \end{split}
-   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \right) \left( L_{e_1} \sqcup L_{e_1} \right)
 \end{gather}
 \begin{gather}
    \tag{Fun}
    \begin{split}
-      e ~ \left( A \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+      e \left( A \sqcup \lbrace x \coloneqq x' \rbrace \right) C &\vdash_{\text{ast'}} e' ~ S_{e} ~ L_{e}
    \end{split}
-   \over \left( \text{Fun} ~ x ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ id_x ~ e' \right) ~ \left( S_{e} \cup \lbrace id_x = x \rbrace \right) ~ V_{e}
+   \over \left( \text{Fun} ~ x ~ e \right) A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ x' ~ e' \right) \left( S_{e} \sqcup \lbrace x' \coloneqq x \rbrace \right) L_{e}
 \end{gather}
 \begin{gather}
    \tag{Var1}
    \begin{split}
-      x \in D(A)
+      x \in \mathcal{D}(A)
    \end{split}
-   \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) ~ \emptyset ~ \emptyset
+   \over \left( \text{Var} ~ x \right) A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ A\left( x \right) \right) \emptyset ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Var2}
    \begin{split}
-      x \notin D(A)
+      x \notin \mathcal{D}(A)
    \end{split}
-   \over \left( \text{Var} ~ x \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ id_x \right) ~ \emptyset ~ \lbrace x = id_x \rbrace
+   \over \left( \text{Var} ~ x \right) A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ x' \right) \emptyset ~ \lbrace x \coloneqq x' \rbrace
 \end{gather}
 \begin{gather}
    \tag{Let}
    \begin{split}
-      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-      e_2 ~ \left( A \cup V_{e_1} \cup \lbrace x = id_x \rbrace \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
+      e_2 \left( A \sqcup L_{e_1} \sqcup \lbrace x \coloneqq x' \rbrace \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
    \end{split}
-   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ id_x ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup \lbrace id_x = x \rbrace \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ x' ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup \lbrace x' \coloneqq x \rbrace \right) \left( L_{e_1} \sqcup L_{e_2} \right)
 \end{gather}
 \begin{gather}
    \tag{If}
    \begin{split}
-      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2} \\
-      e_3 ~ \left( A \cup V_{e_1} \cup V_{e_2} \right) ~ C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ V_{e_3}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
+      e_2 \left( A \sqcup L_{e_1} \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2} \\
+      e_3 \left( A \sqcup L_{e_1} \sqcup L_{e_2} \right) C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ L_{e_3}
    \end{split}
-   \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) ~ \left( S_{e_1} \cup S_{e_2} \cup S_{e_3} \right) ~ \left( V_{e_1} \cup V_{e_1} \cup V_{e_3} \right)
+   \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup S_{e_3} \right) \left( L_{e_1} \sqcup L_{e_1} \sqcup L_{e_3} \right)
 \end{gather}
 \begin{gather}
    \tag{App}
    \begin{split}
-      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
-      e_2 ~ \left( A \cup V_{e_1} \right) ~ C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ V_{e_2}
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
+      e_2 \left( A \sqcup L_{e_1} \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
    \end{split}
-   \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) ~ \left( S_{e_1} \cup S_{e_2} \right) ~ \left( V_{e_1} \cup V_{e_1} \right)
+   \over \left( \text{App} ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{App} ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \right) \left( L_{e_1} \sqcup L_{e_2} \right)
 \end{gather}
 \begin{gather}
    \tag{Type}
    \begin{split}
-      e ~ A ~ \left( C \cup \lbrace v_i = i, i \in 1 \dots n \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+      e ~ A \left( C \sqcup \lbrace t_i \coloneqq i, i \in 1 \dots n \rbrace \right) &\vdash_{\text{ast'}} e' ~ S_{e} ~ L_{e}
    \end{split}
-   \over \left( \text{Type} ~ s ~ \left( v_i \right)_{i=1}^{i=n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ V_{e}
+   \over \left( \text{Type} ~ s \left( t_i, s_i \right)_{i=1}^{i=n} ~ e \right) A ~ C \vdash_{\text{ast'}} e' ~ S_{e} ~ L_{e}
 \end{gather}
 \begin{gather}
    \tag{Constructor}
    \begin{split}
-      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
       \dots \\
-      e_n ~ \left( \bigcup_{i=1}^{n-1} S_{e_{i-1}} \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
+      e_n \left( \bigsqcup_{i=1}^{i=n-1} S_{e_{i-1}} \sqcup A \right) C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ L_{e_n}
    \end{split}
-   \over \left( \text{Constructor} ~ s ~ \left( e_i \right)_{i=1}^{i=n} \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} ~ \left( C(s) \right) ~ \left( e_i' \right)_{i=1}^{i=n} \right) ~ \left( \bigcup_{i=1}^{i=n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+   \over \left( \text{Constructor} ~ s \left( e_i \right)_{i=1}^{i=n} \right) A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} \left( C(s) \right) \left( e_i' \right)_{i=1}^{i=n} \right) \left( \bigsqcup_{i=1}^{i=n} S_{e_i} \right) \left( \bigsqcup_{i=1}^{i=n} L_{e_i} \right)
 \end{gather}
 \begin{gather}
-   \tag{Letrec}
+   \tag{LetRec}
    \begin{split}
-      e_1 ~ \bigcup_{i=1}^{n-1} \lbrace x_i = id_{x_i} \rbrace \cup A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ V_{e_1} \\
+      e_1 \left( \lbrace x_i \coloneqq x_i', i \in 1 \dots n \rbrace \sqcup A \right) C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
       \dots \\
-      e_n ~ \left( \bigcup_{i=1}^{n-1} \left( S_{e_{i-1}} \cup \lbrace x_i = id_{x_i} \rbrace \right) \cup A \right) ~ C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ V_{e_n}
+      e_n \left( \bigsqcup_{i=1}^{i=n-1} S_{e_{i-1}} \sqcup \lbrace x_i \coloneqq x_i', i \in 1 \dots n \rbrace \sqcup A \right) C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ L_{e_n}
    \end{split}
-   \over \left( \text{Letrec} ~ \left( x_i, e_i \right)^{i=1 \dots n} ~ e \right) ~ A ~ C \vdash_{\text{ast'}} \left( \text{Letrec} ~ \left( id_{x_i}, e_i' \right)^{i=1 \dots n} ~ e' \right) ~ \left( \bigcup_{i=1}^{n} S_{e_i} \right) ~ \left( \bigcup_{i=1}^{n} V_{e_i} \right)
+   \over \left( \text{LetRec} \left( x_i, e_i \right)_{i=1}^{i=n} ~ e \right) A ~ C \vdash_{\text{ast'}} \left( \text{LetRec} \left( x_i', e_i' \right)_{i=1}^{i=n} ~ e' \right) \left( \bigsqcup_{i=1}^{i=n} S_{e_i} \right) \left( \bigsqcup_{i=1}^{i=n} L_{e_i} \right)
+\end{gather}
+\begin{gather}
+   \tag{Match}
+   \begin{split}
+   (todo)
+   \end{split}
+   \over \left( \text{Match} ~ e \left( m_i, e_i \right)_{i=1}^{i=n} \right) A ~ C \vdash_{\text{ast'}} \left( \text{Match} ~ e' \left( t_i', \left( a_i^j \right)_{j=1}^{j=m_i}, e_i' \right)_{i=1}^{i=n}\right) \left( \bigsqcup_{i=1}^{i=n} S_{e_i} \sqcup S_{e} \right) \left( \bigsqcup_{i=1}^{i=n} L_{e_i} \sqcup L_{e} \right)
 \end{gather}
 
 \newpage
@@ -394,101 +420,101 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
 
 \begin{gather}
    \tag{Int}
-   \over \left( \text{Int} ~ i \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Int} ~ i; \epsilon \right) ~ \emptyset ~ \emptyset
+   \over \left( \text{Int} ~ i \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Int} ~ i; \epsilon \right) \emptyset ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Var}
    \label{Var}
-   \over \left( \text{Var} ~ v \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = v; \epsilon \right) ~ \lbrace v \rbrace ~ \emptyset
+   \over \left( \text{Var} ~ x \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = x; \epsilon \right) \lbrace x \rbrace ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Let}
    \begin{split}
-      e_2 ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \quad \Sigma_3 = \Sigma_{e_2} \setminus \lbrace v \rbrace \\
-      e_1 ~ v ~ \left( \Sigma \cup \Sigma_3 \right) ~ \epsilon_{e_2} \vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+      e_2 ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \quad V_3 = V_{e_2} \setminus \lbrace x \rbrace \\
+      e_1 ~ x \left( V \cup V_3 \right) e_2' \vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1}
    \end{split}
-   \over \left( \text{Let} ~ v ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_3 \cup \Sigma_{e_1} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
+   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_3 \cup V_{e_1} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
 \end{gather}
 \begin{gather}
 \tag{Binary}
    \begin{split}
-      e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_1 \rbrace \right) ~ (\sigma = \sigma_{e_1} \diamond \sigma_{e_2}; \epsilon) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-      e_1 ~ \sigma_{e_1} ~ (\Sigma_{e_2} \cup \Sigma) ~ \epsilon_{e_2} &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
+      e_2 ~ \overline{e_2} \left( V \cup \lbrace \sigma_1 \rbrace \right) (v = \overline{e_1} \diamond \overline{e_2}; \epsilon) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
+      e_1 ~ \overline{e_1} ~ (V_{e_2} \cup V) ~ e_2' &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1}
    \end{split}
-   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \right)
+   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
 \end{gather}
 \begin{gather}
    \tag{Fun}
    \begin{split}
-      e ~ \sigma_{e} ~ \emptyset ~ \left( \text{Return} ~ \sigma_{e} \right) \vdash_{\text{cfg}} \epsilon_{e} ~ \Sigma_{e} ~ \beta_{e} \quad \Sigma_2 = \Sigma_{e} \setminus \lbrace \sigma_a \rbrace
+      e ~ \overline{e} ~ \emptyset \left( \text{Return} ~ \overline{e} \right) \vdash_{\text{cfg}} e' ~ V_{e} ~ B_{e} \quad V_2 = V_{e} \setminus \lbrace x \rbrace
    \end{split}
-   \over \left( \text{Fun} ~ \sigma_a ~ e \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \left( \sigma = \text{Closure} ~ \rho ~ \Sigma_2; \epsilon \right) ~ \Sigma_2 ~ \left( \beta_{e} \sqcup \lbrace \rho = \text{Clos} ~ \Sigma_2 ~ \left( \sigma_a \right) ~ \epsilon_{e} \rbrace \right)
+   \over \left( \text{Fun} ~ x ~ e \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Closure} ~ \rho ~ V_2; \epsilon \right) V_2 \left( B_{e} \sqcup \lbrace \rho = \text{Clos} ~ V_2 \left( x \right) e' \rbrace \right)
 \end{gather}
 \begin{gather}
    \tag{If}
    \begin{split}
-      e_2 ~ \sigma_{e_2} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_2} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_2} ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-      e_3 ~ \sigma_{e_3} ~ \Sigma ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_3} ~ \Sigma_{e_3} ~ \beta_{e_3} \\
-      e_1 ~ \sigma_{e_1} ~ (\Sigma \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ (\text{If} ~ \sigma_{e_1} ~ \rho_{e_2} ~ \Sigma_{e_2} ~ \rho_{e_3} ~ \Sigma_{e_3} ~ \Sigma) &\vdash_{\text{cfg}} \epsilon_{e_1} ~ \Sigma_{e_1} ~ \beta_{e_1}
-   \end{split} \\
-   \beta_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ \sigma ~ \Sigma ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ \sigma_{e_2} ~ \Sigma ~ \epsilon_{e_2}, \rho_{e_3} = \text{Ifbranch} ~ \sigma_{e_3} ~ \Sigma ~ \epsilon_{e_3} \rbrace
-   \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_{e_1} ~ (\Sigma_{e_1} \cup \Sigma_{e_2} \cup \Sigma_{e_3}) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \beta_{e_3} \sqcup \beta_{e_1e_2e_3} \right)
+      e_2 ~ \overline{e_2} ~ V ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \overline{e_2} ~ V) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
+      e_3 ~ \overline{e_3} ~ V ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \overline{e_3} ~ V) &\vdash_{\text{cfg}} e_3' ~ V_{e_3} ~ B_{e_3} \\
+      e_1 ~ \overline{e_1} ~ (V \cup V_{e_2} \cup V_{e_3}) ~ (\text{If} ~ \overline{e_1} ~ \rho_{e_2} ~ V_{e_2} ~ \rho_{e_3} ~ V_{e_3} ~ V) &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1} \\
+      B_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ v ~ V ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ V_{e_2} ~ V ~ e_2', \rho_{e_3} = \text{Ifbranch} ~ V_{e_3} ~ V ~ e_3' \rbrace
+   \end{split}
+   \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' ~ (V_{e_1} \cup V_{e_2} \cup V_{e_3}) \left( B_{e_1} \sqcup B_{e_2} \sqcup B_{e_3} \sqcup B_{e_1e_2e_3} \right)
 \end{gather}
 \begin{gather}
    \tag{App}
    \begin{split}
-      e_2 ~ \sigma_{e_2} ~ \left( \Sigma \cup \lbrace \sigma_{e_1} \rbrace \right) ~ \left( \text{Call} ~ \sigma_{e_1} ~ \left( \sigma_{e_2} \right) ~ \rho ~ \Sigma \right) &\vdash_{\text{cfg}} \epsilon_2 ~ \Sigma_{e_2} ~ \beta_{e_2} \\
-      e_1 ~ \sigma_{e_1} ~ \left( \Sigma_{e_2} \cup \Sigma \right) ~ \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_{e_1} ~ \beta_{e_1}
+      e_2 ~ \overline{e_2} \left( V \cup \lbrace \overline{e_1} \rbrace \right) \left( \text{Call} ~ \overline{e_1} \left( \overline{e_2} \right) \rho ~ V \right) &\vdash_{\text{cfg}} \epsilon_2 ~ V_{e_2} ~ B_{e_2} \\
+      e_1 ~ \overline{e_1} \left( V_{e_2} \cup V \right) \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ V_{e_1} ~ B_{e_1}
    \end{split}
-   \over \left( \text{App} ~ e_1 ~ e_2 \right) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ \left( \Sigma_{e_1} \cup \Sigma_{e_2} \right) ~ \left( \beta_{e_1} \sqcup \beta_{e_2} \sqcup \lbrace \rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon \rbrace \right)
+   \over \left( \text{App} ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \sqcup \lbrace \rho = \text{Return} ~ v ~ V ~ \epsilon \rbrace \right)
 \end{gather}
 \begin{gather}
    \tag{Constructor} f = \begin{cases} f_0 =
-   (\text{Constructor} ~ t ~ \alpha) ~ \Sigma ~ \beta \\
-   f_n = {f_{n-1} = \epsilon_{n-1} ~ \Sigma_{n-1} ~ \beta_{n-1}
-      \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
-      \over \epsilon_n ~ \Sigma_n \cup \Sigma_{n-1} \setminus \lbrace \alpha_n \rbrace ~ \beta_n \cup \beta_{n-1}}
+   (\text{Constructor} ~ t ~ \alpha) ~ V ~ B \\
+   f_n = {f_{n-1} = \epsilon_{n-1} ~ V_{n-1} ~ B_{n-1}
+      \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ V_n ~ B_n
+      \over \epsilon_n ~ V_n \cup V_{n-1} \setminus \lbrace \alpha_n \rbrace ~ B_n \cup B_{n-1}}
    \end{cases}
-   \over (\text{Constructor} ~ t ~ a_n) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} f_n
+   \over (\text{Constructor} ~ t ~ a_n) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} f_n
 \end{gather}
 \begin{gather}
    \begin{cases}
-      \epsilon_0 = (\sigma = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
+      \epsilon_0 = (v = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
       \epsilon_n =
-         { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
+         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
          \over \epsilon }
    \end{cases}
    \begin{cases}
-      \Sigma_0 = \lbrace \overline{a_1}, \dots, \overline{a_n} \rbrace \\
-      \Sigma_n =
-         { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
-         \over \Sigma \cup \Sigma_{n-1} \setminus \lbrace \overline{a_n} \rbrace }
+      V_0 = \lbrace \overline{a_1}, \dots, \overline{a_n} \rbrace \\
+      V_n =
+         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
+         \over V \cup V_{n-1} \setminus \lbrace \overline{a_n} \rbrace }
    \end{cases}
    \begin{cases}
-      \beta_0 = \emptyset \\
-      \beta_n =
-         { a_n ~ \overline{a_n} ~ \Sigma \cup \Sigma_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
-         \over \beta \cup \beta_{n-1} }
+      B_0 = \emptyset \\
+      B_n =
+         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
+         \over B \cup B_{n-1} }
    \end{cases}
-   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ \Sigma_n ~ \beta_n
+   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ V_n ~ B_n
 \end{gather}
 \begin{gather}
    \tag{Match}
    \begin{split}
-      d ~ \overline{d} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ \Sigma) \vdash_{\text{cfg}} \epsilon_d ~ \Sigma_d ~ \beta_d \\
+      d ~ \overline{d} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ V) \vdash_{\text{cfg}} \epsilon_d ~ V_d ~ B_d \\
       \begin{cases}
-         \beta_0 = \emptyset \\
-            \beta_n =
-         { e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma_{e_n} ~ \beta
-         \quad \Sigma_{e_n} = \Sigma_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
-         \over \beta \cup \beta_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} ~ \left( a_n^1 \dots a_n^{m_n} \right) ~ \Sigma_{e_n} ~ \Sigma, \epsilon \rangle \rbrace }
+         B_0 = \emptyset \\
+            B_n =
+         { e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V_{e_n} ~ B
+         \quad V_{e_n} = V_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
+         \over B \cup B_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} \left( a_n^1 \dots a_n^{m_n} \right) V_{e_n} ~ V, \epsilon \rangle \rbrace }
       \end{cases} \\
-      { \Sigma_{e_n} =
-      e_n ~ \overline{e_n} ~ \Sigma ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ \Sigma) \vdash_{\text{cfg}} \epsilon ~ \Sigma ~ \beta
-      \over \Sigma \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
-      e ~ \sigma_e ~ \left( \bigcup_{i=1}^{n} \Sigma_{e_i} \cup \Sigma_d \cup \Sigma \right) ~ \left( \text{Matchpattern} ~ \sigma_e ~ \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, \Sigma_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, \Sigma_d \rangle ~ \Sigma \right) \vdash_{\text{cfg}} \epsilon_1 ~ \Sigma_1 ~ \beta_1
+      { V_{e_n} =
+      e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B
+      \over V \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
+      e ~ \sigma_e \left( \bigcup_{i=1}^{n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \sigma_e \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, V_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
    \end{split}
-   \over (\text{Match} ~ e ~ \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ \sigma ~ \Sigma ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (\Sigma_1 \cup \Sigma_2) ~ (\beta_1 \cup \beta_2)[\rho = \text{Return} ~ \sigma ~ \Sigma ~ \epsilon]
+   \over (\text{Match} ~ e \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\rho = \text{Return} ~ v ~ V ~ \epsilon]
 \end{gather}
 
 
