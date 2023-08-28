@@ -222,16 +222,16 @@ Toutes les variables sont alpha-converties et conservées dans une table des sym
 
 $\mathbb{E}_{ast} \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right) \times \left( \mathbb{T}_{ast} \mapsto \mathbb{T} \right) \vdash_{\text{ast'}} \mathbb{E} \times \left( \mathbb{V} \mapsto \mathbb{V}_{ast} \right) \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right)$
 
-$E ~ A ~ C \vdash_{\text{ast'}} E' ~ S ~ L$
+$e ~ A ~ C \vdash_{\text{ast'}} e' ~ S ~ L$
 
-- $E$ est l'expression AST à compiler ;
-- $A$ est la table des abstractions existantes dans la portée de $E$ ;
-- $C$ est la table des constructeurs dans la portée de $E$ ;
-- $E'$ est l'expression générée ;
-- $S$ est la table des variables substituées dans $E'$ ;
-- $L$ est la table des variables libres de $E$.
+- $e$ est l'expression AST à compiler ;
+- $A$ est la table des abstractions existantes dans la portée de $e$ ;
+- $C$ est la table des constructeurs dans la portée de $e$ ;
+- $e'$ est l'expression générée ;
+- $S$ est la table des variables substituées dans $e'$ ;
+- $L$ est la table des variables libres de $e$.
 
-Par la suite, je note $x'$ l'identifiant unique donné à une variable $x$, $e'$ l'expression générée par l'expression $e$, $\emptyset$ une table vide, $x \coloneqq y$ une entrée de table dont l'étiquette est $x$ et la valeur est $y$ et $X \sqcup Y$ l'union de deux tables disjointes.
+Par la suite, je note $\overline{x}$ l'identifiant unique donné à une variable $x$, $e'$ l'expression générée par l'expression $e$, $\emptyset$ une table vide, $x \coloneqq y$ une entrée de table dont l'étiquette est $x$ et la valeur est $y$ et $X \sqcup Y$ l'union de deux tables disjointes.
 
 \begin{gather}
    \tag{Int}
@@ -248,9 +248,9 @@ Par la suite, je note $x'$ l'identifiant unique donné à une variable $x$, $e'$
 \begin{gather}
    \tag{Fun}
    \begin{split}
-      e \left( A \sqcup \lbrace x \coloneqq x' \rbrace \right) C &\vdash_{\text{ast'}} e' ~ S_{e} ~ L_{e}
+      e \left( A \sqcup \lbrace x \coloneqq \overline{x} \rbrace \right) C &\vdash_{\text{ast'}} e' ~ S_{e} ~ L_{e}
    \end{split}
-   \over \left( \text{Fun} ~ x ~ e \right) A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ x' ~ e' \right) \left( S_{e} \sqcup \lbrace x' \coloneqq x \rbrace \right) L_{e}
+   \over \left( \text{Fun} ~ x ~ e \right) A ~ C \vdash_{\text{ast'}} \left( \text{Fun} ~ \overline{x} ~ e' \right) \left( S_{e} \sqcup \lbrace \overline{x} \coloneqq x \rbrace \right) L_{e}
 \end{gather}
 \begin{gather}
    \tag{Var1}
@@ -264,15 +264,15 @@ Par la suite, je note $x'$ l'identifiant unique donné à une variable $x$, $e'$
    \begin{split}
       x \notin \mathcal{D}(A)
    \end{split}
-   \over \left( \text{Var} ~ x \right) A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ x' \right) \emptyset ~ \lbrace x \coloneqq x' \rbrace
+   \over \left( \text{Var} ~ x \right) A ~ C \vdash_{\text{ast'}} \left( \text{Var} ~ \overline{x} \right) \emptyset ~ \lbrace x \coloneqq \overline{x} \rbrace
 \end{gather}
 \begin{gather}
    \tag{Let}
    \begin{split}
       e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
-      e_2 \left( A \sqcup L_{e_1} \sqcup \lbrace x \coloneqq x' \rbrace \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
+      e_2 \left( A \sqcup L_{e_1} \sqcup \lbrace x \coloneqq \overline{x} \rbrace \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
    \end{split}
-   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ x' ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup \lbrace x' \coloneqq x \rbrace \right) \left( L_{e_1} \sqcup L_{e_2} \right)
+   \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Let} ~ \overline{x} ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup \lbrace \overline{x} \coloneqq x \rbrace \right) \left( L_{e_1} \sqcup L_{e_2} \right)
 \end{gather}
 \begin{gather}
    \tag{If}
@@ -326,23 +326,27 @@ Par la suite, je note $x'$ l'identifiant unique donné à une variable $x$, $e'$
 
 \newpage
 
-# CFG
+# Analyse du flot de contrôle
 
-La conversion CFG transforme l'AST' en un ensemble (non ordonné) de basic blocs (qui n'est pas à proprement parler un CFG). L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
+La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. A l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
 
-## Langage
+## Graphe de flot de contrôle
+
+La différence notable avec l'AST' est l'apparition des blocs et l'explicitation des variables libres.
 
 ### Identificateurs
 
-$\mathbb{V} \coloneqq \mathbb{N}$ (variables)
+On retrouve les identificateurs pour les variables et les tags, auxquels s'ajoute un identificateur pour les pointeurs.
 
-$\mathbb{P} \coloneqq \mathbb{N}$ (pointeurs)
+$\mathbb{V} \coloneqq \mathbb{N}$ (variables)
 
 $\mathbb{T} \coloneqq \mathbb{N}$ (tags)
 
-$\mathbb{F} \coloneqq \mathbb{P} \times \mathbb{V}^{*}$ (contexte d'appel)
+$\mathbb{P} \coloneqq \mathbb{N}$ (pointeurs)
 
 ### Expressions
+
+Les expressions correspondent aux instructions élémentaires qui construisent des valeurs.
 
 $\text{Int} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
@@ -362,59 +366,64 @@ Une instruction est soit une déclaration soit un branchement. Une déclaration 
 
 $\text{Let} : \mathbb{V} \times \mathbb{E} \times \mathbb{I} \mapsto \mathbb{I}$ assigne le résultat d'une expression à une variable.
 
-$\text{Call} : \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{F} \mapsto \mathbb{I}$ branche vers le bloc avec l'environnement contenu dans la fermeture puis continue l'éxécution avec le contexte spécifié.
+$\text{Call} : \mathbb{V} \times \mathbb{V}^{*} \times \left( \mathbb{P} \times \mathcal{P}(\mathbb{V}) \right) \mapsto \mathbb{I}$ branche vers le bloc avec l'environnement contenu dans la fermeture puis continue l'éxécution avec le contexte spécifié.
 
-$\text{CallDirect} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{F} \mapsto \mathbb{I}$ est identique à $\text{Call}$ à l'exception que le pointeur du bloc vers lequel brancher est connu suite à une étape d'analyse (cette instruction n'est par conséquent jamais générée depuis l'AST').
+$\text{CallDirect} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \times \left( \mathbb{P} \times \mathcal{P}(\mathbb{V}) \right) \mapsto \mathbb{I}$ est identique à $\text{Call}$ à l'exception que le pointeur du bloc vers lequel brancher est connu suite à une étape d'analyse (cette instruction n'est par conséquent jamais générée depuis l'AST').
 
-$\text{If} : \mathbb{V} \times (\mathbb{P} \times \mathbb{V}^{*}) \times (\mathbb{P} \times \mathbb{V}^{*}) \times \mathbb{V}^{*} \mapsto \mathbb{I}$ branche dans le premier bloc si la valeur de la condition est différente de 0, dans le deuxième sinon. Les variables libres (dernier paramètre) sont implicitement passées aux deux branches et seront utilisées par le bloc qui sera éxécuté après.
+$\text{If} : \mathbb{V} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche dans le premier bloc si la valeur de la condition est différente de 0, dans le deuxième sinon. Les variables libres (dernier paramètre) sont implicitement passées aux deux branches et seront utilisées par le bloc qui sera éxécuté après.
 
-$\text{MatchPattern} : \mathbb{V} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{P} \times \mathbb{V}^{*})^{*} \times (\mathbb{P} \times \mathbb{V}^{*}) \times \mathbb{V}^{*} \mapsto \mathbb{I}$ branche soit vers un des blocs lorsque la valeur de la condition correspond au motif de l'un d'eux, soit vers le bloc par défaut. Les variables libres (dernier paramètre) sont implicitement passées à toutes les branches et seront utilisées par le bloc qui sera éxécuté après.
+$\text{MatchPattern} : \mathbb{V} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{P} \times \mathcal{P}(\mathbb{V}))^{*} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche soit vers un des blocs lorsque la valeur de la condition correspond au motif de l'un d'eux, soit vers le bloc par défaut. Les variables libres (dernier paramètre) sont implicitement passées à toutes les branches et seront utilisées par le bloc qui sera éxécuté après.
 
 $\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis une fermeture.
 
-$\text{IfReturn} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis un branchement conditionnel.
+$\text{IfReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis un branchement conditionnel.
 
-$\text{MatchReturn} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis une branche d'un filtrage par motif.
+$\text{MatchReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis une branche d'un filtrage par motif.
 
-$\text{ApplyBlock} : \mathbb{P} \times \mathbb{V}^{*} \mapsto \mathbb{I}$ est un reliquat utilisé uniquement par LetRec.
+$\text{ApplyBlock} : \mathbb{P} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ est un reliquat utilisé uniquement par LetRec.
 
 ### Blocs
 
-Chaque bloc est construit différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement. Le dernier argument correspond toujours aux variables libres du bloc (environnement dans le cas d'une fermeture).
+Chaque bloc est défini différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement. Le dernier argument correspond toujours aux variables libres du bloc (environnement dans le cas d'une fermeture).
 
-$\text{Clos} : \mathbb{V}^{*} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ est une fermeture avec ses arguments.
+$\text{Clos} : \mathbb{V}^{*} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est une fermeture avec ses arguments.
 
-$\text{Return} : \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ sera éxécuté après un appel de fermeture avec comme argument son résultat.
+$\text{Return} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un appel de fermeture avec comme argument son résultat.
 
-$\text{IfBranch} : \mathbb{V}^{*} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ est un branchement conditionnel avec les variables libres qui seront passées au bloc éxécuté ensuite.
+$\text{IfBranch} : \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement conditionnel avec les variables libres qui seront passées au bloc éxécuté ensuite.
 
-$\text{IfJoin} : \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ sera éxécuté après un branchement conditionnel avec comme argument son résultat.
+$\text{IfJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un branchement conditionnel avec comme argument son résultat.
 
-$\text{MatchBranch} : \mathbb{V}^{*} \times \mathbb{V}^{*} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ est un branchement d'un filtrage par motif avec ses arguments (charge du constructeur ou aucun pour le branchement par défaut) et les variables libres qui seront passées au bloc éxécuté ensuite.
+$\text{MatchBranch} : \mathbb{V}^{*} \times \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement d'un filtrage par motif avec ses arguments (charge du constructeur ou aucun pour le branchement par défaut) et les variables libres qui seront passées au bloc éxécuté ensuite.
 
-$\text{MatchJoin} : \mathbb{V} \times \mathbb{V}^{*} \mapsto \mathbb{B}$ sera éxécuté après un branchement d'un filtrage par motif avec comme argument son résultat.
+$\text{MatchJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un branchement d'un filtrage par motif avec comme argument son résultat.
 
-$\text{Cont} : \mathbb{V}^{*} \mapsto \mathbb{B}$ est un reliquat utilisé uniquement par LetRec.
+$\text{Cont} : \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un reliquat utilisé uniquement par LetRec.
 
 ### Ensemble de blocs
 
 $blocks \coloneqq \mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I})$
 
-## Génération du CFG
+## Conversion CFG
 
-L'algorithme a la signature suivante : $cfg : \mathbb{E}_{ast'} \times \mathbb{V} \times \mathbb{B}^{*} \times \mathbb{E} \mapsto \mathbb{E} \times \mathbb{V}^{*} \times blocks$.
+L'algorithme a la signature suivante : $\mathbb{E}_{ast'} \times \mathbb{V} \times \mathbb{B}^{*} \times \mathbb{E} \vdash_{\text{cfg}} \mathbb{E} \times \mathbb{V}^{*} \times blocks$.
 
-- Le premier argument, noté $e$, correspond à l'expression sous forme d'AST' à intégrer au CFG.
-- Le deuxième argument, noté $\sigma$, correspond au nom de la variable dans lequel devrait être conservé le résultat de l'évaluation de $e$.
-- Le troisième argument, noté $\Sigma$, correspond aux variables devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $\sigma$).
-- Le quatrième argument, noté $\epsilon$, correspond à l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle doit faire usage de $\sigma$ et chaque variable libre qui y apparaît doit figurer dans $\Sigma$.
-- Le premier résultat, noté $\epsilon'$, correspond à $e$ transpilée.
-- Le second résultat, noté $\Sigma'$, correspond aux variables libres apparaissant dans $e$ (en théorie, les variables libres de $\epsilon'$ sont exactement $\Sigma \cup \Sigma'$).
-- Le troisième résultat, noté $\beta$, est l'ensemble des blocs générés par la transpilation de $e$.
+$e ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
+
+- $e$ est l'expression sous forme d'AST' à intégrer au CFG ;
+- $v$ est le nom de la variable dans lequel conserver le résultat de l'évaluation de $e$ ;
+- $V$ est l'ensemble des variables libres (arguments) de $\epsilon$ devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $v$).
+- $\epsilon$ est l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle est supposée faire usage de $v$ et chaque variable libre qui y apparaît doit figurer dans $V$ ;
+- $e'$ est $e$ transpilée ;
+- $V_e$ est l'ensemble des variables libres apparaissant dans $e$ qui ne proviennent pas de $V$. En théorie, les variables libres de $e'$ sont exactement $V \cup V_e$. A l'origne $V_e$ contenait toutes les variables libres apparaissant dans $e'$ de la même manière que $V$ contient toutes les variables libres de $\epsilon$ mais j'ai amendé cela pour simplifier l'implémentation. Cette nouvelle version est néanmoins bancale ($e'$ peut ne pas contenir $\epsilon$ mais un appel vers un bloc contenant $\epsilon$ et il est impossible de le déduire d'après $V_e$) c'est pour cela que j'ai prévu de revenir à l'ancienne version quand j'aurai la garantie qu'elle est toujours compatible ;
+- $B_e$ est l'ensemble des blocs générés par la transpilation de $e$.
 
 ### Conventions
 
 Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations, qui est l'équivalent de $\text{Let} ~ \sigma ~ \text{Expression} ~ \epsilon$.
+
+- $\overline{e}$ correspond à l'identifiant unique (variable) attribué au résultat de l'évaluation de $e$.
+- $\dot{e}$ correspond à l'identifiant unique (pointeur)  attribué au bloc qui contiendra $e$.
 
 ### Algorithme
 
@@ -448,25 +457,25 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
    \begin{split}
       e ~ \overline{e} ~ \emptyset \left( \text{Return} ~ \overline{e} \right) \vdash_{\text{cfg}} e' ~ V_{e} ~ B_{e} \quad V_2 = V_{e} \setminus \lbrace x \rbrace
    \end{split}
-   \over \left( \text{Fun} ~ x ~ e \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Closure} ~ \rho ~ V_2; \epsilon \right) V_2 \left( B_{e} \sqcup \lbrace \rho = \text{Clos} ~ V_2 \left( x \right) e' \rbrace \right)
+   \over \left( \text{Fun} ~ x ~ e \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Closure} ~ \dot{e} ~ V_2; \epsilon \right) V_2 \left( B_{e} \sqcup \lbrace \dot{e} = \text{Clos} \left( x \right) V_2 ~ e' \rbrace \right)
 \end{gather}
 \begin{gather}
    \tag{If}
    \begin{split}
-      e_2 ~ \overline{e_2} ~ V ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \overline{e_2} ~ V) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
-      e_3 ~ \overline{e_3} ~ V ~ (\text{Ifreturn} ~ \rho_{e_1} ~ \overline{e_3} ~ V) &\vdash_{\text{cfg}} e_3' ~ V_{e_3} ~ B_{e_3} \\
-      e_1 ~ \overline{e_1} ~ (V \cup V_{e_2} \cup V_{e_3}) ~ (\text{If} ~ \overline{e_1} ~ \rho_{e_2} ~ V_{e_2} ~ \rho_{e_3} ~ V_{e_3} ~ V) &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1} \\
-      B_{e_1e_2e_3} = \lbrace \rho_{e_1} = \text{Ifjoin} ~ v ~ V ~ \epsilon, \rho_{e_2} = \text{Ifbranch} ~ V_{e_2} ~ V ~ e_2', \rho_{e_3} = \text{Ifbranch} ~ V_{e_3} ~ V ~ e_3' \rbrace
+      e_2 ~ \overline{e_2} ~ V ~ (\text{Ifreturn} ~ \dot{e_1} ~ \overline{e_2} ~ V) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
+      e_3 ~ \overline{e_3} ~ V ~ (\text{Ifreturn} ~ \dot{e_1} ~ \overline{e_3} ~ V) &\vdash_{\text{cfg}} e_3' ~ V_{e_3} ~ B_{e_3} \\
+      e_1 ~ \overline{e_1} ~ (V \cup V_{e_2} \cup V_{e_3}) ~ (\text{If} ~ \overline{e_1} ~ \dot{e_2} ~ V_{e_2} ~ \dot{e_3} ~ V_{e_3} ~ V) &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1} \\
+      B_{e_1e_2e_3} = \lbrace \dot{e_1} = \text{Ifjoin} ~ v ~ V ~ \epsilon, \dot{e_2} = \text{Ifbranch} ~ V_{e_2} ~ V ~ e_2', \dot{e_3} = \text{Ifbranch} ~ V_{e_3} ~ V ~ e_3' \rbrace
    \end{split}
    \over (\text{If} ~ e_1 ~ e_2 ~ e_3) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' ~ (V_{e_1} \cup V_{e_2} \cup V_{e_3}) \left( B_{e_1} \sqcup B_{e_2} \sqcup B_{e_3} \sqcup B_{e_1e_2e_3} \right)
 \end{gather}
 \begin{gather}
    \tag{App}
    \begin{split}
-      e_2 ~ \overline{e_2} \left( V \cup \lbrace \overline{e_1} \rbrace \right) \left( \text{Call} ~ \overline{e_1} \left( \overline{e_2} \right) \rho ~ V \right) &\vdash_{\text{cfg}} \epsilon_2 ~ V_{e_2} ~ B_{e_2} \\
+      e_2 ~ \overline{e_2} \left( V \cup \lbrace \overline{e_1} \rbrace \right) \left( \text{Call} ~ \overline{e_1} \left( \overline{e_2} \right) \dot{e} ~ V \right) &\vdash_{\text{cfg}} \epsilon_2 ~ V_{e_2} ~ B_{e_2} \\
       e_1 ~ \overline{e_1} \left( V_{e_2} \cup V \right) \epsilon_2 &\vdash_{\text{cfg}} \epsilon_1 ~ V_{e_1} ~ B_{e_1}
    \end{split}
-   \over \left( \text{App} ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \sqcup \lbrace \rho = \text{Return} ~ v ~ V ~ \epsilon \rbrace \right)
+   \over \left( \text{App} ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \sqcup \lbrace \dot{e} = \text{Return} ~ v ~ V ~ \epsilon \rbrace \right)
 \end{gather}
 \begin{gather}
    \tag{Constructor} f = \begin{cases} f_0 =
@@ -501,20 +510,20 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
 \begin{gather}
    \tag{Match}
    \begin{split}
-      d ~ \overline{d} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{d} ~ V) \vdash_{\text{cfg}} \epsilon_d ~ V_d ~ B_d \\
+      d ~ \overline{d} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{d} ~ V) \vdash_{\text{cfg}} \epsilon_d ~ V_d ~ B_d \\
       \begin{cases}
          B_0 = \emptyset \\
             B_n =
-         { e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V_{e_n} ~ B
+         { e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V_{e_n} ~ B
          \quad V_{e_n} = V_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
-         \over B \cup B_{n-1} \cup \lbrace \langle \rho_{e_n}, \text{Matchbranch} \left( a_n^1 \dots a_n^{m_n} \right) V_{e_n} ~ V, \epsilon \rangle \rbrace }
+         \over B \cup B_{n-1} \cup \lbrace \langle \dot{e_n}, \text{Matchbranch} \left( a_n^1 \dots a_n^{m_n} \right) V_{e_n} ~ V, \epsilon \rangle \rbrace }
       \end{cases} \\
       { V_{e_n} =
-      e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \rho_\epsilon ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B
+      e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B
       \over V \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
-      e ~ \sigma_e \left( \bigcup_{i=1}^{n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \sigma_e \left( \langle t_i, \rho_{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, V_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \rho_d, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
+      e ~ \sigma_e \left( \bigcup_{i=1}^{n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \sigma_e \left( \langle t_i, \dot{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, V_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \dot{d}, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
    \end{split}
-   \over (\text{Match} ~ e \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\rho = \text{Return} ~ v ~ V ~ \epsilon]
+   \over (\text{Match} ~ e \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\dot{e} = \text{Return} ~ v ~ V ~ \epsilon]
 \end{gather}
 
 
@@ -546,9 +555,24 @@ Les blocs à spécialiser sont actuellement sélectionnés uniquement selon que 
 
 ## Analyse
 
-L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer au mieux les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (en conservant certaines relations) tout en disposant des informations nécessaires sur les blocs. Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation, c'est à dire que les paramètres des blocs sont identifiés par un ensemble de points d'allocation et chaque point d'allocation contient une valeur abstraite. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par un nom de variable. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). 
+L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer au mieux les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (en conservant certaines relations) tout en disposant des informations nécessaires sur les blocs.
 
-> Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+### Zones d'allocation
+
+Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+
+#### Paramètres
+
+Chaque paramètre de bloc est identifié par un ensemble de point d'allocation correspondant aux endroits d'où peut avoir été déclarée et initialisée sa valeur.
+
+#### Point d'allocation
+
+Un point d'allocation correspond simplement à une déclaration, c'est à dire une instruction $\text{Let}$. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par le nom de variable utilisé par $\text{Let}$. 
+
+
+  contient une valeur abstraite correspondant . 
+
+> 
 
 
 
@@ -556,13 +580,13 @@ L'analyse est l'étape la plus compliquée et probablement la plus importante po
 
 Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels
 
-### Domaines
+### Valeurs
 
-
+Actuellement seulement deux domaines abstraits sont nécessaires pour représenter toutes les valeurs du langage.
 
 #### Entiers
 
-J'ai choisi de représenter les entiers de la manière la plus simple qui soit, c'est à dire des singletons munis de Top ($Z$).
+Les entiers sont représentés de la manière la plus simple qui soit, c'est à dire des singletons munis de Top ($Z$).
 
 $\text{Top} : int_d$
 
@@ -574,7 +598,9 @@ $u = v \Rightarrow \lbrace u \rbrace \cup_{int_d} \lbrace v \rbrace = \lbrace u 
 
 $x \cup_{int_d} y = Top$
 
-Le domaine pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
+#### Fermetures
+
+Le domaine pour les fermetures (resp. les unions taggées) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au contenu de l'union). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux abstractions est garantie de converger.
 
 $closure_d \coloneqq pointer \rightarrow \mathcal{P}(var)^{*}$
 
