@@ -415,7 +415,7 @@ $e ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
 - $V$ est l'ensemble des variables libres (arguments) de $\epsilon$ devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $v$).
 - $\epsilon$ est l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle est supposée faire usage de $v$ et chaque variable libre qui y apparaît doit figurer dans $V$ ;
 - $e'$ est $e$ transpilée ;
-- $V_e$ est l'ensemble des variables libres apparaissant dans $e$ qui ne proviennent pas de $V$. En théorie, les variables libres de $e'$ sont exactement $V \cup V_e$. A l'origne $V_e$ contenait toutes les variables libres apparaissant dans $e'$ de la même manière que $V$ contient toutes les variables libres de $\epsilon$ mais j'ai amendé cela pour simplifier l'implémentation. Cette nouvelle version est néanmoins bancale ($e'$ peut ne pas contenir $\epsilon$ mais un appel vers un bloc contenant $\epsilon$ et il est impossible de le déduire d'après $V_e$) c'est pour cela que j'ai prévu de revenir à l'ancienne version quand j'aurai la garantie qu'elle est toujours compatible ;
+- $V_e$ est l'ensemble des variables libres apparaissant dans $e$ qui ne proviennent pas de $V$. En théorie, les variables libres de $e'$ sont exactement $V \cup V_e$. À l'origne $V_e$ contenait toutes les variables libres apparaissant dans $e'$ de la même manière que $V$ contient toutes les variables libres de $\epsilon$ mais j'ai amendé cela pour simplifier l'implémentation. Cette nouvelle version est néanmoins bancale ($e'$ peut ne pas contenir $\epsilon$ mais un appel vers un bloc contenant $\epsilon$ et il est impossible de le déduire d'après $V_e$) c'est pour cela que j'ai prévu de revenir à l'ancienne version quand j'aurai la garantie qu'elle est toujours compatible ;
 - $B_e$ est l'ensemble des blocs générés par la transpilation de $e$.
 
 ### Conventions
@@ -529,7 +529,7 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
 
 ## Nettoyage des alias
 
-Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias. A ma connaissance il n'existe pas de méthode simple pour éliminer les alias directement lors de la génération et ainsi se passer de $\text{Var}$ dans le langage intermédiaire.
+Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias. À ma connaissance il n'existe pas de méthode simple pour éliminer les alias directement lors de la génération et ainsi se passer de $\text{Var}$ dans le langage intermédiaire.
 
 ## Taille
 
@@ -557,126 +557,152 @@ Les blocs à spécialiser sont actuellement sélectionnés uniquement selon que 
 
 L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer au mieux les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (en conservant certaines relations) tout en disposant des informations nécessaires sur les blocs.
 
+Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels de l'analyse, en particulier les sauts directs, sont intégrés au CFG.
+
 ### Zones d'allocation
 
-Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Ce choix donne des garanties de terminaison (il existe un nombre fini de points d'allocation dans le programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+
+
+#### Point d'allocation
+
+Un point d'allocation correspond simplement à une déclaration, c'est à dire une instruction $\text{Let}$. Étant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par le nom de variable utilisé par $\text{Let}$. 
+
+#### Usine
+
+L'usine correspond à une table associant chaque point d'allocation aux valeurs qui y ont été produites. Par valeurs il faut comprendre valeur abstraite qui sera définie plus loin.
+
+$\mathbb{U} \coloneqq \mathbb{V} \mapsto \mathbb{D}$ (usine)
 
 #### Paramètres
 
 Chaque paramètre de bloc est identifié par un ensemble de point d'allocation correspondant aux endroits d'où peut avoir été déclarée et initialisée sa valeur.
 
-#### Point d'allocation
+$\mathbb{P} \coloneqq \mathcal{P}(\mathbb{V})$ (paramètre)
 
-Un point d'allocation correspond simplement à une déclaration, c'est à dire une instruction $\text{Let}$. Etant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par le nom de variable utilisé par $\text{Let}$. 
-
-
-  contient une valeur abstraite correspondant . 
-
-> 
-
-
-
-
-
-Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels
-
-### Valeurs
+### Domaines
 
 Actuellement seulement deux domaines abstraits sont nécessaires pour représenter toutes les valeurs du langage.
 
 #### Entiers
 
-Les entiers sont représentés de la manière la plus simple qui soit, c'est à dire des singletons munis de Top ($Z$).
+Les entiers sont représentés de la manière la plus simple qui soit, c'est à dire des singletons munis de Top.
 
-$\text{Top} : int_d$
+$\text{Top} : \mathbb{I}$ ($\mathbb{Z}$)
 
-$\text{Singleton} : int \rightarrow int_d$
+$\text{Singleton} : \mathbb{Z} \rightarrow \mathbb{I}$ ($\lbrace i \rbrace$)
 
 L'union de deux entiers donne toujours Top sauf lorsqu'il s'agit de deux singletons de même valeur.
 
-$u = v \Rightarrow \lbrace u \rbrace \cup_{int_d} \lbrace v \rbrace = \lbrace u \rbrace$
+$u = v \Rightarrow \lbrace u \rbrace \cup_{\mathbb{I}} \lbrace v \rbrace = \lbrace u \rbrace$
 
-$x \cup_{int_d} y = Top$
+$x \cup_{\mathbb{I}} y = Top$
 
 #### Fermetures
 
-Le domaine pour les fermetures (resp. les unions taggées) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au contenu de l'union). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux abstractions est garantie de converger.
+Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres. Étant donné que les pointeurs de fonctions ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux fermetures est garantie de converger.
 
-$closure_d \coloneqq pointer \rightarrow \mathcal{P}(var)^{*}$
+$\mathbb{F} \coloneqq \mathbb{P} \rightarrow \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
 
-$constructor_d \coloneqq tag \rightarrow \mathcal{P}(var)^{*}$
-
-En pratique, $pointer = tag = int$, c'est pour cela que j'utilise le même domaine pour les constructeurs et les tags.
-
-L'union de deux domaines de fermetures consiste à conserver les entrées distinctes et d'unir les valeurs des entrées communes.
-
-> Deux entrées communes sont censées avoir le même nombre de valeurs.
-
-$$x \cup_{closure} y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
+L'union de deux fermetures consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même pointeur, sont censées avoir le même environnement, dans le cas contraire il s'agit d'une erreur d'implémentation.
+$$
+x \sqcup y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
    \begin{cases}
-      \left( x(z)\_i \cup y(z)\_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
+      \lbrace x(z)(i) \cup y(z)(i), i \in x(z) \text{ et } i \in y(z) \rbrace \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \\
       x(z) \text{ si } z \in \mathcal{D}(x) \\
       y(z) \text{ si } z \in \mathcal{D}(y)
-   \end{cases}$$
+   \end{cases}
+$$
 
-Une valeur abstraite est soit un entier soit une fermeture.
+#### Unions taggées
 
-$\text{IntDomain} : int_d \rightarrow value_domain$
+Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union. Étant donné que les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux unions taggées est garantie de converger.
 
-$\text{ClosureDomain} : closure_d \rightarrow value_domain$
+$\mathbb{C} \coloneqq \mathbb{T} \rightarrow \mathcal{P}(\mathbb{V})^{*}$ (union taggée)
 
-Comme chaque valeur est toujours initialisée et déclarée avec un identifiant unique, elles sont conservées dans une table d'association correspondant aux allocations.
+L'union de deux unions taggées consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même tag, sont censées avoir le même contenu, dans le cas contraire il s'agit d'une erreur d'implémentation.
+$$
+x \sqcup y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
+   \begin{cases}
+      \left( x(z)_i \cup y(z)_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
+      x(z) \text{ si } z \in \mathcal{D}(x) \\
+      y(z) \text{ si } z \in \mathcal{D}(y)
+   \end{cases}
+$$
 
-$allocations \coloneqq var \rightarrow value_domain$
+### Valeur abstraite
 
+Une valeur abstraite est un entier, une fermeture ou une union taggée.
 
-Lors de l'analyse, les blocs conserveront désormais un ensemble de points d'allocations pour chacune de ses variables.
+$\text{IntDomain} : \mathbb{I} \rightarrow \mathbb{A}$
 
-$cont_type \coloneqq \text{block}[var/\mathcal{P}(var)]$
+$\text{ClosureDomain} : \mathbb{F} \rightarrow \mathbb{A}$
 
-Une frame correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
+$\text{ConstructorDomain} : \mathbb{C} \rightarrow \mathbb{A}$
 
-$frame \coloneqq pointer \times (\mathcal{P}(var))^{*}$
+### Blocs
+
+Les blocs utilisés pour l'analyse sont les même que ceux du CFG à l'exception des paramètres qui sont désormais des ensembles de points d'allocation au lieu d'un nom de variables, c'est à dire $\mathbb{B}_cfg$ avec $\mathbb{V} \coloneqq \mathcal{P}(\mathbb{V})$. L'union de deux blocs (de même type) est l'union de leurs paramètres.
+
+### Contexte d'appel
+
+Un contexte d'appel correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
+
+$\mathbb{F} \coloneqq \mathbb{P} \times \mathcal{P}(\mathbb{V})^{*}$ (contexte d'appel)
+
+### Pile
 
 La pile d'appel est une liste ordonnée d'appels.
 
-$stack_allocs \coloneqq frame^{*}$
+$\mathbb{S} \coloneqq \mathbb{F}^{*}$ (pile)
 
-Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'appel et enfin au contexte d'allocations du moment où il est appelé.
+### Bloc à analyser
 
-$bbloc \coloneqq pointer \times cont_type \times stack_allocs \times allocations$
+Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'appel et enfin à l'usine du moment où il est appelé.
+
+$\mathbb{B}\mathbb{B} \coloneqq \mathbb{P} \times cont_type \times \mathbb{S} \times \mathbb{U}$
+
+### Réduction de la pile
 
 Une fonction qui réduit la taille de la pile.
 
-$stack_reduce \coloneqq stack_allocs \rightarrow stack_allocs$
+$stack_reduce \coloneqq \mathbb{S} \rightarrow \mathbb{S}$
+
+#### Contexte d'appel
 
 Le contexte d'appel contient la pile d'appel et les arguments d'appel.
 
 > Il est important de noter que si l'on suppose la pile d'appel comme ayant une taille finie (garantie après réduction), la dimension d'un contexte est bornée, ce qui est essentiel pour garantir la terminaison.
 
-$context \coloneqq stack_allocs \times cont_type$
+$context \coloneqq \mathbb{S} \times cont_type$
 
-Une table de contextes d'allocations associe un contexte à l'état de ses allocations.
+#### Contextes des usines
 
-> La dimension d'un contexte étant bornée, les contextes sont donc dénombrables (on peut donc implémenter la table d'association correspondante).
+Une table des usines associe un contexte à une usine. La dimension d'un contexte étant bornée, les contextes sont dénombrables (on peut donc implémenter la table d'association correspondante).
 
-$alloccontexte \coloneqq context \rightarrow allocations$
+$alloccontexte \coloneqq context \rightarrow \mathbb{U}$
+
+#### Table de contextes des usines
 
 Une table de contextes de blocs associe chaque bloc à ses contextes d'allocation.
 
 $bloccontexte \coloneqq pointer \rightarrow alloccontexte$
 
+#### Appel analysé
+
 Un appel analysé est une paire associant les paramètres passés avec leurs allocations correspondantes.
 
 $callanalysed \coloneqq cont_type \times allocations$
 
-Un programme analyse (càd le résultat de l'analyse) est une table associant chaque bloc à son appel analysé.
+#### Programme analysé
+
+Un programme analysé (càd le résultat de l'analyse) est une table associant chaque bloc à son appel analysé.
 
 $analysis \coloneqq pointer \rightarrow callanalysed$
 
 ### Algorithme d'analyse
 
-$\text{analysis} : bbloc^{*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
+$\text{analysis} : \mathbb{B}\mathbb{B}^{*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
 
 \begin{algorithm}[H]
 \DontPrintSemicolon
@@ -719,10 +745,6 @@ $\text{analysis} : bbloc^{*} \times stack_reduce \times blocks \times bloccontex
 \caption{Analyse du programme}
 \end{algorithm}
 
-### Abstractions
-
-Actuellement j'utilise deux abstractions pour représenter toutes les valeurs du langage. La première pour les entiers qui est simplement le domaine singleton. La deuxième pour les fermetures (resp. les constructeurs) est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction (resp. au tag), et le contexte correspond aux variables libres (resp. au payload). Étant donné que les pointeurs de fonctions, les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés, l'union de deux abstractions est garantie de converger.
-
 ### Preuve de terminaison
 
 Les noms de variables, par extension les zones d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidement fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
@@ -739,7 +761,7 @@ L'objectif principal de ce langage intermédiaire est d'avoir une représentatio
 
 ## Langage
 
-Le CFG concret est très similaire au CFG, si ce n'est que tous les quasiment tous les traits de langage propres à OCaml ont été concrétisés. A chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
+Le CFG concret est très similaire au CFG, si ce n'est que quasiment tous les traits de langage propres à OCaml ont été concrétisés. À chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
 
 ### Identifiants
 
@@ -791,41 +813,45 @@ Il n'existe plus de sémantique pour chaque type de bloc, l'ordre des arguments 
 
 $\mathbb{B} \coloneqq \mathbb{V}^{*} \times \mathbb{I}$ (bloc)
 
-### Blocs
-
-Le CFG reste un ensemble de blocs.
-
-$blocks \coloneqq \mathbb{P} \rightarrow \mathbb{B}$
-
 ## Génération du CFG concret
 
 La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
 
-$\vdash_{\text{cfg'}} : \mathbb{B}_{cfg} \times \mathbb{I} \mapsto \mathbb{B} \times blocks$
+$\mathbb{B}_{cfg} \times \mathbb{I} \vdash_{\text{cfg'}} \mathbb{B} \times (\mathbb{P} \mapsto \mathbb{B})$
+
+$a ~ i \vdash_{\text{cfg'}} a' ~ i' ~ B$
+
+- $b$ est l'entête du bloc à transpiler ;
+- $i$ est l'instruction du bloc à transpiler (son contenu) ;
+- $a'$ est l'entête transpilée (les arguments du bloc transpilé) ;
+- $i'$ est le contenu transpilé ;
+- $B$ est l'ensemble des blocs générés au passage.
+
+Dans la suite, les ensembles de variables correspondant aux arguments des blocs sont considérés comme ordonnés (ordre lexicographique par exemple) de manière déterministe.
 
 \begin{gather}
    \tag{Cont}
-   \over \left( \text{Cont} ~ args \right) ~ i \vdash_{\text{cfg'}} args ~ i ~ \emptyset
+   \over \left( \text{Cont} \left( a_i \right)_{i=0}^{i=n} \right) i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Return}
-   \over \left( \text{Return} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+   \over \left( \text{Return} ~ a_0 \left( a_i \right)_{i=1}^{i=n} \right) i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Clos}
    \begin{cases}
-      i_0 = \text{ApplyDirect} ~ p ~ \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right) ~ \left( \right) \\
+      i_0 = \text{ApplyDirect} ~ p \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right) \left( \right) \\
       i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
    \end{cases}
-   \over \left( \text{Clos} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m \right) ~ i_n ~ \lbrace p = \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right), i \rbrace
+   \over \left( \text{Clos} \left( a_i \right)_{i=0}^{i=n} \left( a_i \right)_{i=n+1}^{i=m} \right) i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m \right) i_n ~ \lbrace p = \left( a_{n+1}, \dots, a_m, a_1, \dots, a_n \right), i \rbrace
 \end{gather}
 \begin{gather}
    \tag{IfBranch}
-   \over \left( \text{IfBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=m} ~ i ~ \emptyset
+   \over \left( \text{IfBranch} \left( a_i \right)_{i=0}^{i=n} \left( a_i \right)_{i=n+1}^{i=m} \right) i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=m} ~ i ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{IfJoin}
-   \over \left( \text{IfJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+   \over \left( \text{IfJoin} ~ a_0 \left( a_i \right)_{i=1}^{i=n} \right) i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{MatchBranch}
@@ -833,16 +859,16 @@ $\vdash_{\text{cfg'}} : \mathbb{B}_{cfg} \times \mathbb{I} \mapsto \mathbb{B} \t
       i_0 = i \\
       i_n = \left( a_n = \text{Get} ~ e ~ n; i_{n-1} \right)
    \end{cases}
-   \over \left( \text{MatchBranch} ~ \left( a_i \right)_{i=0}^{i=n} ~ \left( a_i \right)_{i=n+1}^{i=m} ~ \left( a_i \right)_{i=m+1}^{i=o} \right) ~ i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m, a_{m+1}, \dots, a_o \right) ~ i_n ~ \emptyset
+   \over \left( \text{MatchBranch} \left( a_i \right)_{i=0}^{i=n} \left( a_i \right)_{i=n+1}^{i=m} \left( a_i \right)_{i=m+1}^{i=o} \right) i \vdash_{\text{cfg'}} \left( e, a_{n+1}, \dots, a_m, a_{m+1}, \dots, a_o \right) i_n ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{MatchJoin}
-   \over \left( \text{MatchJoin} ~ a_0 ~ \left( a_i \right)_{i=1}^{i=n} \right) ~ i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
+   \over \left( \text{MatchJoin} ~ a_0 \left( a_i \right)_{i=1}^{i=n} \right) i \vdash_{\text{cfg'}} \left( a_i \right)_{i=0}^{i=n} ~ i ~ \emptyset
 \end{gather}
 
 ### Taille
 
-Calculer la taille du CFG concret est uniquement intéressant d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
+La taille du CFG concret est uniquement intéressante d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
 
 ### Recensement des variables et appels de blocs
 
@@ -850,13 +876,19 @@ De la même manière que lors de la phase CFG, les variables et les appels de bl
 
 ## Inlining
 
-Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement). Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction.
+Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la place de la dernière instruction (branchement) lorsqu'il s'agit d'un appel direct uniquement. Chaque argument du bloc inliné est remplacé par la variable qui lui a été assignée lors du branchement par le bloc appelant. Pour l'instant seuls les appels directs peuvent être inlinés. Si lors de l'appel des contextes étaient empilés sur la pile, alors le branchement du bloc inliné en tiendra compte. En particulier, si le branchement du bloc inliné est un retour de fonction (et si la pile n'est pas vide) celui-ci dépilera la pile et deviendra un saut direct. Dans les autres cas les contextes du bloc appelant sont empilés sur les contextes du bloc appelé, ce qui permet d'avoir des sauts vers l'intérieur d'une fonction.
 
-> Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs spécialisés sont ainsi tous conernés).
+### Choix des blocs à inliner
+
+Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs spécialisés lors de l'analyse du flot de contrôle sont ainsi tous concernés).
 
 ## Interprétation
 
-C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations. Pour la suite du stage je serai amené à extraire de nombreuses informations issues de l'interprétation pour vérifier la pertinance des heuristiques mises en place.
+C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
+
+### Benchmarks
+
+Durant l'interprêtation j'enregistre diverses informations intéressantes, comme le nombre de sauts, de variables lues ou écrites, pour identifier la pertinence de certaines optimisation.
 
 \newpage
 
