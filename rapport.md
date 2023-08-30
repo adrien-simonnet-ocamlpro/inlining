@@ -689,17 +689,13 @@ $\text{analysis} : \mathbb{B}\mathbb{B}^{*} \times stack_reduce \times blocks \t
 \DontPrintSemicolon
 \SetAlgoLined
 \SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
-\Input{conts reduce prog map}
+\Input{B reduce prog map}
 \BlankLine
-\eIf{$conts$ est vide}{
-    map2 $\gets \emptyset$\;
-    \For{$b \in map$}{
-        map2[b] $\gets$ union de toutes les allocations et paramètres\;
-    }
-    \Return map2
+\eIf{$B$ est vide}{
+    \Return $map$ telle que pour chaque bloc sa valeur soit l'union des usines et paramètres de chaque contexte de pile de ce bloc.\;
 }{
-   k, block', stack''', allocations $\gets$ hd(conts)\;
-   conts' $\gets$ tl(conts)\;
+   k, block', stack''', allocations $\gets$ hd(B)\;
+   B' $\gets$ tl(B)\;
    stack $\gets$ reduce(stack''')\;
 
    \eIf{$k \in \mathcal{D}(map)$}{
@@ -714,7 +710,7 @@ $\text{analysis} : \mathbb{B}\mathbb{B}^{*} \times stack_reduce \times blocks \t
         }{
             block, expr $\gets$ prog(k)\;
             nextconts $\gets$ analysiscont(expr, stack''', (blockenv block block'), newallocations)\;
-            \Return {analysis(conts'nextconts, reduce, prog, add k (add (stack, block') newallocations oldcontexts) map)}
+            \Return {analysis(B'nextconts, reduce, prog, add k (add (stack, block') newallocations oldcontexts) map)}
         }
     }{
 
