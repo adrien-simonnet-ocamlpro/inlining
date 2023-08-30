@@ -10,7 +10,7 @@ fontsize: 12pt
 toc: true
 toc-title: Table des matières
 abstract: |
-  Ceci constitue mon rapport de stage de fin de cursus [Science et Technologie du Logiciel (STL)](https://sciences.sorbonne-universite.fr/formation-sciences/masters/master-informatique/parcours-stl) à [Sorbonne Université](https://sorbonne-universite.fr) réalisé chez [OCamlPro](https://ocamlpro.com/) au sein de l'équipe [flambda](https://v2.ocaml.org/manual/flambda.html). Mon stage a consisté à proposer des heuristiques d'inlining pour le compilateur du langage OCaml, spécialité de l'entreprise. Découvrir et travailler sur un compilateur complexe comme celui-ci n'a pas été jugé envisageable par mes tuteurs de stage, Vincent Laviron et Pierre Chambart, c'est la raison pour laquelle j'ai évolué sur un langage "jouet". L'évolution qu'a prise le stage et le fait qu'il ait commencé tard a fait que j'ai davantage travaillé sur les différentes représentations intermédiaires et analyses nécessaires à l'inlining que sur les heuristiques en elles-mêmes. Mon stage n'étant pas terminé à l'issu de ce rapport, je compte bien l'achever en corrigeant ce dernier point. 
+  Ceci constitue mon rapport de stage de fin de cursus [Science et Technologie du Logiciel (STL)](https://sciences.sorbonne-universite.fr/formation-sciences/masters/master-informatique/parcours-stl) à [Sorbonne Université](https://sorbonne-universite.fr) réalisé chez [OCamlPro](https://ocamlpro.com/) au sein de l'équipe [flambda](https://v2.ocaml.org/manual/flambda.html). Ce stage a consisté à proposer des heuristiques d'inlining pour le compilateur du langage OCaml, spécialité de l'entreprise. Découvrir et travailler sur un compilateur complexe comme celui-ci n'a pas été jugé envisageable par mes tuteurs de stage, Vincent Laviron et Pierre Chambart, c'est la raison pour laquelle j'ai évolué sur un langage "jouet". Mon stage se terminant après la soutenance, ce rapport rend compte essentiellement de mon travail sur les différentes représentations intermédiaires et analyses nécessaires à l'inlining. J'apporte néanmoins quelques idées d'heuristiques que je vais être amener à étudier en détails d'ici la fin du stage.
 include-before: \newpage
 ---
 
@@ -168,9 +168,7 @@ L'AST est généré par [Menhir](https://ocaml.org/p/menhir/) à l'aide des jeto
 
 # Analyse sémantique
 
-L'analyse sémantique est la troisième étape de la compilation.
-
-Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
+L'analyse sémantique est la troisième étape de la compilation. Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
 
 ## Arbre de syntaxe abstraite' (AST')
 
@@ -231,7 +229,9 @@ $e ~ A ~ C \vdash_{\text{ast'}} e' ~ S ~ L$
 - $S$ est la table des variables substituées dans $e'$ ;
 - $L$ est la table des variables libres de $e$.
 
-Par la suite, je note $\overline{x}$ l'identifiant unique donné à une variable $x$, $e'$ l'expression générée par l'expression $e$, $\emptyset$ une table vide, $x \coloneqq y$ une entrée de table dont l'étiquette est $x$ et la valeur est $y$ et $X \sqcup Y$ l'union de deux tables disjointes.
+Par la suite, je note $\overline{x}$ l'identifiant unique donné à une variable $x$, $e'$ l'expression générée par l'expression $e$, $\emptyset$ une table vide, $x \coloneqq y$ une entrée de table dont l'étiquette est $x$ et la valeur est $y$ et $X \sqcup Y$ l'union de deux tables. Deux tables dont les clés sont des identificateurs uniques ou des variables libres étant nécessairement disjointes, leur union est définie de manière naturelle comme l'union de leurs clés avec leurs valeurs associées.
+
+Il est important d'injecter les variables libres dans la table des abstractions pour éviter de détecter plusieurs fois la même variable libre.
 
 \begin{gather}
    \tag{Int}
@@ -303,7 +303,7 @@ Par la suite, je note $\overline{x}$ l'identifiant unique donné à une variable
    \begin{split}
       e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
       \dots \\
-      e_n \left( \bigsqcup_{i=1}^{i=n-1} S_{e_{i-1}} \sqcup A \right) C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ L_{e_n}
+      e_n \left( \bigsqcup_{i=1}^{i=n-1} L_{e_{i-1}} \sqcup A \right) C &\vdash_{\text{ast'}} e_n' ~ S_{e_n} ~ L_{e_n}
    \end{split}
    \over \left( \text{Constructor} ~ s \left( e_i \right)_{i=1}^{i=n} \right) A ~ C \vdash_{\text{ast'}} \left( \text{Constructor} \left( C(s) \right) \left( e_i' \right)_{i=1}^{i=n} \right) \left( \bigsqcup_{i=1}^{i=n} S_{e_i} \right) \left( \bigsqcup_{i=1}^{i=n} L_{e_i} \right)
 \end{gather}
@@ -328,7 +328,7 @@ Par la suite, je note $\overline{x}$ l'identifiant unique donné à une variable
 
 # Analyse du flot de contrôle
 
-La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. A l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main un langage intermédiaire qui permette une analyse simple et puissante.
+La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. A l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main une représentation intermédiaire qui permette une analyse simple et puissante.
 
 ## Graphe de flot de contrôle
 
@@ -400,41 +400,35 @@ $\text{MatchJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}
 
 $\text{Cont} : \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un reliquat utilisé uniquement par LetRec.
 
-### Ensemble de blocs
-
-$blocks \coloneqq \mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I})$
-
 ## Conversion CFG
 
-L'algorithme a la signature suivante : $\mathbb{E}_{ast'} \times \mathbb{V} \times \mathbb{B}^{*} \times \mathbb{E} \vdash_{\text{cfg}} \mathbb{E} \times \mathbb{V}^{*} \times blocks$.
+La conversion de l'AST' vers le CFG convertit une expression en une suite d'instructions et un ensemble de blocs.
 
-$e ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
+$\mathbb{E}_{ast'} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \times \mathbb{I} \vdash_{\text{cfg}} \mathbb{I} \times \mathcal{P}(\mathbb{V}) \times (\mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I}))$
+
+$e ~ v ~ V ~ i \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
 
 - $e$ est l'expression sous forme d'AST' à intégrer au CFG ;
 - $v$ est le nom de la variable dans lequel conserver le résultat de l'évaluation de $e$ ;
-- $V$ est l'ensemble des variables libres (arguments) de $\epsilon$ devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $v$).
-- $\epsilon$ est l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle est supposée faire usage de $v$ et chaque variable libre qui y apparaît doit figurer dans $V$ ;
+- $V$ est l'ensemble des variables libres (arguments) de $i$ devant être sauvegardées durant l'évaluation de $e$ pour être réstaurées après (ne doit pas contenir $v$).
+- $i$ est l'expression déjà transpilée au format CFG qui sera éxécutée après $e$. Elle est supposée faire usage de $v$ et chaque variable libre qui y apparaît doit figurer dans $V$ ;
 - $e'$ est $e$ transpilée ;
-- $V_e$ est l'ensemble des variables libres apparaissant dans $e$ qui ne proviennent pas de $V$. En théorie, les variables libres de $e'$ sont exactement $V \cup V_e$. À l'origne $V_e$ contenait toutes les variables libres apparaissant dans $e'$ de la même manière que $V$ contient toutes les variables libres de $\epsilon$ mais j'ai amendé cela pour simplifier l'implémentation. Cette nouvelle version est néanmoins bancale ($e'$ peut ne pas contenir $\epsilon$ mais un appel vers un bloc contenant $\epsilon$ et il est impossible de le déduire d'après $V_e$) c'est pour cela que j'ai prévu de revenir à l'ancienne version quand j'aurai la garantie qu'elle est toujours compatible ;
+- $V_e$ est l'ensemble des variables libres apparaissant dans $e$ qui ne proviennent pas de $V$. En théorie, les variables libres de $e'$ sont exactement $V \cup V_e$. À l'origne $V_e$ contenait toutes les variables libres apparaissant dans $e'$ de la même manière que $V$ contient toutes les variables libres de $i$ mais j'ai amendé cela pour simplifier l'implémentation. Cette nouvelle version est néanmoins bancale ($e'$ peut ne pas contenir $i$ mais un appel vers un bloc contenant $i$ et il est impossible de le déduire d'après $V_e$) c'est pour cela que j'ai prévu de revenir à l'ancienne version quand j'aurai la garantie qu'elle est toujours compatible ;
 - $B_e$ est l'ensemble des blocs générés par la transpilation de $e$.
 
-### Conventions
-
-Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations, qui est l'équivalent de $\text{Let} ~ \sigma ~ \text{Expression} ~ \epsilon$.
+Par la suite :
 
 - $\overline{e}$ correspond à l'identifiant unique (variable) attribué au résultat de l'évaluation de $e$.
 - $\dot{e}$ correspond à l'identifiant unique (pointeur)  attribué au bloc qui contiendra $e$.
 
-### Algorithme
-
 \begin{gather}
    \tag{Int}
-   \over \left( \text{Int} ~ i \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Int} ~ i; \epsilon \right) \emptyset ~ \emptyset
+   \over \left( \text{Int} ~ i \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( \text{Let} ~ v \left( \text{Int} ~ i \right) \epsilon \right) \emptyset ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Var}
    \label{Var}
-   \over \left( \text{Var} ~ x \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = x; \epsilon \right) \lbrace x \rbrace ~ \emptyset
+   \over \left( \text{Var} ~ x \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( \text{Let} ~ v ~ x ~ \epsilon \right) \lbrace x \rbrace ~ \emptyset
 \end{gather}
 \begin{gather}
    \tag{Let}
@@ -447,7 +441,7 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
 \begin{gather}
 \tag{Binary}
    \begin{split}
-      e_2 ~ \overline{e_2} \left( V \cup \lbrace \sigma_1 \rbrace \right) (v = \overline{e_1} \diamond \overline{e_2}; \epsilon) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
+      e_2 ~ \overline{e_2} \left( V \cup \lbrace \overline{e_1} \rbrace \right) (v = \overline{e_1} \diamond \overline{e_2}; \epsilon) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
       e_1 ~ \overline{e_1} ~ (V_{e_2} \cup V) ~ e_2' &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1}
    \end{split}
    \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
@@ -457,7 +451,7 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
    \begin{split}
       e ~ \overline{e} ~ \emptyset \left( \text{Return} ~ \overline{e} \right) \vdash_{\text{cfg}} e' ~ V_{e} ~ B_{e} \quad V_2 = V_{e} \setminus \lbrace x \rbrace
    \end{split}
-   \over \left( \text{Fun} ~ x ~ e \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( v = \text{Closure} ~ \dot{e} ~ V_2; \epsilon \right) V_2 \left( B_{e} \sqcup \lbrace \dot{e} = \text{Clos} \left( x \right) V_2 ~ e' \rbrace \right)
+   \over \left( \text{Fun} ~ x ~ e \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \left( \text{Let} ~ v \left( \text{Closure} ~ \dot{e} ~ V_2 \right) \epsilon \right) V_2 \left( B_{e} \sqcup \lbrace \dot{e} = \text{Clos} \left( x \right) V_2 ~ e' \rbrace \right)
 \end{gather}
 \begin{gather}
    \tag{If}
@@ -478,34 +472,12 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
    \over \left( \text{App} ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \sqcup \lbrace \dot{e} = \text{Return} ~ v ~ V ~ \epsilon \rbrace \right)
 \end{gather}
 \begin{gather}
-   \tag{Constructor} f = \begin{cases} f_0 =
-   (\text{Constructor} ~ t ~ \alpha) ~ V ~ B \\
-   f_n = {f_{n-1} = \epsilon_{n-1} ~ V_{n-1} ~ B_{n-1}
-      \quad a_n ~ \alpha_n ~ \alpha \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon_n ~ V_n ~ B_n
-      \over \epsilon_n ~ V_n \cup V_{n-1} \setminus \lbrace \alpha_n \rbrace ~ B_n \cup B_{n-1}}
-   \end{cases}
-   \over (\text{Constructor} ~ t ~ a_n) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} f_n
-\end{gather}
-\begin{gather}
+   \tag{Constructor}
    \begin{cases}
-      \epsilon_0 = (v = \text{Constructor} ~ t ~ (\overline{a_1} \dots \overline{a_n}); \epsilon) \\
-      \epsilon_n =
-         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
-         \over \epsilon }
+      \epsilon_0, V_0, B_0 = \text{Let} ~ v \left( \text{Constructor} ~ t \left( \overline{a_i} \right)_{i=1}^{i=n} \right) \epsilon, \lbrace \overline{a_i} \mid 1 \leq i \leq n \rbrace, \emptyset \\
+      \epsilon_n, V_n, B_n = \epsilon, V \cup V_{n-1}, B \cup B_{n-1} \text{ si } a_n ~ \overline{a_n} \left( V \cup V_{n-1} \setminus \lbrace \overline{a_n} \rbrace \right) \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B \\
    \end{cases}
-   \begin{cases}
-      V_0 = \lbrace \overline{a_1}, \dots, \overline{a_n} \rbrace \\
-      V_n =
-         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
-         \over V \cup V_{n-1} \setminus \lbrace \overline{a_n} \rbrace }
-   \end{cases}
-   \begin{cases}
-      B_0 = \emptyset \\
-      B_n =
-         { a_n ~ \overline{a_n} ~ V \cup V_{n-1} \setminus \lbrace a_n \rbrace ~ \epsilon_{n-1} \vdash_{\text{cfg}} \epsilon ~ V ~ B
-         \over B \cup B_{n-1} }
-   \end{cases}
-   \over (\text{Constructor} ~ t ~ (a_1 \dots a_n)) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ V_n ~ B_n
+   \over \left( \text{Constructor} ~ t \left( a_i \right)_{i=1}^{i=n} \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_n ~ V_n ~ B_n
 \end{gather}
 \begin{gather}
    \tag{Match}
@@ -513,17 +485,15 @@ Je note $\sigma = \text{Expression}; \epsilon$ pour simplifier les déclarations
       d ~ \overline{d} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{d} ~ V) \vdash_{\text{cfg}} \epsilon_d ~ V_d ~ B_d \\
       \begin{cases}
          B_0 = \emptyset \\
-            B_n =
-         { e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V_{e_n} ~ B
-         \quad V_{e_n} = V_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
-         \over B \cup B_{n-1} \cup \lbrace \langle \dot{e_n}, \text{Matchbranch} \left( a_n^1 \dots a_n^{m_n} \right) V_{e_n} ~ V, \epsilon \rangle \rbrace }
+         V_{e_n}, B_n = V, B \cup B_{n-1} \cup \lbrace \dot{e_n}, \text{Matchbranch} \left( \overline{a_n^i} \right)_{i=1}^{i=m_n} V_{e_n} ~ V, \epsilon \rbrace \text{ si } e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B \\
+         V_{e_n} = V_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
       \end{cases} \\
       { V_{e_n} =
       e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B
       \over V \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
-      e ~ \sigma_e \left( \bigcup_{i=1}^{n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \sigma_e \left( \langle t_i, \dot{e_i}, \left( a_i^j \right)^{j=1 \dots m_i}, V_{e_i} \rangle \right)^{i=1 \dots n} ~ \langle \dot{d}, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
+      e ~ \overline{e} \left( \bigcup_{i=1}^{i=n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \overline{e} \left( t_i, \dot{e_i}, \left( \overline{a_i^j} \right)_{j=1}^{j=m_i}, V_{e_i} \right)_{i=1}^{i=n} \langle \dot{d}, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
    \end{split}
-   \over (\text{Match} ~ e \left( \langle t_i, \left( a_i^j \right)^{j=1 \dots m_i}, e_i \rangle \right)^{i=1 \dots n} ~ d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\dot{e} = \text{Return} ~ v ~ V ~ \epsilon]
+   \over (\text{Match} ~ e \left( t_i, \left( a_i^j \right)_{j=1}^{j=m_i}, e_i \right)_{i=1}^{i=n} d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\dot{e} = \text{Return} ~ v ~ V ~ \epsilon]
 \end{gather}
 
 
@@ -594,9 +564,13 @@ $\text{Singleton} : \mathbb{Z} \rightarrow \mathbb{I}$ ($\lbrace i \rbrace$)
 
 L'union de deux entiers donne toujours Top sauf lorsqu'il s'agit de deux singletons de même valeur.
 
-$u = v \Rightarrow \lbrace u \rbrace \cup_{\mathbb{I}} \lbrace v \rbrace = \lbrace u \rbrace$
-
-$x \cup_{\mathbb{I}} y = Top$
+$$
+x \sqcup y =
+   \begin{cases}
+      \lbrace i \rbrace \text{ si } x = y = \lbrace i \rbrace \\
+      \mathbb{Z} \text{ sinon}
+   \end{cases}
+$$
 
 #### Fermetures
 
@@ -642,7 +616,7 @@ $\text{ConstructorDomain} : \mathbb{C} \rightarrow \mathbb{A}$
 
 ### Blocs
 
-Les blocs utilisés pour l'analyse sont les même que ceux du CFG à l'exception des paramètres qui sont désormais des ensembles de points d'allocation au lieu d'un nom de variables, c'est à dire $\mathbb{B}_cfg$ avec $\mathbb{V} \coloneqq \mathcal{P}(\mathbb{V})$. L'union de deux blocs (de même type) est l'union de leurs paramètres.
+Les blocs utilisés pour l'analyse sont les même que ceux du CFG à l'exception des paramètres qui sont désormais des ensembles de points d'allocation au lieu d'un nom de variables, c'est à dire $\mathbb{B}_{cfg}$ avec $\mathbb{V} \coloneqq \mathcal{P}(\mathbb{V})$. L'union de deux blocs (de même type) est l'union de leurs paramètres.
 
 ### Contexte d'appel
 
@@ -751,7 +725,19 @@ Les noms de variables, par extension les zones d'allocations, étant en nombre f
 
 ### Propagation
 
-La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. En particulier c'est ici que sont transformés les appels indirects en appels directs.
+La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. Avec le recul, il est fort probable que cette optimisation ne soit pas strictement nécessaire à cette étape de la compilation, mais se fasse plutôt lors de la conversion vers le CFG concret (c'est à dire générer le CFG concret en ayant sous la main les résultats de l'analyse au lieu de modifier le CFG sur lequel il existe des contraintes sémantique fortes).
+
+#### Constantes
+
+Lorsque les paramètres sont connus, certaines expressions comme l'addition ou la soustraction sont transformées en constantes.
+
+#### Branchements conditionnels
+
+Lorsque les valeurs possibles de la condition d'un if ou d'un filtrage par motif sont connues, certaines branches sont supprimées. Néanmoins pour respecter la sémantique des blocs, il n'est pas possible durant cette phase de transformer les branchements en appels directs lorsqu'il ne reste qu'une seule branche possible.
+
+#### Appels indirects
+
+Les appels indirects sont transformés en appels directs lorsqu'il y a exactement 1 fermeture candidate.
 
 \newpage
 
@@ -886,19 +872,23 @@ Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs 
 
 C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
 
+### Validité des phases de compilation
+
+L'interprétation m'a permis de corriger de nombreuses erreurs à partir de divers tests focalisés. Néanmoins les tests en question sont très courts (moins d'une dizaine de lignes) et il est possible que d'autres erreurs apparaîssent pour des programmes plus longs.
+
 ### Benchmarks
 
-Durant l'interprêtation j'enregistre diverses informations intéressantes, comme le nombre de sauts, de variables lues ou écrites, pour identifier la pertinence de certaines optimisation.
+Durant l'interprêtation j'enregistre diverses informations intéressantes, comme le nombre de sauts, de variables lues ou écrites. Celles-ci sont affichées après éxécution du programme pour identifier la pertinence de certaines optimisations.
 
 \newpage
 
 # Heuristiques d'inlining
 
-Les phases de compilation étant prêtes et à mes yeux suffisamment expressives pour permettre toute forme d'inlining, les heuristiques en tant que telles seront traitées lors de la seconde moitié du stage. De nombreux tests complets seront à réaliser pour à la fois vérifier la pertinence des heuristiques implémentées mais également en détecter de nouvelles.
+Les phases de compilation étant prêtes et à mes yeux suffisamment expressives pour permettre toute forme d'inlining, je détaille ici quelques idées d'heuristiques pour la suite du stage. De nombreux tests complets seront à réaliser pour à la fois vérifier la pertinence des heuristiques implémentées mais également en détecter de nouvelles.
 
 ## Inlining partiel
 
-Une heuristique possible sur laquelle je vais me pencher sera l'[inlining partiel](https://developers.redhat.com/blog/2014/10/29/rhel7-gcc-optimizations-partial-inlining), c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont je représente le programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible avec flambda2. La question est donc de savoir s'il existe des cas où cette heuristique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille ou du temps d’exécution. Une première idée de situations intéressantes qui me vient à l'esprit est le (très) grand nombre de fonctions en OCaml qui filtrent en début de fonction un de leurs arguments ce qui, à ma connaissance, se représente une fois compilé comme quelques instructions suivies d'un saut. Le filtrage en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transformerait ici un appel de fonction en un filtrage vers des blocs à "l'intérieur" de celle-ci (avec évidemment les opérations sur la pile qu'il convient de faire comme un appel classique). De plus l'inliner peut permettre de gagner en informations sur le motif, ce qui peut rendre possible de transformer le filtrage en appel direct, les gains seraient considérables.
+Une heuristique possible sur laquelle je vais me pencher sera l'[inlining partiel](https://developers.redhat.com/blog/2014/10/29/rhel7-gcc-optimizations-partial-inlining), c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont je représente le programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible avec flambda2. La question est donc de savoir s'il existe des cas où cette heuristique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille ou du temps d’exécution. Une première idée de situations intéressantes qui me vient à l'esprit est le grand nombre de fonctions en OCaml qui filtrent au début un de leurs arguments ce qui, à ma connaissance, se représente une fois compilé comme quelques instructions suivies d'un saut. Le filtrage en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transformerait ici un appel de fonction en un filtrage vers des blocs à "l'intérieur" de celle-ci (avec évidemment les opérations sur la pile qu'il convient de faire comme un appel classique). De plus l'inliner peut permettre de gagner en informations sur le motif, ce qui peut rendre possible de transformer le filtrage en appel direct, les gains seraient considérables.
 
 Un exemple qui me pousse à croire qu'une telle heuristique peut être prometteuse est fourni sur le site de [flambda](https://v2.ocaml.org/manual/flambda.html#ss:flambda-inlining-overview) :
 
@@ -956,4 +946,8 @@ and g x (p::stack) =
 
 Évidemment au stade actuel cette heuristique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité. Il est par ailleurs fort probable qu'elle ne soit pas possible à mettre en place dans l'évaluateur de bytecode.
 
+\newpage
+
 # Conclusion
+
+Ce stage m'a permis de mettre en pratique un grand nombre de savoirs acquis lors du Master pour réaliser les grandes étapes d'un compilateur. J'ai à de nombreuses reprises été amené à faire des choix pas toujours évidents et l'expérience de mes responsables de stage m'a grandement aidé. Avec le recul les avantages et inconvéniants du choix d'évoluer sur un langage "jouet" au lieu du compilateur officiel sont apparues plus claires à mes yeux. En particulier, ayant côtoyé durant mon stage d'autres stagiaires STL s'impliquant en équipe sur des projets concrets, je peux regretter d'avoir été amené à travailler en totale autonomie et ne pas avoir pu exploiter le stage pour me former en profondeur au monde réel de l'entreprise. Néanmoins, le temps qu'aurait été nécessaire pour comprendre le fonctionnement de ce compilateur complexe et prenant en compte ce que j'ai appris en partant de zéro fait que ce choix en valait la peine.
