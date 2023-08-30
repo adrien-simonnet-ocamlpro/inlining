@@ -18,7 +18,7 @@ include-before: \newpage
 
 # Introduction
 
-L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining en fonction de tel ou tel processeur l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Le langage "jouet" sur lequel j'ai travaillé n'est rien d'autre qu'une petite partie du noyeau fonctionnel d'OCaml.
+L'inlining consiste à injecter le corps d'une fonction en lieu et place d'un appel vers celle-ci dans l'objectif d'accélérer l'exécution du code (ou dans certains cas en diminuer sa taille). Néanmoins copier le corps d'une fonction peut faire augmenter la taille du code et conduire à de grosses pertes de performances lorsque certains seuils sont franchis. Vu la difficulté que serait de faire une analyse approfondie du meilleur choix d'inlining l'idée a été de se concentrer sur des heuristiques qui fonctionneront bien la plupart du temps. Cette optimisation est actuellement effectuée dans le compilateur natif par la série d'optimisations [flambda](https://v2.ocaml.org/manual/flambda.html), qui sera plus tard remplacé par [flambda2](https://github.com/ocaml-flambda/flambda-backend/tree/main/middle_end/flambda2) actuellement en développement. Le langage "jouet" sur lequel j'ai travaillé n'est rien d'autre que la partie intéressante d'OCaml pour y appliquer l'inlining.
 
 ## Langage source
 
@@ -26,7 +26,7 @@ Dans le cadre du stage je n'ai traité que les fonctionnalités d'OCaml nécessa
 
 ### Lambda-calcul
 
-Les [trois règles du lambda-calcul](https://fr.wikipedia.org/wiki/Lambda-calcul#Syntaxe) que sont les variables, l'application et l'abstraction sont évidemment des fonctionnalités indispensables.
+Les [trois constructions du lambda-calcul](https://fr.wikipedia.org/wiki/Lambda-calcul#Syntaxe) que sont les variables, l'application et l'abstraction sont évidemment des fonctionnalités indispensables.
 
 ```ocaml
 let id = fun x -> x in
@@ -104,13 +104,13 @@ Les jetons de l'analyse lexicale sont générés par [OCamllex](https://v2.ocaml
 
 L'analyse syntaxique est la seconde étape de la compilation et va convertir les jetons en un arbre de syntaxe abstraite.
 
-## Arbre de syntaxe abstraite (AST)
+## Arbre de Syntaxe Abstraite (AST)
 
 La grammaire est la même que celle d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
 
 ### Identificateurs
 
-Le nom des variables et le nom des constructeurs sont des chaînes de caractères. Je ne me pose pas de question à savoir quel est le jeu de caractères d'OCaml.
+Le nom des variables et le nom des constructeurs sont des chaînes de caractères.
 
 $\mathbb{S} \coloneqq string$ (chaînes de caractères)
 
@@ -120,7 +120,7 @@ $\mathbb{T} \coloneqq \mathbb{S}$ (tags)
 
 ### Filtrage par motif
 
-J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. En particulier il n'est pas possible de déconstruire des termes à la volée ni de filtrer plusieurs motifs par la même expression.
+J'ai choisi de ne supporter que l'essentiel pour ce qui est du filtrage par motif. Contrairement à OCaml, qui autorise la déconstruction à chaque déclaration de variable, il n'est possible de déconstruire des termes que dans un filtrage par motif.
 
 $\text{Deconstructor} : \mathbb{T} \times \mathbb{V}^{*} \mapsto \mathbb{M}$ pour filtrer un tag.
 
@@ -156,9 +156,9 @@ $\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ 
 
 $\text{Type} : \mathbb{S} \times (\mathbb{T} \times \mathbb{S})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ fabrique un type (ses constructeurs).
 
-$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une union taggée à partir d'un constructeur.
+$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une valeur taggée à partir d'un constructeur.
 
-$\text{Match} : \mathbb{E} \times (\mathbb{M} \times \mathbb{E})^{*} \mapsto \mathbb{E}$ filtre une union taggée.
+$\text{Match} : \mathbb{E} \times (\mathbb{M} \times \mathbb{E})^{*} \mapsto \mathbb{E}$ filtre une valeur taggée.
 
 ## Analyseur syntaxique
 
@@ -166,13 +166,13 @@ L'AST est généré par [Menhir](https://ocaml.org/p/menhir/) à l'aide des jeto
 
 \newpage
 
-# Analyse sémantique
+# Résolution des noms
 
-L'analyse sémantique est la troisième étape de la compilation. Je ne procède à aucune vérification de typage, cela n'étant pas le sujet principal de mon stage.
+La résolution des noms est la troisième étape de la compilation.
 
-## Arbre de syntaxe abstraite' (AST')
+## Arbre de Syntaxe Abstraite rafraîchi (AST')
 
-L'AST' est construit à partir de l'AST en résolvant les noms et les types (pour l'instant limités aux constructeurs).
+L'arbre de syntaxe abstraite rafraîchi est construit à partir de l'AST en transformants les noms et les types (pour l'instant limités aux constructeurs) en identificateurs frais et uniques.
 
 ### Identificateurs
 
@@ -210,21 +210,21 @@ $\text{Binary} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{
 
 $\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ est le branchement conditionnel.
 
-$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une union taggée à partir d'un tag.
+$\text{Constructor} : \mathbb{T} \times \mathbb{E}^{*} \mapsto \mathbb{E}$ fabrique une valeur taggée à partir d'un tag.
 
-$\text{Match} : \mathbb{E} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ filtre une union taggée.
+$\text{Match} : \mathbb{E} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \mathbb{E}$ filtre une valeur taggée.
 
-## Analyseur sémantique
+## Rafraîchissement
 
-Toutes les variables sont alpha-converties et conservées dans une table des symboles. Les variables libres dans le programme sont autorisées, également alpha-converties et ajoutées dans une table à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé (de la même manière je me pose la question à savoir si la mémoire, dans le cas où je traiterais les effets de bord, peut être modélisée comme une variable libre, ce qui expliciterait le non-déterminisme des effets de bord).
+Toutes les variables sont rafraîchies et conservées dans une table des symboles. Les variables libres dans le programme sont autorisées, également rafraîchies et ajoutées dans une table à part. L'acceptation de variables libres dans le programme permet à mes yeux de faciliter la gestion du non-déterminisme et d'éviter toute ambiguïté lors de l'analyse. En effet les entrées-sorties peuvent être vues comme des variables libres qui ne sont connues qu'au moment de l'exécution du programme, ce qui permet de s'assurer par exemple qu'un affichage sur la sortie ne serait pas optimisé.
 
 $\mathbb{E}_{ast} \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right) \times \left( \mathbb{T}_{ast} \mapsto \mathbb{T} \right) \vdash_{\text{ast'}} \mathbb{E} \times \left( \mathbb{V} \mapsto \mathbb{V}_{ast} \right) \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right)$
 
 $e ~ A ~ C \vdash_{\text{ast'}} e' ~ S ~ L$
 
 - $e$ est l'expression AST à compiler ;
-- $A$ est la table des abstractions existantes dans la portée de $e$ ;
-- $C$ est la table des constructeurs dans la portée de $e$ ;
+- $A$ est la table des abstractions existantes dans l'environnement de $e$ ;
+- $C$ est la table des constructeurs dans l'environnement de $e$ ;
 - $e'$ est l'expression générée ;
 - $S$ est la table des variables substituées dans $e'$ ;
 - $L$ est la table des variables libres de $e$.
@@ -332,7 +332,7 @@ La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. A l'origi
 
 ## Graphe de flot de contrôle
 
-La différence notable avec l'AST' est l'apparition des blocs et l'explicitation des variables libres.
+La différence notable avec l'AST' est l'apparition des blocs (avec explicitation des variables libres) et l'absence d'expressions imbriquées.
 
 ### Identificateurs
 
@@ -358,7 +358,7 @@ $\text{Sub} : \mathbb{V} \times \mathbb{V} \mapsto \mathbb{E}$ soustrait deux en
 
 $\text{Closure} : \mathbb{P} \times \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique une fermeture.
 
-$\text{Constructor} : \mathbb{T} \times \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique une union taggée.
+$\text{Constructor} : \mathbb{T} \times \mathbb{V}^{*} \mapsto \mathbb{E}$ fabrique une valeur taggée.
 
 ### Instructions
 
@@ -370,35 +370,35 @@ $\text{Call} : \mathbb{V} \times \mathbb{V}^{*} \times \left( \mathbb{P} \times 
 
 $\text{CallDirect} : \mathbb{P} \times \mathbb{V} \times \mathbb{V}^{*} \times \left( \mathbb{P} \times \mathcal{P}(\mathbb{V}) \right) \mapsto \mathbb{I}$ est identique à $\text{Call}$ à l'exception que le pointeur du bloc vers lequel brancher est connu suite à une étape d'analyse (cette instruction n'est par conséquent jamais générée depuis l'AST').
 
-$\text{If} : \mathbb{V} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche dans le premier bloc si la valeur de la condition est différente de 0, dans le deuxième sinon. Les variables libres (dernier paramètre) sont implicitement passées aux deux branches et seront utilisées par le bloc qui sera éxécuté après.
+$\text{If} : \mathbb{V} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche dans le premier bloc si la valeur de la condition est différente de 0, dans le deuxième sinon. Les variables libres (dernier paramètre) sont implicitement passées aux deux branches et seront utilisées par le bloc qui sera exécuté après.
 
-$\text{MatchPattern} : \mathbb{V} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{P} \times \mathcal{P}(\mathbb{V}))^{*} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche soit vers un des blocs lorsque la valeur de la condition correspond au motif de l'un d'eux, soit vers le bloc par défaut. Les variables libres (dernier paramètre) sont implicitement passées à toutes les branches et seront utilisées par le bloc qui sera éxécuté après.
+$\text{MatchPattern} : \mathbb{V} \times (\mathbb{T} \times \mathbb{V}^{*} \times \mathbb{P} \times \mathcal{P}(\mathbb{V}))^{*} \times (\mathbb{P} \times \mathcal{P}(\mathbb{V})) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ branche soit vers un des blocs lorsque la valeur de la condition correspond au motif de l'un d'eux, soit vers le bloc par défaut. Les variables libres (dernier paramètre) sont implicitement passées à toutes les branches et seront utilisées par le bloc qui sera exécuté après.
 
-$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis une fermeture.
+$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ renvoie la valeur de cette variable au bloc appelant depuis une fermeture.
 
-$\text{IfReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis un branchement conditionnel.
+$\text{IfReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ renvoie la valeur de cette variable au bloc appelant depuis un branchement conditionnel.
 
-$\text{MatchReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ retourne la valeur de cette variable au bloc appelant depuis une branche d'un filtrage par motif.
+$\text{MatchReturn} : \mathbb{P} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ renvoie la valeur de cette variable au bloc appelant depuis une branche d'un filtrage par motif.
 
-$\text{ApplyBlock} : \mathbb{P} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ est un reliquat utilisé uniquement par LetRec.
+$\text{ApplyBlock} : \mathbb{P} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{I}$ est utilisé par LetRec.
 
-### Blocs
+### Type de blocs
 
 Chaque bloc est défini différemment en fonction de l'expression à partir de laquelle il est construit (fermeture, retour de fonction ou saut conditionnel), est clos (il explicite les arguments dont il a besoin) et contient une suite de déclarations de variables suivies d'une instruction de branchement. Le dernier argument correspond toujours aux variables libres du bloc (environnement dans le cas d'une fermeture).
 
 $\text{Clos} : \mathbb{V}^{*} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est une fermeture avec ses arguments.
 
-$\text{Return} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un appel de fermeture avec comme argument son résultat.
+$\text{Return} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera exécuté après un appel de fermeture avec comme argument son résultat.
 
-$\text{IfBranch} : \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement conditionnel avec les variables libres qui seront passées au bloc éxécuté ensuite.
+$\text{IfBranch} : \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement conditionnel avec les variables libres qui seront passées au bloc exécuté ensuite.
 
-$\text{IfJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un branchement conditionnel avec comme argument son résultat.
+$\text{IfJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera exécuté après un branchement conditionnel avec comme argument son résultat.
 
-$\text{MatchBranch} : \mathbb{V}^{*} \times \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement d'un filtrage par motif avec ses arguments (charge du constructeur ou aucun pour le branchement par défaut) et les variables libres qui seront passées au bloc éxécuté ensuite.
+$\text{MatchBranch} : \mathbb{V}^{*} \times \mathcal{P}(\mathbb{V}) \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un branchement d'un filtrage par motif avec ses arguments (charge du constructeur ou aucun pour le branchement par défaut) et les variables libres qui seront passées au bloc exécuté ensuite.
 
-$\text{MatchJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera éxécuté après un branchement d'un filtrage par motif avec comme argument son résultat.
+$\text{MatchJoin} : \mathbb{V} \times \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ sera exécuté après un branchement d'un filtrage par motif avec comme argument son résultat.
 
-$\text{Cont} : \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est un reliquat utilisé uniquement par LetRec.
+$\text{Cont} : \mathcal{P}(\mathbb{V}) \mapsto \mathbb{B}$ est utilisé par LetRec.
 
 ## Conversion CFG
 
@@ -419,7 +419,7 @@ $e ~ v ~ V ~ i \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
 Par la suite :
 
 - $\overline{e}$ correspond à l'identifiant unique (variable) attribué au résultat de l'évaluation de $e$.
-- $\dot{e}$ correspond à l'identifiant unique (pointeur)  attribué au bloc qui contiendra $e$.
+- $\dot{e}$ correspond à l'identifiant de code unique (pointeur)  attribué au bloc qui contiendra $e$.
 
 \begin{gather}
    \tag{Int}
@@ -485,8 +485,10 @@ Par la suite :
       d ~ \overline{d} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{d} ~ V) \vdash_{\text{cfg}} \epsilon_d ~ V_d ~ B_d \\
       \begin{cases}
          B_0 = \emptyset \\
-         V_{e_n}, B_n = V, B \cup B_{n-1} \cup \lbrace \dot{e_n}, \text{Matchbranch} \left( \overline{a_n^i} \right)_{i=1}^{i=m_n} V_{e_n} ~ V, \epsilon \rbrace \text{ si } e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B \\
+         \begin{split}
+         V_{e_n}, B_n = V, B \cup B_{n-1} \cup \lbrace \dot{e_n}, \text{Matchbranch} \left( \overline{a_n^i} \right)_{i=1}^{i=m_n} V_{e_n} ~ V, \epsilon \rbrace \\ \text{ si } e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B \\
          V_{e_n} = V_{e_n} \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace
+         \end{split}
       \end{cases} \\
       { V_{e_n} =
       e_n ~ \overline{e_n} ~ V ~ (\text{Matchreturn} ~ \dot{\epsilon} ~ \overline{e_n} ~ V) \vdash_{\text{cfg}} \epsilon ~ V ~ B
@@ -499,15 +501,18 @@ Par la suite :
 
 ## Nettoyage des alias
 
-Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias. À ma connaissance il n'existe pas de méthode simple pour éliminer les alias directement lors de la génération et ainsi se passer de $\text{Var}$ dans le langage intermédiaire.
+Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias. Il est plus simple d'éliminer les alias en 2 passes que directement lors de la génération même si cela permettrait de se passer de l'expression $\text{Var}$ dans la représentation intermédiaire.
 
 ## Taille
 
-Déterminer la taille du CFG est nécessaire pour certaines heuristiques. Comme le CFG n'est pas le langage qui sera compilé ou éxécuté, le calcul de cette taille est seulement indicatif et n'est en aucun cas précis. La taille du CFG correspond à la somme de la taille de tous ses blocs. La taille d'un bloc correspond au nombre de ses paramètres plus la somme de la taille de ses instructions. La taille d'une instruction dépend principalement du nombre de ses arguments.
+Déterminer la taille du CFG est nécessaire pour certaines heuristiques. Comme le CFG n'est pas le langage qui sera compilé ou exécuté, le calcul de cette taille est seulement indicatif et n'est en aucun cas précis. La taille du CFG correspond à la somme de la taille de tous ses blocs. La taille d'un bloc correspond au nombre de ses paramètres plus la somme de la taille de ses instructions. La taille d'une instruction dépend principalement du nombre de ses arguments.
 
 ## Recensement des variables et appels de blocs
 
-Plusieurs optimisations ont besoin de connaître le nombre de fois qu'une variable est utilisée ou qu'un bloc est appelé. Un tel algorithme de recensement semble trivial mais en fait ne l'est pas du tout. Mon implémentation actuelle ne prend pas en compte la vivacité des blocs, c'est pour cela qu'un bloc appelé par par un bloc mort sera considéré vivant. De plus, étant donné qu'il est impossible de déterminer sans une analyse complète quel bloc sera appelé par un appel indirect, je me contente de supposer un appel à chaque création de fermeture. Il est évident que ces erreurs doivent être corrigées, mais cela ne peut pas se faire sans une approche globale des opimisations qui suivent, en particulier le nettoyage des variables inutilisées et des blocs morts.
+
+Vivacité <> Compte > 0
+
+Plusieurs optimisations ont besoin de connaître le nombre de fois qu'une variable est utilisée ou qu'un bloc est appelé. Un tel algorithme de recensement est trivial mais en fait ne l'est pas du tout. Mon implémentation actuelle ne prend pas en compte la vivacité des blocs, c'est pour cela qu'un bloc appelé par par un bloc mort sera considéré vivant. De plus, étant donné qu'il est impossible de déterminer sans une analyse complète quel bloc sera appelé par un appel indirect, je me contente de supposer un appel à chaque création de fermeture. Ces surraproximations doivent être corrigées, mais cela ne peut pas se faire sans une approche globale des opimisations qui suivent, en particulier le nettoyage des variables inutilisées et des blocs morts.
 
 ## Spécialisation
 
@@ -523,15 +528,15 @@ Lors de la copie d'un bloc il est évidemment indispensable de conserver les inv
 
 Les blocs à spécialiser sont actuellement sélectionnés uniquement selon que leur taille se trouve ou non sous un certain seuil statique. C'est en particulier sur ces choix que je vais être amené à trouver des heuristiques pertinentes d'ici la fin du stage. De telles heuristiques devraient prendre en compte les gains et coûts potentiels apportés par la spécialisation en se basant sur les informations issues de l'analyse.
 
-## Analyse
+## Analyse de valeurs par interprétation abstraite
 
 L'analyse est l'étape la plus compliquée et probablement la plus importante pour permettre d'inliner de manière efficace. L'objectif principal est de transformer au mieux les sauts indirects (appels de fonctions) en sauts directs afin d'être capable d'inliner de tels sauts. Ensuite, même si ce n'est pas obligatoire, il est intéressant de disposer d'une analyse des valeurs assez précise pour se faire une idée de quand inliner pour obtenir les meilleurs bénéfices. Cette analyse s'effectue au niveau du CFG afin d'exploiter la sémantique du langage (en conservant certaines relations) tout en disposant des informations nécessaires sur les blocs.
 
 Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels de l'analyse, en particulier les sauts directs, sont intégrés au CFG.
 
-### Zones d'allocation
+### Points d'allocation
 
-Sur conseil de mon tuteur, je réalise une analyse par zone d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+Sur conseil de mon tuteur, je réalise une analyse par point d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
 
 
 #### Point d'allocation
@@ -552,7 +557,7 @@ $\mathbb{P} \coloneqq \mathcal{P}(\mathbb{V})$ (paramètre)
 
 ### Domaines
 
-Actuellement seulement deux domaines abstraits sont nécessaires pour représenter toutes les valeurs du langage.
+Actuellement seulement trois domaines abstraits sont nécessaires pour représenter toutes les valeurs du langage.
 
 #### Entiers
 
@@ -574,7 +579,7 @@ $$
 
 #### Fermetures
 
-Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres. Étant donné que les pointeurs de fonctions ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux fermetures est garantie de converger.
+Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres. Étant donné que les pointeurs de fonctions ainsi que les contextes (ensemble de points d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux fermetures est garantie de converger.
 
 $\mathbb{F} \coloneqq \mathbb{P} \rightarrow \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
 
@@ -590,11 +595,11 @@ $$
 
 #### Unions taggées
 
-Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union. Étant donné que les tags ainsi que les contextes (ensemble de zones d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux unions taggées est garantie de converger.
+Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union. Étant donné que les tags ainsi que les contextes (ensemble de points d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux unions taggées est garantie de converger.
 
 $\mathbb{C} \coloneqq \mathbb{T} \rightarrow \mathcal{P}(\mathbb{V})^{*}$ (union taggée)
 
-L'union de deux unions taggées consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même tag, sont censées avoir le même contenu, dans le cas contraire il s'agit d'une erreur d'implémentation.
+L'union de deux valeurs taggées consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même tag, sont censées avoir le même contenu, dans le cas contraire il s'agit d'une erreur d'implémentation.
 $$
 x \sqcup y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
    \begin{cases}
@@ -606,7 +611,7 @@ $$
 
 ### Valeur abstraite
 
-Une valeur abstraite est un entier, une fermeture ou une union taggée.
+Une valeur abstraite est un entier, une fermeture ou une valeur taggée.
 
 $\text{IntDomain} : \mathbb{I} \rightarrow \mathbb{A}$
 
@@ -620,7 +625,7 @@ Les blocs utilisés pour l'analyse sont les même que ceux du CFG à l'exception
 
 ### Contexte d'appel
 
-Un contexte d'appel correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera éxécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
+Un contexte d'appel correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera exécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
 
 $\mathbb{F} \coloneqq \mathbb{P} \times \mathcal{P}(\mathbb{V})^{*}$ (contexte d'appel)
 
@@ -636,11 +641,13 @@ Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'app
 
 $\mathbb{B}\mathbb{B} \coloneqq \mathbb{P} \times cont_type \times \mathbb{S} \times \mathbb{U}$
 
-### Réduction de la pile
+### Abstraction de la pile
 
-Une fonction qui réduit la taille de la pile.
+Une fonction qui réduit la taille de la pile dont l'image est finie.
 
 $stack_reduce \coloneqq \mathbb{S} \rightarrow \mathbb{S}$
+
+####
 
 #### Contexte d'appel
 
@@ -719,13 +726,13 @@ $\text{analysis} : \mathbb{B}\mathbb{B}^{*} \times stack_reduce \times blocks \t
 \caption{Analyse du programme}
 \end{algorithm}
 
-### Preuve de terminaison
+### Idées de terminaison
 
-Les noms de variables, par extension les zones d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidement fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
+Les noms de variables, par extension les points d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidement fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
 
 ### Propagation
 
-La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. Avec le recul, il est fort probable que cette optimisation ne soit pas strictement nécessaire à cette étape de la compilation, mais se fasse plutôt lors de la conversion vers le CFG concret (c'est à dire générer le CFG concret en ayant sous la main les résultats de l'analyse au lieu de modifier le CFG sur lequel il existe des contraintes sémantique fortes).
+La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. Avec le recul, il est fort probable que cette optimisation ne soit pas strictement nécessaire à cette étape de la compilation, mais se fasse plutôt lors de la conversion vers le CFG éxécutable (c'est à dire générer le CFG éxécutable en ayant sous la main les résultats de l'analyse au lieu de modifier le CFG sur lequel il existe des contraintes sémantique fortes).
 
 #### Constantes
 
@@ -741,13 +748,13 @@ Les appels indirects sont transformés en appels directs lorsqu'il y a exactemen
 
 \newpage
 
-# CFG concret
+# CFG éxécutable
 
-L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG concret car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
+L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG éxécutable car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
 
 ## Langage
 
-Le CFG concret est très similaire au CFG, si ce n'est que quasiment tous les traits de langage propres à OCaml ont été concrétisés. À chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
+Le CFG éxécutable est très similaire au CFG, si ce n'est que quasiment tous les traits de langage propres à OCaml ont été concrétisés. À chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
 
 ### Identifiants
 
@@ -791,7 +798,7 @@ $\text{ApplyIndirect} : \mathbb{V} \times \mathbb{V}^{*} \times \mathbb{S} \maps
 
 $\text{If} : \mathbb{V} \times (\mathbb{N} \times \mathbb{P} \times \mathbb{V}^{*})^{*} \times (\mathbb{P} \times \mathbb{V}^{*}) \times \mathbb{S} \mapsto \mathbb{I}$ réalise un saut vers le bloc associé à la valeur de la condition ou vers le bloc par défaut.
 
-$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ retourne le résultat contenu dans la variable.
+$\text{Return} : \mathbb{V} \mapsto \mathbb{I}$ renvoie le résultat contenu dans la variable.
 
 ### Bloc
 
@@ -799,7 +806,7 @@ Il n'existe plus de sémantique pour chaque type de bloc, l'ordre des arguments 
 
 $\mathbb{B} \coloneqq \mathbb{V}^{*} \times \mathbb{I}$ (bloc)
 
-## Génération du CFG concret
+## Génération du CFG éxécutable
 
 La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
 
@@ -854,7 +861,7 @@ Dans la suite, les ensembles de variables correspondant aux arguments des blocs 
 
 ### Taille
 
-La taille du CFG concret est uniquement intéressante d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
+La taille du CFG éxécutable est uniquement intéressante d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
 
 ### Recensement des variables et appels de blocs
 
@@ -870,7 +877,7 @@ Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs 
 
 ## Interprétation
 
-C'est le CFG concret que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
+C'est le CFG éxécutable que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
 
 ### Validité des phases de compilation
 
@@ -885,6 +892,10 @@ Durant l'interprêtation j'enregistre diverses informations intéressantes, comm
 # Heuristiques d'inlining
 
 Les phases de compilation étant prêtes et à mes yeux suffisamment expressives pour permettre toute forme d'inlining, je détaille ici quelques idées d'heuristiques pour la suite du stage. De nombreux tests complets seront à réaliser pour à la fois vérifier la pertinence des heuristiques implémentées mais également en détecter de nouvelles.
+
+## Blocs de petite taille
+
+
 
 ## Inlining partiel
 
