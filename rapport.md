@@ -150,7 +150,7 @@ $\text{LetRec} : (\mathbb{V} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \m
 
 $\text{Int} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{Binary} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
+$\text{Binop} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
 
 $\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ est le branchement conditionnel.
 
@@ -206,7 +206,7 @@ $\text{LetRec} : (\mathbb{V} \times \mathbb{E})^{*} \times \mathbb{E} \mapsto \m
 
 $\text{Int} : \mathbb{Z} \mapsto \mathbb{E}$ génère un entier.
 
-$\text{Binary} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
+$\text{Binop} : \mathbb{B} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ représente une opération binaire.
 
 $\text{If} : \mathbb{E} \times \mathbb{E} \times \mathbb{E} \mapsto \mathbb{E}$ est le branchement conditionnel.
 
@@ -238,12 +238,12 @@ Il est important d'injecter les variables libres dans la table des abstractions 
    \over \left( \text{Int} ~ i \right) A ~ C \vdash_{\text{ast'}} \left( \text{Int} ~ i \right) \emptyset ~ \emptyset
 \end{gather}
 \begin{gather}
-   \tag{Binary}
+   \tag{Binop}
    \begin{split}
       e_1 ~ A ~ C &\vdash_{\text{ast'}} e_1' ~ S_{e_1} ~ L_{e_1} \\
       e_2 \left( A \sqcup L_{e_1} \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2}
    \end{split}
-   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ \diamond ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \right) \left( L_{e_1} \sqcup L_{e_1} \right)
+   \over \left( \text{Binop} ~ \diamond ~ e_1 ~ e_2 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binop} ~ \diamond ~ e_1' ~ e_2' \right) \left( S_{e_1} \sqcup S_{e_2} \right) \left( L_{e_1} \sqcup L_{e_1} \right)
 \end{gather}
 \begin{gather}
    \tag{Fun}
@@ -281,7 +281,7 @@ Il est important d'injecter les variables libres dans la table des abstractions 
       e_2 \left( A \sqcup L_{e_1} \right) C &\vdash_{\text{ast'}} e_2' ~ S_{e_2} ~ L_{e_2} \\
       e_3 \left( A \sqcup L_{e_1} \sqcup L_{e_2} \right) C &\vdash_{\text{ast'}} e_3' ~ S_{e_3} ~ L_{e_3}
    \end{split}
-   \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binary} ~ e_1' ~ e_2' ~ e_3' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup S_{e_3} \right) \left( L_{e_1} \sqcup L_{e_1} \sqcup L_{e_3} \right)
+   \over \left( \text{If} ~ e_1 ~ e_2 ~ e_3 \right) A ~ C \vdash_{\text{ast'}} \left( \text{Binop} ~ e_1' ~ e_2' ~ e_3' \right) \left( S_{e_1} \sqcup S_{e_2} \sqcup S_{e_3} \right) \left( L_{e_1} \sqcup L_{e_1} \sqcup L_{e_3} \right)
 \end{gather}
 \begin{gather}
    \tag{App}
@@ -439,12 +439,12 @@ Par la suite :
    \over \left( \text{Let} ~ x ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_3 \cup V_{e_1} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
 \end{gather}
 \begin{gather}
-\tag{Binary}
+\tag{Binop}
    \begin{split}
       e_2 ~ \overline{e_2} \left( V \cup \lbrace \overline{e_1} \rbrace \right) (v = \overline{e_1} \diamond \overline{e_2}; \epsilon) &\vdash_{\text{cfg}} e_2' ~ V_{e_2} ~ B_{e_2} \\
       e_1 ~ \overline{e_1} ~ (V_{e_2} \cup V) ~ e_2' &\vdash_{\text{cfg}} e_1' ~ V_{e_1} ~ B_{e_1}
    \end{split}
-   \over \left( \text{Binary} ~ \diamond ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
+   \over \left( \text{Binop} ~ \diamond ~ e_1 ~ e_2 \right) v ~ V ~ \epsilon \vdash_{\text{cfg}} e_1' \left( V_{e_1} \cup V_{e_2} \right) \left( B_{e_1} \sqcup B_{e_2} \right)
 \end{gather}
 \begin{gather}
    \tag{Fun}
@@ -495,9 +495,8 @@ Par la suite :
       \over V \setminus \lbrace a_n^1, \dots, a_n^{m_n} \rbrace } \\
       e ~ \overline{e} \left( \bigcup_{i=1}^{i=n} V_{e_i} \cup V_d \cup V \right) \left( \text{Matchpattern} ~ \overline{e} \left( t_i, \dot{e_i}, \left( \overline{a_i^j} \right)_{j=1}^{j=m_i}, V_{e_i} \right)_{i=1}^{i=n} \langle \dot{d}, V_d \rangle ~ V \right) \vdash_{\text{cfg}} \epsilon_1 ~ V_1 ~ B_1
    \end{split}
-   \over (\text{Match} ~ e \left( t_i, \left( a_i^j \right)_{j=1}^{j=m_i}, e_i \right)_{i=1}^{i=n} d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} \epsilon_2 ~ (V_1 \cup V_2) ~ (B_1 \cup B_2)[\dot{e} = \text{Return} ~ v ~ V ~ \epsilon]
+   \over (\text{Match} ~ e \left( t_i, \left( a_i^j \right)_{j=1}^{j=m_i}, e_i \right)_{i=1}^{i=n} d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} (todo)
 \end{gather}
-
 
 ## Nettoyage des alias
 
@@ -509,10 +508,7 @@ Déterminer la taille du CFG est nécessaire pour certaines heuristiques. Comme 
 
 ## Recensement des variables et appels de blocs
 
-
-Vivacité <> Compte > 0
-
-Plusieurs optimisations ont besoin de connaître le nombre de fois qu'une variable est utilisée ou qu'un bloc est appelé. Un tel algorithme de recensement est trivial mais en fait ne l'est pas du tout. Mon implémentation actuelle ne prend pas en compte la vivacité des blocs, c'est pour cela qu'un bloc appelé par par un bloc mort sera considéré vivant. De plus, étant donné qu'il est impossible de déterminer sans une analyse complète quel bloc sera appelé par un appel indirect, je me contente de supposer un appel à chaque création de fermeture. Ces surraproximations doivent être corrigées, mais cela ne peut pas se faire sans une approche globale des opimisations qui suivent, en particulier le nettoyage des variables inutilisées et des blocs morts.
+Plusieurs optimisations ont besoin de connaître la vivacité des variables et blocs. L'approche naïve que j'ai implémentée consiste simplement à compter leurs occurences. Cela permet d'éliminer un nombre conséquant de variables et blocs morts avec la garantie de ne jamais éliminer quoi que ce soit de vivant mais ne permet pas d'éliminer tout ce qui est réellement mort. Une analyser plus efficace est souhaitable mais difficile à implémenter pour le peu de bénéfice que cela apporterait.
 
 ## Spécialisation
 
@@ -526,7 +522,7 @@ Lors de la copie d'un bloc il est évidemment indispensable de conserver les inv
 
 ### Choix des blocs à spécialiser
 
-Les blocs à spécialiser sont actuellement sélectionnés uniquement selon que leur taille se trouve ou non sous un certain seuil statique. C'est en particulier sur ces choix que je vais être amené à trouver des heuristiques pertinentes d'ici la fin du stage. De telles heuristiques devraient prendre en compte les gains et coûts potentiels apportés par la spécialisation en se basant sur les informations issues de l'analyse.
+Les blocs à spécialiser sont actuellement sélectionnés uniquement si leur taille se trouve ou non sous un certain seuil statique. C'est en particulier sur ces choix que je vais être amené à trouver des heuristiques pertinentes d'ici la fin du stage. De telles heuristiques devraient prendre en compte les gains et coûts potentiels apportés par la spécialisation en se basant sur les informations issues de l'analyse.
 
 ## Analyse de valeurs par interprétation abstraite
 
@@ -536,24 +532,17 @@ Une contrainte importante portée sur l'analyse est la nécessité de pouvoir r�
 
 ### Points d'allocation
 
-Sur conseil de mon tuteur, je réalise une analyse par point d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
-
+Sur conseil de mon tuteur, je réalise une analyse par point d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse en fusionnant certaines valeurs au lieu de les garder séparées. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
 
 #### Point d'allocation
 
-Un point d'allocation correspond simplement à une déclaration, c'est à dire une instruction $\text{Let}$. Étant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par l'alpha-conversion), un point d'allocation peut donc être identifé par le nom de variable utilisé par $\text{Let}$. 
+Un point d'allocation correspond simplement à une déclaration, c'est à dire une instruction $\text{Let}$ du CFG. Étant donné que chaque valeur créée est déclarée (il n'existe pas de valeur temporaire) avec un nom de variable unique (garanti par le rafraîchissement), un point d'allocation peut donc être identifé par le nom de variable utilisé par $\text{Let}$. 
 
 #### Usine
 
 L'usine correspond à une table associant chaque point d'allocation aux valeurs qui y ont été produites. Par valeurs il faut comprendre valeur abstraite qui sera définie plus loin.
 
-$\mathbb{U} \coloneqq \mathbb{V} \mapsto \mathbb{D}$ (usine)
-
-#### Paramètres
-
-Chaque paramètre de bloc est identifié par un ensemble de point d'allocation correspondant aux endroits d'où peut avoir été déclarée et initialisée sa valeur.
-
-$\mathbb{P} \coloneqq \mathcal{P}(\mathbb{V})$ (paramètre)
+$\mathbb{U} \coloneqq \mathbb{V} \mapsto \mathbb{A}$ (usine)
 
 ### Domaines
 
@@ -579,13 +568,13 @@ $$
 
 #### Fermetures
 
-Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres. Étant donné que les pointeurs de fonctions ainsi que les contextes (ensemble de points d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux fermetures est garantie de converger.
+Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres.
 
 $\mathbb{F} \coloneqq \mathbb{P} \rightarrow \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
 
 L'union de deux fermetures consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même pointeur, sont censées avoir le même environnement, dans le cas contraire il s'agit d'une erreur d'implémentation.
 $$
-x \sqcup y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
+x \sqcup y = z \rightarrow
    \begin{cases}
       \lbrace x(z)(i) \cup y(z)(i), i \in x(z) \text{ et } i \in y(z) \rbrace \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \\
       x(z) \text{ si } z \in \mathcal{D}(x) \\
@@ -595,13 +584,13 @@ $$
 
 #### Unions taggées
 
-Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union. Étant donné que les tags ainsi que les contextes (ensemble de points d'allocations) sont des ensembles bornés par la taille du programme, l'union de deux unions taggées est garantie de converger.
+Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union.
 
-$\mathbb{C} \coloneqq \mathbb{T} \rightarrow \mathcal{P}(\mathbb{V})^{*}$ (union taggée)
+$\mathbb{C} \coloneqq \mathbb{T} \mapsto \mathcal{P}(\mathbb{V})^{*}$ (union taggée)
 
 L'union de deux valeurs taggées consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes. Deux entrées communes, c'est à dire ayant comme clé le même tag, sont censées avoir le même contenu, dans le cas contraire il s'agit d'une erreur d'implémentation.
 $$
-x \sqcup y = \forall z \in \mathcal{D}(x) \cup \mathcal{D}(y),
+x \sqcup y = z \mapsto
    \begin{cases}
       \left( x(z)_i \cup y(z)_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
       x(z) \text{ si } z \in \mathcal{D}(x) \\
@@ -613,39 +602,23 @@ $$
 
 Une valeur abstraite est un entier, une fermeture ou une valeur taggée.
 
-$\text{IntDomain} : \mathbb{I} \rightarrow \mathbb{A}$
+$\text{IntDomain} : \mathbb{I} \mapsto \mathbb{A}$
 
-$\text{ClosureDomain} : \mathbb{F} \rightarrow \mathbb{A}$
+$\text{ClosureDomain} : \mathbb{F} \mapsto \mathbb{A}$
 
-$\text{ConstructorDomain} : \mathbb{C} \rightarrow \mathbb{A}$
+$\text{ConstructorDomain} : \mathbb{C} \mapsto \mathbb{A}$
 
 ### Blocs
 
 Les blocs utilisés pour l'analyse sont les même que ceux du CFG à l'exception des paramètres qui sont désormais des ensembles de points d'allocation au lieu d'un nom de variables, c'est à dire $\mathbb{B}_{cfg}$ avec $\mathbb{V} \coloneqq \mathcal{P}(\mathbb{V})$. L'union de deux blocs (de même type) est l'union de leurs paramètres.
 
-### Contexte d'appel
-
-Un contexte d'appel correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera exécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés.
-
-$\mathbb{F} \coloneqq \mathbb{P} \times \mathcal{P}(\mathbb{V})^{*}$ (contexte d'appel)
-
-### Pile
-
-La pile d'appel est une liste ordonnée d'appels.
-
-$\mathbb{S} \coloneqq \mathbb{F}^{*}$ (pile)
-
-### Bloc à analyser
-
-Un bloc à analyser est ientifié par son pointeur, ses arguments, la pile d'appel et enfin à l'usine du moment où il est appelé.
-
-$\mathbb{B}\mathbb{B} \coloneqq \mathbb{P} \times cont_type \times \mathbb{S} \times \mathbb{U}$
-
 ### Abstraction de la pile
 
-Une fonction qui réduit la taille de la pile dont l'image est finie. Son intérêt est de garantir la terminaison de l'analyse en bornant le nombre de piles possibles par rapport à la taille du programme.
+Un contexte d'appel correspond à un étage de la pile, c'est à dire le pointer vers un bloc qui sera exécuté au prochain retour d'appel avec les paramètres qui ont été sauvegardés. La pile d'appel est une liste ordonnée de contextes d'appel.
 
-$stack_reduce \coloneqq \mathbb{S} \rightarrow \mathbb{S}$
+$\mathbb{S} \coloneqq (\mathbb{P} \times \mathcal{P}(\mathbb{V})^{*})^{*}$ (pile)
+
+Pour assure la terminaison de l'analyse, il est nécessaire de disposer d'une fonction qui réduit la taille de la pile dont l'image est finie. Son intérêt est de garantir la terminaison de l'analyse en bornant le nombre de piles possibles par rapport à la taille du programme.
 
 #### Détection de motif
 
@@ -655,82 +628,91 @@ Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motif
 
 n-CFA consiste à conserver les n derniers contextes de la pile. Par exemple en 1-CFA, la pile d'appels `ABCBC` sera remplacée par `C`.
 
-#### Contexte d'appel
-
-Le contexte d'appel contient la pile d'appel et les arguments d'appel.
-
-> Il est important de noter que si l'on suppose la pile d'appel comme ayant une taille finie (garantie après réduction), la dimension d'un contexte est bornée, ce qui est essentiel pour garantir la terminaison.
-
-$context \coloneqq \mathbb{S} \times cont_type$
-
-#### Contextes des usines
-
-Une table des usines associe un contexte à une usine. La dimension d'un contexte étant bornée, les contextes sont dénombrables (on peut donc implémenter la table d'association correspondante).
-
-$alloccontexte \coloneqq context \rightarrow \mathbb{U}$
-
-#### Table de contextes des usines
-
-Une table de contextes de blocs associe chaque bloc à ses contextes d'allocation.
-
-$bloccontexte \coloneqq pointer \rightarrow alloccontexte$
-
-#### Appel analysé
-
-Un appel analysé est une paire associant les paramètres passés avec leurs allocations correspondantes.
-
-$callanalysed \coloneqq cont_type \times allocations$
-
-#### Programme analysé
-
-Un programme analysé (càd le résultat de l'analyse) est une table associant chaque bloc à son appel analysé.
-
-$analysis \coloneqq pointer \rightarrow callanalysed$
-
 ### Algorithme d'analyse
 
-$\text{analysis} : \mathbb{B}\mathbb{B}^{*} \times stack_reduce \times blocks \times bloccontexte \rightarrow analysis$
+L'algorithme d'analyse prend une liste des blocs à analyser (pointeur, en-tête, pile et usine), une fonction d'abstraction de la pile, l'ensemble des blocs du programme, l'ensemble des usines pour chaque contexte de chaque bloc déjà analysé et renvoie en-tête et usine pour chaque bloc.
+
+$\text{analyse} : (\mathbb{P} \times \overline{\mathbb{B}} \times \mathbb{S} \times \mathbb{U})^{*} \times (\mathbb{S} \mapsto \mathbb{S}) \times (\mathbb{P} \mapsto \mathbb{B}) \times (\mathbb{P} \mapsto ((\mathbb{S} \times \overline{\mathbb{B}}) \mapsto \mathbb{U})) \mapsto (\mathbb{P} \mapsto (\overline{\mathbb{B}} \times \mathbb{U}))$
 
 \begin{algorithm}[H]
 \DontPrintSemicolon
 \SetAlgoLined
 \SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
-\Input{B reduce prog map}
+\Input{l pile\_abs B U}
 \BlankLine
-\eIf{$B$ est vide}{
-    \Return $map$ telle que pour chaque bloc sa valeur soit l'union des usines et paramètres de chaque contexte de pile de ce bloc.\;
+\tcp{Il ne reste plus aucun bloc à analyser.}
+\eIf{l est vide}{
+   \Return $U$ telle que pour chaque bloc sa valeur soit l'union des usines et paramètres de chaque contexte de pile de ce bloc. \tcp{Tous les contextes de pile sont fusionnés.}
 }{
-   k, block', stack''', allocations $\gets$ hd(B)\;
-   B' $\gets$ tl(B)\;
-   stack $\gets$ reduce(stack''')\;
+   $p, b, s, u \gets \text{hd}(l)$ \tcp{Le premier bloc à analyser.}
+   $l' \gets \text{tl}(l)$ \tcp{Les autres blocs à analyser.}
+   $\overline{s} \gets \text{pile\_abs}(s)$ \tcp{Abstraction de la pile.}
+   $c \gets (\overline{s}, b)$ \tcp{Le contexte (pile et en-tête).}
 
-   \eIf{$k \in \mathcal{D}(map)$}{
-    oldcontexts $\gets$ map(k)\;
+   \BlankLine
+   \tcp{Ce bloc a déjà été analysé.}
+   \eIf{$p \in \mathcal{D}(U)$}{
+      $U_p \gets U[p]$ \tcp{Les usines associées à ce bloc.}
+      
+      \BlankLine
+      \tcp{Ce contexte a déjà été analysé pour ce bloc.}
+      \eIf{$c \in \mathcal{D}(U_p)$}{
+         $u_c \gets U_p$[c] \tcp{L'usine associée à ce contexte.}
+         $u_2 \gets u_c \cup u$ \tcp{Union de l'ancienne et la nouvelle usine.}
 
-    \eIf{$(stack, block') \in \mathcal{D}(oldcontexts)$}{
-        oldallocations $\gets$ oldcontexts((stack, block'))\;
-        newallocations $\gets$ oldallocations $\cup$ allocations\;
+         \BlankLine
+         \tcp{L'ancienne usine et la nouvelle ont convergé.}
+         \eIf{$u_2 = u_c$}{
+            \BlankLine
+            \tcp{La pile d'appels est vide.}
+            \eIf{s est vide}{
+               \Return{analyse(l', pile\_abs, B, U)} \tcp{On continue avec les prochains blocs.}
+            }{
+               $p_2, args \gets hd(s)$ \tcp{Le contexte vers lequel renvoyer.}
+               $s_3 \gets tl(s)$ \tcp{Les autres blocs à analyser.}
+               $b_2 \gets \text{Return}(\emptyset, args)$ \tcp{Le bloc de retour recevra Bottom.}
 
-        \eIf{newallocations = oldallocations}{
+               \BlankLine
+               \Return{$\text{analyse}((p_2, b_2, s_3, u_2) :: l', \text{pile\_abs}, B, U)$} \tcp{On analysera le bloc appelant avec Bottom comme résultat.}
+            }
+         }{
+            $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
+            $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u_2)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
 
-        }{
-            block, expr $\gets$ prog(k)\;
-            nextconts $\gets$ analysiscont(expr, stack''', (blockenv block block'), newallocations)\;
-            \Return {analysis(B'nextconts, reduce, prog, add k (add (stack, block') newallocations oldcontexts) map)}
-        }
-    }{
+            $U_p[c] \gets u_2$ \tcp{On met à jour l'usine pour ce contexte.}
+            $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
 
-    }
+            \BlankLine
+            \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
+         }
+      }{
+            $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
+            $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
+
+            $U_p \gets \emptyset$ \tcp{On crée un nouvel ensemble de contextes.}
+            $U_p[c] \gets u$ \tcp{On initialise l'usine pour ce contexte.}
+            $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
+
+            \BlankLine
+            \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
+      }
    }{
+      $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
+      $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
 
+      $U_p[c] \gets u$ \tcp{On met à jour l'usine pour ce contexte.}
+      $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
+
+      \BlankLine
+      \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
    }
 }
 \caption{Analyse du programme}
 \end{algorithm}
 
-### Idées de terminaison
+#### Terminaison
 
-Les noms de variables, par extension les points d'allocations, étant en nombre fini dans le programme, l'ensemble identifiant les valeurs est également fini. De la même manière, un contexte d'appel (ensemble fini de valeurs correspondant aux arguments et pointeur de bloc), est un ensemble fini étant donné que le nombre de blocs dans le programme est également borné. Reste la question épineuse de comment garantir que la pile d'appels ne croît pas infiniment. Afin de tenter d'obtenir une précision maximale, je détecte d'éventuels motifs sur la pile en regardant si 1..N contextes d'appels se répètent et le cas échéant je supprime la répétition. Par exemple la pile d'appels A::B::A::B::C::[] sera remplacée par A::B::C::[]. Après avoir implémenté cette méthode, mes tuteurs m'ont rapidement fait comprendre qu'elle ne pouvait pas garantir la terminaison. Pour la suite du stage je vais certainement devoir durcir la détection de motifs en passant à 0-CFA ou 1-CFA.
+Les identifiants de variable ou de bloc (pointeur) sont en nombre fini dans le code et ne sont jamais générés lors de l'analyse, leur nombre est donc borné par la taille du programme. Chaque point d'allocation étant une variable, un ensemble de points d'allocations est par conséquent également borné par la taille du programme. L'union de deux entiers converge évidemment vers un point fixe. Étant donné que les pointeurs, les tags ainsi que les ensembles de points d'allocations sont des ensembles bornés par la taille du programme, l'union de deux fermetures ou de deux valeurs taggées est garantie de converger vers un point fixe. Il en est de même pour l'union de deux usines qui pour un ensemble fini de point d'allocation attribue des valeurs dont l'union converge. L'abstraction de la pile d'appels quant à elle est censée garantir que celle-ci ne croisse pas infiniment, ce qui borne le nombre de contexte d'appel pour chaque bloc. Même s'il ne s'agit pas d'une preuve formelle, tous ces arguments semblent confirmer que l'analyse est garantie de terminer.
 
 ### Propagation
 
@@ -867,7 +849,7 @@ La taille du CFG éxécutable est uniquement intéressante d'un point de vue per
 
 ### Recensement des variables et appels de blocs
 
-De la même manière que lors de la phase CFG, les variables et les appels de blocs sont recensés afin de supprimer les variables inutilisées et les blocs morts.
+De la même manière que lors de la phase CFG, les occurences des variables et blocs sont comptées afin de supprimer le code mort mais aussi pour l'inlining.
 
 ## Inlining
 
@@ -895,15 +877,11 @@ Durant l'interprêtation j'enregistre diverses informations intéressantes, comm
 
 Les phases de compilation étant prêtes et à mes yeux suffisamment expressives pour permettre toute forme d'inlining, je détaille ici quelques idées d'heuristiques pour la suite du stage. De nombreux tests complets seront à réaliser pour à la fois vérifier la pertinence des heuristiques implémentées mais également en détecter de nouvelles.
 
-## Blocs de petite taille
-
-
-
 ## Inlining partiel
 
-Une technique possible sur laquelle je vais me pencher sera l'[inlining partiel](https://developers.redhat.com/blog/2014/10/29/rhel7-gcc-optimizations-partial-inlining), c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont je représente le programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible avec flambda2. La question est donc de savoir s'il existe des cas où cette heuristique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille ou du temps d’exécution. Une première idée de situations intéressantes qui me vient à l'esprit est le grand nombre de fonctions en OCaml qui filtrent au début un de leurs arguments ce qui, à ma connaissance, se représente une fois compilé comme quelques instructions suivies d'un saut. Le filtrage en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transformerait ici un appel de fonction en un filtrage vers des blocs à "l'intérieur" de celle-ci (avec évidemment les opérations sur la pile qu'il convient de faire comme un appel classique). De plus l'inliner peut permettre de gagner en informations sur le motif, ce qui peut rendre possible de transformer le filtrage en appel direct, les gains seraient considérables.
+Une technique possible sur laquelle je vais me pencher sera l'[inlining partiel](https://developers.redhat.com/blog/2014/10/29/rhel7-gcc-optimizations-partial-inlining), c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont je représente le programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible avec flambda2. La question est donc de savoir s'il existe des cas où cette technique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille ou du temps d’exécution. Une première idée de situations intéressantes qui me vient à l'esprit est le grand nombre de fonctions en OCaml qui filtrent au début un de leurs arguments ce qui, à ma connaissance, se représente une fois compilé comme quelques instructions suivies d'un saut. Le filtrage en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transformerait ici un appel de fonction en un filtrage vers des blocs à "l'intérieur" de celle-ci (avec évidemment les opérations sur la pile qu'il convient de faire comme un appel classique). De plus l'inliner peut permettre de gagner en informations sur le motif, ce qui peut rendre possible de transformer le filtrage en appel direct, les gains seraient considérables.
 
-Un exemple qui me pousse à croire qu'une telle heuristique peut être prometteuse est fourni sur le site de [flambda](https://v2.ocaml.org/manual/flambda.html#ss:flambda-inlining-overview) :
+Un exemple qui me pousse à croire qu'une telle technique peut être prometteuse est fourni sur le site de [flambda](https://v2.ocaml.org/manual/flambda.html#ss:flambda-inlining-overview) :
 
 ```ocaml
 let f b x =
@@ -957,7 +935,7 @@ and g x (p::stack) =
   p x stack
 ```
 
-Évidemment au stade actuel cette heuristique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité. Il est par ailleurs fort probable qu'elle ne soit pas possible à mettre en place dans l'évaluateur de bytecode.
+Évidemment au stade actuel cette technique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité. Il est par ailleurs fort probable qu'elle ne soit pas possible à mettre en place dans l'évaluateur de bytecode.
 
 \newpage
 
@@ -969,4 +947,4 @@ J'ai évidemment passé beaucoup de temps sur l'interprétation abstraite et ren
 
 Concernant l'inlining, d'après les premiers tests que j'ai réalisés, il apparaît que spécialiser systématiquement les blocs de très petite taille (de l'ordre d'1 instruction) permet à la fois de réduire grandement la taille du code tout en diminuant les instructions exécutées lors de l'évaluation. Augmenter légèrement ce seuil (de l'ordre de 2-3 instructions) permet généralement de gagner quelques instructions exécutées mais augmente aussi la taille du code, ce qui fait que les bénéfices sont durs à déterminer. Au delà de quelques instructions, sans autre forme d'heuristiques comme par exemple l'élimination de branchements en connaissant le motif, il semblerait que cela n'ait plus aucun ou très peu d'impact sur le nombre d'instructions exécutées tout en augmentant considérablement la taille du code, ce qui n'est évidemment pas souhaitable.
 
-Pour conclure je suis assez satisfait de ce que j'ai produit et appris durant ce stage, à la fois d'un point de vue théorique et pratique. J'ai sous la main un ensemble de phases de compilations cohérentes pour un petit langage certes mais très expressif et je pense être capable sans trop de difficultés d'implémenter et tester de nouvelles heuristiques d'inlining. Pour mener au mieux de telles expérimentations il me sera par contre nécessaire de disposer d'une base de tests exhaustifs et d'en assurer l'automatisation, ce qui en soit ne sera probablement pas la chose la plus aisée de ce stage.
+Pour conclure je suis assez satisfait de ce que j'ai appris et produit durant ce stage, à la fois d'un point de vue théorique et pratique. J'ai sous la main un ensemble de phases de compilations cohérentes pour un petit langage certes mais très expressif et je pense être capable sans trop de difficultés d'implémenter et tester de nouvelles heuristiques d'inlining. Pour mener au mieux de telles expérimentations il me sera par contre nécessaire de disposer d'une base de tests exhaustifs et d'en assurer l'automatisation, ce qui en soit ne sera probablement pas la chose la plus aisée de ce stage.
