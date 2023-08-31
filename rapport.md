@@ -52,7 +52,7 @@ and g = fun y -> f y in f 0
 
 ### Types Somme et filtrage par motifs
 
-La possibilité de construire des types Somme est une des fonctionnalités essentielles d'OCaml et permet de représenter quasiment n'importe quelle structure de données. De plus, de la même manière que le branchement conditionnel, le filtrage par motifs se prête particulièrement bien à l'inlining puisque connaître le motif peut permettre de filtrer de nombreuses branches et donc d'alléger un potentiel inlining.
+La possibilité de construire des types Somme est une des fonctionnalités essentielles d'OCaml, permet de représenter quasiment n'importe quelle structure de données et d'augmenter la complexité de l'analyse de valeurs. De plus, de la même manière que le branchement conditionnel, le filtrage par motifs se prête particulièrement bien à l'inlining puisque connaître le motif peut permettre de filtrer de nombreuses branches et donc d'alléger un potentiel inlining.
 
 ```ocaml
 type int_list =
@@ -500,7 +500,7 @@ Par la suite :
 
 ## Nettoyage des alias
 
-Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$) et cela peut nuire à la qualité de l'analyse. La passe de nettoyage supprime tous les alias. Il est plus simple d'éliminer les alias en 2 passes que directement lors de la génération même si cela permettrait de se passer de l'expression $\text{Var}$ dans la représentation intermédiaire.
+Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$). La passe de nettoyage supprime tous les alias. Il est plus simple d'éliminer les alias en 2 passes que directement lors de la génération même si cela permettrait de se passer de l'expression $\text{Var}$ dans la représentation intermédiaire.
 
 ## Taille
 
@@ -530,9 +530,9 @@ L'analyse est l'étape la plus compliquée et probablement la plus importante po
 
 Une contrainte importante portée sur l'analyse est la nécessité de pouvoir réaliser plusieurs analyses consécutives afin de pouvoir comparer les performances et résultats d'une seule analyse en profondeur face à plusieurs petites analyses. Cela implique que le langage intermédiaire sur lequel s'effectue l'analyse (en l'occurence ici le CFG) doit rester le même après analyse. C'est pour cette raison que les résultats éventuels de l'analyse, en particulier les sauts directs, sont intégrés au CFG.
 
-### Points d'allocation
+### Domaine des points d'allocation
 
-Sur conseil de mon tuteur, je réalise une analyse par point d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes). Il y a néanmoins certaines limitations à utiliser une telle analyse. La première que j'ai rencontrée était dûe à la présence de nombreux alias de variables présents dans le code CFG généré ce qui réduisait grandement la précision de l'analyse en fusionnant certaines valeurs au lieu de les garder séparées. Problème corrigé en effectuant une passe de nettoyage des alias avant chaque tour d'analyse.
+Sur conseil de mon tuteur, je réalise une analyse par point d'allocation. Ce choix donne des garanties de terminaison (le nombre de point d'allocation est borné par la taille du programme) tout en permettant une analyse poussée qui autorise par exemple la récursivité lors de la construction des blocs (fondamental pour traiter les listes).
 
 #### Point d'allocation
 
@@ -919,7 +919,7 @@ Les phases de compilation étant prêtes et à mes yeux suffisamment expressives
 
 Une technique possible sur laquelle je vais me pencher sera l'[inlining partiel](https://developers.redhat.com/blog/2014/10/29/rhel7-gcc-optimizations-partial-inlining), c'est à dire potentiellement inliner seulement les premiers blocs d'une fonction. La manière dont je représente le programme me permet de sauter à l'intérieur d'une fonction, ce qui n'est actuellement pas possible avec flambda2. La question est donc de savoir s'il existe des cas où cette technique pourrait être intéressante, que ce soit à la fois en terme d'optimisations de la taille ou du temps d’exécution. Une première idée de situations intéressantes qui me vient à l'esprit est le grand nombre de fonctions en OCaml qui filtrent au début un de leurs arguments ce qui, à ma connaissance, se représente une fois compilé comme quelques instructions suivies d'un saut. Le filtrage en lui même n'est pas une opération spécialement coûteuse en terme d'espace, on transformerait ici un appel de fonction en un filtrage vers des blocs à "l'intérieur" de celle-ci (avec évidemment les opérations sur la pile qu'il convient de faire comme un appel classique). De plus l'inliner peut permettre de gagner en informations sur le motif, ce qui peut rendre possible de transformer le filtrage en appel direct, les gains seraient considérables.
 
-Un exemple qui me pousse à croire qu'une telle technique peut être prometteuse est fourni sur le site de [flambda](https://v2.ocaml.org/manual/flambda.html#ss:flambda-inlining-overview) :
+Un exemple qui me pousse à croire qu'une telle technique peut être prometteuse est fourni sur la section dédiée à [flambda](https://v2.ocaml.org/manual/flambda.html#ss:flambda-inlining-overview) dans la documentation de OCaml :
 
 ```ocaml
 let f b x =
