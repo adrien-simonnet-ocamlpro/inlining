@@ -634,6 +634,10 @@ L'algorithme d'analyse prend une liste des blocs à analyser (pointeur, en-tête
 
 $\text{analyse} : (\mathbb{P} \times \overline{\mathbb{B}} \times \mathbb{S} \times \mathbb{U})^{*} \times (\mathbb{S} \mapsto \mathbb{S}) \times (\mathbb{P} \mapsto \mathbb{B}) \times (\mathbb{P} \mapsto ((\mathbb{S} \times \overline{\mathbb{B}}) \mapsto \mathbb{U})) \mapsto (\mathbb{P} \mapsto (\overline{\mathbb{B}} \times \mathbb{U}))$
 
+L'analyse d'un bloc se fait par la fonction `analyse_de_bloc` qui à partir d'un bloc, d'une pile, d'un environnement et d'une usine renvoie une liste de blocs à analyser.
+
+`env_de_bloc` est une fonction qui génère l'environnement à partir de l'en-tête d'un bloc et les valeurs abstraites qui lui sont passées.
+
 \begin{algorithm}[H]
 \DontPrintSemicolon
 \SetAlgoLined
@@ -686,28 +690,62 @@ $\text{analyse} : (\mathbb{P} \times \overline{\mathbb{B}} \times \mathbb{S} \ti
             \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
          }
       }{
-            $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
-            $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
+         \tcc{Page suivante}
+      }
+   }{
+      \tcc{Page suivante}
+   }
+}
+\caption{Analyse du programme}
+\end{algorithm}
 
-            $U_p \gets \emptyset$ \tcp{On crée un nouvel ensemble de contextes.}
-            $U_p[c] \gets u$ \tcp{On initialise l'usine pour ce contexte.}
-            $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{l pile\_abs B U}
+\BlankLine
+\tcp{Il ne reste plus aucun bloc à analyser.}
+\eIf{l est vide}{
+   \Return $U$ telle que pour chaque bloc sa valeur soit l'union des usines et paramètres de chaque contexte de pile de ce bloc. \tcp{Tous les contextes de pile sont fusionnés.}
+}{
+   $p, b, s, u \gets \text{hd}(l)$ \tcp{Le premier bloc à analyser.}
+   $l' \gets \text{tl}(l)$ \tcp{Les autres blocs à analyser.}
+   $\overline{s} \gets \text{pile\_abs}(s)$ \tcp{Abstraction de la pile.}
+   $c \gets (\overline{s}, b)$ \tcp{Le contexte (pile et en-tête).}
 
-            \BlankLine
-            \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
+   \BlankLine
+   \tcp{Ce bloc a déjà été analysé.}
+   \eIf{$p \in \mathcal{D}(U)$}{
+      $U_p \gets U[p]$ \tcp{Les usines associées à ce bloc.}
+      
+      \BlankLine
+      \tcp{Ce contexte a déjà été analysé pour ce bloc.}
+      \eIf{$c \in \mathcal{D}(U_p)$}{
+         \tcc{Page précédente}
+      }{
+         $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
+         $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
+
+         $U_p[c] \gets u$ \tcp{On initialise l'usine pour ce contexte.}
+         $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
+
+         \BlankLine
+         \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
       }
    }{
       $b_2, i \gets B(p)$ \tcp{L'en-tête et le corps de ce bloc.}
       $l_2 \gets \text{analyse\_de\_bloc}(i, s, \text{env\_de\_bloc}(b_2, b), u)$ \tcp{On analyse ce bloc et on récupère les prochains à analyser.}
 
-      $U_p[c] \gets u$ \tcp{On met à jour l'usine pour ce contexte.}
+      $U_p \gets \emptyset$ \tcp{On crée un nouvel ensemble de contextes.}
+      $U_p[c] \gets u$ \tcp{On initialise l'usine pour ce contexte.}
       $U[$p$] \gets U_p$ \tcp{On met à jour les usines pour ce bloc.}
 
       \BlankLine
       \Return {$\text{analyse}(l' @ l_2, \text{pile\_abs}, B, U)$} \tcp{Récursion sur les nouveaux blocs à analyser.}
    }
 }
-\caption{Analyse du programme}
+\caption{Analyse du programme (suite)}
 \end{algorithm}
 
 #### Terminaison
