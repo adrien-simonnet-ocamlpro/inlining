@@ -328,7 +328,7 @@ Il est important d'injecter les variables libres dans la table des abstractions 
 
 # Analyse du flot de contrôle
 
-La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. A l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main une représentation intermédiaire qui permette une analyse simple et puissante.
+La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. À l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main une représentation intermédiaire qui permette une analyse simple et puissante.
 
 ## Graphe de flot de contrôle
 
@@ -754,7 +754,7 @@ Les identifiants de variable ou de bloc (pointeur) sont en nombre fini dans le c
 
 ### Propagation
 
-La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. Avec le recul, il est fort probable que cette optimisation ne soit pas strictement nécessaire à cette étape de la compilation, mais se fasse plutôt lors de la conversion vers le CFG éxécutable (c'est à dire générer le CFG éxécutable en ayant sous la main les résultats de l'analyse au lieu de modifier le CFG sur lequel il existe des contraintes sémantique fortes).
+La propagation modifie le CFG pour y faire apparaître les résultats de l'analyse. Avec le recul, il est fort probable que cette optimisation ne soit pas strictement nécessaire à cette étape de la compilation, mais se fasse plutôt lors de la conversion vers le CFG exécutable (c'est à dire générer le CFG exécutable en ayant sous la main les résultats de l'analyse au lieu de modifier le CFG sur lequel il existe des contraintes sémantique fortes).
 
 #### Constantes
 
@@ -770,13 +770,13 @@ Les appels indirects sont transformés en appels directs lorsqu'il y a exactemen
 
 \newpage
 
-# CFG éxécutable
+# CFG exécutable
 
-L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG éxécutable car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
+L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG exécutable car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
 
 ## Langage
 
-Le CFG éxécutable est très similaire au CFG, si ce n'est que quasiment tous les traits de langage propres à OCaml ont été concrétisés. À chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
+Le CFG exécutable est très similaire au CFG, si ce n'est que quasiment tous les traits de langage propres à OCaml ont été concrétisés. À chaque construction de valeur du langage OCaml est associée une structure de données, la plupart d'entre elles devenant des n-uplets. Tous les types de blocs fusionnent en un seul en fixant la sémantique des sauts (passage de l'environnement comme argument) et chaque type de branchement est transformé en un saut (direct ou indirect) avec la possibilité d'ajouter des contextes d'appel sur la pile (seule l'instruction d'appel ajoute un contexte lors de cette transformation).
 
 ### Identifiants
 
@@ -828,7 +828,7 @@ Il n'existe plus de sémantique pour chaque type de bloc, l'ordre des arguments 
 
 $\mathbb{B} \coloneqq \mathbb{V}^{*} \times \mathbb{I}$ (bloc)
 
-## Génération du CFG éxécutable
+## Génération du CFG exécutable
 
 La transpilation d'un bloc CFG peut générer plusieurs blocs concrêtisés.
 
@@ -883,7 +883,7 @@ Dans la suite, les ensembles de variables correspondant aux arguments des blocs 
 
 ### Taille
 
-La taille du CFG éxécutable est uniquement intéressante d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
+La taille du CFG exécutable est uniquement intéressante d'un point de vue performances et connaître l'impact des différentes optimisations. Le calcul se fait de la même manière que pour le CFG.
 
 ### Recensement des variables et appels de blocs
 
@@ -899,7 +899,7 @@ Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs 
 
 ## Interprétation
 
-C'est le CFG éxécutable que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
+C'est le CFG exécutable que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
 
 ### Validité des phases de compilation
 
