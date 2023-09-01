@@ -614,7 +614,7 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
     \begin{block}{Abstraction}
         $\text{Top} : \mathbb{I}$
 
-        $\text{Singleton} : \mathbb{Z} \rightarrow \mathbb{I}$
+        $\text{Singleton} : \mathbb{Z} \mapsto \mathbb{I}$
     \end{block}
 
     L'union de deux entiers donne toujours Top sauf lorsqu'il s'agit de deux singletons de même valeur.
@@ -633,7 +633,7 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
 \begin{frame}{Fermetures}
     Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres.
     \begin{block}{Abstraction}
-        $\mathbb{F} \coloneqq \mathbb{P} \rightarrow \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
+        $\mathbb{F} \coloneqq \mathbb{P} \mapsto \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
     \end{block}
 
     L'union de deux fermetures consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes.% Deux entrées communes, c'est à dire ayant comme clé le même pointeur, sont censées avoir le même environnement, dans le cas contraire il s'agit d'une erreur d'implémentation.
@@ -661,7 +661,7 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
     
     \begin{block}{Union}
         $$
-        x \sqcup y = z \mapsto
+        x \sqcup y = z \rightarrow
         \begin{cases}
             \left( x(z)_i \cup y(z)_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
             x(z) \text{ si } z \in \mathcal{D}(x) \\
