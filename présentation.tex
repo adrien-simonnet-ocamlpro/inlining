@@ -25,6 +25,29 @@
 
 \section{Introduction}
 
+\begin{frame}[fragile]{Introduction}{Langage source}
+    Le langage source est un sous-ensemble fonctionnel d'OCaml.
+
+    \begin{itemize}
+        \item Lambda-calcul
+        \item Opérations élémentaires
+        \item Fermetures (mutuellement) récursives
+        \item Types Somme et filtrage par motifs
+    \end{itemize}
+
+    \begin{exampleblock}{Exemple}
+        \begin{lstlisting}[language=caml]
+type int_list = Nil | Cons of int * int_list
+let rec map = fun f -> fun l -> match l with
+| Nil -> Nil
+| Cons (x, ls) -> Cons (f x, map f ls)
+in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
+        \end{lstlisting}
+    \end{exampleblock}
+\end{frame}
+
+
+\iffalse
 \subsection{Langage source}
 
 \subsubsection{Lambda-calcul}
@@ -67,6 +90,7 @@
     \end{lstlisting}
 \end{frame}
 
+
 \begin{frame}{Langage utilisé}
     J'ai réalisé le compilateur en OCaml, en cohérence avec le langage source et l'expertise d'OCamlPro.
 \end{frame}
@@ -80,7 +104,17 @@
     \tableofcontents[currentsection, hideothersubsections]
   \end{frame}
 }
+\fi
 
+\begin{frame}{Lexique}
+    \begin{itemize}
+        \item Sous-ensemble de celui d'OCaml
+        \item Supporter les fonctionnalités intéressantes
+        \item Analyse lexicale réalisée par OCamllex
+    \end{itemize}
+\end{frame}
+
+\iffalse
 \begin{frame}[fragile]{Lexique}
     % Le lexique source est un sous-ensemble de celui d'OCaml pour supporter les fonctionnalités qui m'intéressent. Je n'ai pas jugé pertinent d'indiquer le nom des jetons.
     \begin{itemize}
@@ -103,10 +137,22 @@
 \begin{frame}{Analyseur lexical}
     Les jetons de l'analyse lexicale sont générés par OCamllex.
 \end{frame}
-
+\fi
 
 \section{Analyse syntaxique}
 
+\begin{frame}{Arbre de Syntaxe Abstraite (AST)}
+    \begin{itemize}
+        \item La grammaire est la même que celle d'OCaml
+        \item Les identifiants sont des chaînes de caractères
+        \item Déconstruction de termes uniquement possible dans les filtrages par motif
+        \item Opérations limitées aux entiers
+        \item Pas de vérification de typage
+        \item Analyse syntaxique réalisée par Menhir
+    \end{itemize}
+\end{frame}
+
+\iffalse
 \subsection{Arbre de Syntaxe Abstraite (AST)}
 
 La grammaire est la même que celle d'[OCaml](https://v2.ocaml.org/releases/5.0/manual/language.html) pour l'ensemble des jetons supportés.
@@ -177,8 +223,26 @@ La grammaire est la même que celle d'[OCaml](https://v2.ocaml.org/releases/5.0/
     L'AST est généré par Menhir à l'aide des jetons générés par l'analyse lexicale.
 \end{frame}
 
+\fi
+
 \section{Résolution des noms}
 
+\begin{frame}{Résolution des noms}
+    \begin{itemize}
+        \item AST légèrement différent
+        \item Les identifiants sont des entiers naturels uniques
+        \item Index pour le nom des constructeurs
+        \item Autorise les variables libres
+    \end{itemize}
+    \begin{block}{Conversion}
+        $\mathbb{E}_{ast} \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right) \times \left( \mathbb{T}_{ast} \mapsto \mathbb{T} \right) \vdash_{\text{ast'}} \mathbb{E} \times \left( \mathbb{V} \mapsto \mathbb{V}_{ast} \right) \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right)$
+    \end{block}
+    \begin{exampleblock}{Exemple}
+        $e ~ A ~ C \vdash_{\text{ast'}} e' ~ S ~ L$
+    \end{exampleblock}
+\end{frame}
+
+\iffalse
 \subsection{Arbre de Syntaxe Abstraite rafraîchi (AST')}
 
 \begin{frame}{Identificateurs}
@@ -341,11 +405,31 @@ La grammaire est la même que celle d'[OCaml](https://v2.ocaml.org/releases/5.0/
         \over \left( \text{Match} ~ e \left( m_i, e_i \right)_{i=1}^{i=n} \right) A ~ C \vdash_{\text{ast'}} \left( \text{Match} ~ e' \left( t_i', \left( a_i^j \right)_{j=1}^{j=m_i}, e_i' \right)_{i=1}^{i=n}\right) \left( \bigsqcup_{i=1}^{i=n} S_{e_i} \sqcup S_{e} \right) \left( \bigsqcup_{i=1}^{i=n} L_{e_i} \sqcup L_{e} \right)
      \end{gather}
 \end{frame}
+\fi
 
 \section{Analyse du flot de contrôle}
 
-La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. À l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main une représentation intermédiaire qui permette une analyse simple et puissante.
+%La conversion CPS/CFG transforme l'AST' en un ensemble de basic blocs. À l'origine il s'agissait d'une conversion CPS, mais l'explicitation des variables libres et la décontextualisation des blocs fait qu'aujourd'hui elle ressemble davantage à une conversion vers un CFG. L'idée est de perdre le moins d'informations possible du programme source tout en ayant sous la main une représentation intermédiaire qui permette une analyse simple et puissante.
 
+\begin{frame}{Graphe de flot de contrôle}
+    \begin{itemize}
+        \item Ensemble de basic blocks \alert{clos}
+        \item Chaque type de bloc a sa sémantique
+        \item Expressions construitent par des valeurs
+        \item Valeurs déclarées par un identifiant unique
+        \item Instruction = déclaration ou branchement
+        \item Basic block = suite de déclarations puis branchement
+    \end{itemize}
+    \begin{block}{Conversion}
+        $\mathbb{E}_{ast'} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \times \mathbb{I} \vdash_{\text{cfg}} \mathbb{I} \times \mathcal{P}(\mathbb{V}) \times (\mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I}))$
+    \end{block}
+    \begin{exampleblock}{Exemple}
+        $e ~ v ~ V ~ i \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
+    \end{exampleblock}
+\end{frame}
+
+
+\iffalse
 \subsection{Graphe de flot de contrôle}
 
 La différence notable avec l'AST' est l'apparition des blocs (avec explicitation des variables libres) et l'absence d'expressions imbriquées.
@@ -531,9 +615,25 @@ La différence notable avec l'AST' est l'apparition des blocs (avec explicitatio
         \over (\text{Match} ~ e \left( t_i, \left( a_i^j \right)_{j=1}^{j=m_i}, e_i \right)_{i=1}^{i=n} d) ~ v ~ V ~ \epsilon \vdash_{\text{cfg}} (todo)
      \end{gather}
 \end{frame}
+\fi
 
 \subsection{Quelques fonctions}
 
+\begin{frame}{Graphe de flot de contrôle}{Nettoyage des alias}
+    Le CFG peut contenir des alias.
+
+    \begin{exampleblock}{Exemple}
+        $(\text{Var} ~ x_1) ~ \overline{0} ~ \emptyset ~ (\text{Return} ~ \overline{0}) \vdash_{\text{cfg}} (\text{let} ~ \overline{0} = x_1 ~ \text{in} ~ \text{Return} ~ \overline{0}) ~ \lbrace x_1 \rbrace ~ \emptyset$
+    \end{exampleblock}
+
+    La passe de nettoyage supprime tous les alias.
+
+    \begin{exampleblock}{Exemple}
+        $\text{let} ~ \overline{0} = x_1 ~ \text{in} ~ \text{Return} ~ \overline{0} \rightarrow \text{Return} ~ x_1$
+    \end{exampleblock}
+\end{frame}
+
+\iffalse
 \begin{frame}{Nettoyage des alias}
     Le code CFG ainsi généré est susceptible de contenir de nombreux alias de variables (créés par la règle $\eqref{Var}$). La passe de nettoyage supprime tous les alias. Il est plus simple d'éliminer les alias en 2 passes que directement lors de la génération même si cela permettrait de se passer de l'expression $\text{Var}$ dans la représentation intermédiaire.
 \end{frame}
@@ -545,11 +645,31 @@ La différence notable avec l'AST' est l'apparition des blocs (avec explicitatio
 \begin{frame}{Recensement des variables et appels de blocs}
     Plusieurs optimisations ont besoin de connaître la vivacité des variables et blocs. L'approche naïve que j'ai implémentée consiste simplement à compter leurs occurences. Cela permet d'éliminer un nombre conséquant de variables et blocs morts avec la garantie de ne jamais éliminer quoi que ce soit de vivant mais ne permet pas d'éliminer tout ce qui est réellement mort. Une analyse plus efficace est souhaitable mais difficile à implémenter pour le peu de bénéfice que cela apporterait.
 \end{frame}
+\fi
 
 \subsection{Spécialisation}
 
 %La spécialisation consiste à copier des blocs. Les appels directs vers les blocs concernés reçoivent un nouveau pointeur vers un bloc fraîchement copié. La copie d'un bloc a pour effet immédiat d'améliorer la précision de l'analyse, et c'est également la première étape de l'inlining.
 
+\begin{frame}{Graphe de flot de contrôle}{Spécialisation}
+    La spécialisation consiste à dupliquer des blocs.
+
+    \begin{itemize}
+        \item Améliore la précision de l'analyse
+        \item Première étape de l'inlining
+    \end{itemize}
+
+    La copie doit :
+
+    \begin{itemize}
+        \item Conserver les invariants du CFG
+        \item Modifier les appels directs
+    \end{itemize}
+
+    Les blocs sont choisis selon leur taille.
+\end{frame}
+
+\iffalse
 \begin{frame}{Spécialisation}
     %L'implémentation actuelle de la spécialisation des blocs n'est pas poussée à son maximum. Les blocs à copier sont toujours copiés indépendamment de l'appel. Il serait intéressant d'intégrer la possibilité de choisir les appels à spécialiser, autrement dit de traiter des couples bloc appelant/bloc appelé. Néammoins un tel couple me paraîtrait insuffisant notamment lorsqu'un même bloc peut être appelé de différentes manières par une même instruction (en théorie c'est le cas du filtrage par motif même si mon implémentation actuelle ne le permet pas). Une solution possible serait de choisir dynamiquement lors de l'analyse de spécialiser tel ou tel appel. Cette solution apporterait certes des réponses mais apporterait probablement de trop nombreux problèmes.
 
@@ -572,7 +692,7 @@ La différence notable avec l'AST' est l'apparition des blocs (avec explicitatio
     Les blocs sont choisis selon leur taille.
 \end{frame}
 
-\iffalse
+
 \begin{frame}{Algorithme de spécialisation}
     %L'implémentation actuelle de la spécialisation des blocs n'est pas poussée à son maximum. Les blocs à copier sont toujours copiés indépendamment de l'appel. Il serait intéressant d'intégrer la possibilité de choisir les appels à spécialiser, autrement dit de traiter des couples bloc appelant/bloc appelé. Néammoins un tel couple me paraîtrait insuffisant notamment lorsqu'un même bloc peut être appelé de différentes manières par une même instruction (en théorie c'est le cas du filtrage par motif même si mon implémentation actuelle ne le permet pas). Une solution possible serait de choisir dynamiquement lors de l'analyse de spécialiser tel ou tel appel. Cette solution apporterait certes des réponses mais apporterait probablement de trop nombreux problèmes.
 
@@ -583,6 +703,134 @@ La différence notable avec l'AST' est l'apparition des blocs (avec explicitatio
     Les blocs à spécialiser sont actuellement sélectionnés uniquement si leur taille se trouve ou non sous un certain seuil statique. C'est en particulier sur ces choix que je vais être amené à trouver des heuristiques pertinentes d'ici la fin du stage. De telles heuristiques devraient prendre en compte les gains et coûts potentiels apportés par la spécialisation en se basant sur les informations issues de l'analyse.
 \end{frame}
 \fi
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}
+    Etape la plus compliquée et probablement la plus importante.
+    \begin{itemize}
+        \item Rendre les appels directs pour inliner
+        \item Informations cruciales pour les heuristiques
+    \end{itemize}
+
+    L'analyse se fait par point d'allocation.
+    \begin{itemize}
+        \item Garanties de terminaison
+        \item Autorise la récursivité
+    \end{itemize}
+
+    L'analyse a lieu sur le CFG.
+    \begin{itemize}
+        \item Importance des invariants
+        \item Disposer des blocs
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Domaines}
+    Les entiers sont représentés de la manière la plus simple qui soit, c'est à dire des singletons munis de Top.
+    
+    \begin{block}{Abstraction}
+        $\text{Top} : \mathbb{I}$
+
+        $\text{Singleton} : \mathbb{Z} \mapsto \mathbb{I}$
+    \end{block}
+
+    L'union de deux entiers donne toujours Top sauf lorsqu'il s'agit de deux singletons de même valeur.
+
+    \begin{block}{Union}
+        $$
+        x \sqcup y =
+        \begin{cases}
+            \text{Singleton} ~ i \text{ si } x = y = \text{Singleton} ~ i  \\
+            \text{Top} \text{ sinon}
+        \end{cases}
+        $$
+    \end{block}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Domaines}
+    Le domaine pour les fermetures est un environnement d'identifiant vers contexte, où l'identifiant correspond au pointeur de fonction, et le contexte correspond aux variables libres.
+    \begin{block}{Abstraction}
+        $\mathbb{F} \coloneqq \mathbb{P} \mapsto \mathcal{P}(\mathcal{P}(\mathbb{V}))$ (fermeture)
+    \end{block}
+
+    L'union de deux fermetures consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes.% Deux entrées communes, c'est à dire ayant comme clé le même pointeur, sont censées avoir le même environnement, dans le cas contraire il s'agit d'une erreur d'implémentation.
+    
+    \begin{block}{Union}
+        $$
+        x \sqcup y = z \rightarrow
+        \begin{cases}
+            \lbrace x(z)(i) \cup y(z)(i), i \in x(z) \text{ et } i \in y(z) \rbrace \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \\
+            x(z) \text{ si } z \in \mathcal{D}(x) \\
+            y(z) \text{ si } z \in \mathcal{D}(y)
+        \end{cases}
+        $$
+    \end{block}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Domaines}
+    Le domaine pour les unions taggées est un environnement d'identifiant vers contexte, où l'identifiant correspond au tag, et le contexte correspond au contenu de l'union.
+
+    \begin{block}{Abstraction}
+        $\mathbb{C} \coloneqq \mathbb{T} \mapsto \mathcal{P}(\mathbb{V})^{*}$ (union taggée)
+    \end{block}
+
+    L'union de deux valeurs taggées consiste à conserver les entrées distinctes et d'unir les points d'allocations des entrées communes.% Deux entrées communes, c'est à dire ayant comme clé le même tag, sont censées avoir le même contenu, dans le cas contraire il s'agit d'une erreur d'implémentation.
+    
+    \begin{block}{Union}
+        $$
+        x \sqcup y = z \rightarrow
+        \begin{cases}
+            \left( x(z)_i \cup y(z)_i \right)_{i=1}^{i=n} \text{ si } z \in \mathcal{D}(x) \text{ et } z \in \mathcal{D}(y) \text{ et } |x(z)| = |y(z)| = n \\
+            x(z) \text{ si } z \in \mathcal{D}(x) \\
+            y(z) \text{ si } z \in \mathcal{D}(y)
+        \end{cases}
+        $$
+    \end{block}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Valeur abstraite}
+    Une valeur abstraite est un entier, une fermeture ou une valeur taggée.
+
+    \begin{block}{Abstraction}
+        $\text{IntDomain} : \mathbb{I} \mapsto \mathbb{A}$
+
+        $\text{ClosureDomain} : \mathbb{F} \mapsto \mathbb{A}$
+
+        $\text{ConstructorDomain} : \mathbb{C} \mapsto \mathbb{A}$
+    \end{block}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Abstraction de la pile}
+    Détection de motifs pour détecter des récursions.
+
+    \begin{exampleblock}{Exemple}
+        ABCBC a un motif BC de taille 2 et sera remplacée par ABC
+    \end{exampleblock}
+
+    Conserver uniquement les n derniers appels (n-CFA).
+
+    \begin{exampleblock}{Exemple}
+        En 1-CFA, la pile d'appels ABCBC sera remplacée par C
+    \end{exampleblock}
+\end{frame}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Terminaison}
+    Quelques idées justifiant la terminaison de l'analyse.
+
+    \begin{itemize}
+        \item Identifiants jamais générés
+        \item Un point d'allocation est un identifiant
+        \item L'union de deux valeurs converge
+        \item L'union de deux usines converge
+        \item Abstraction de la pile d'appels
+    \end{itemize}
+\end{frame}
+
+
+
+
+
+
+\iffalse
 
 \subsection{Analyse de valeurs par interprétation abstraite}
 
@@ -671,6 +919,8 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
     \end{block}
 \end{frame}
 
+
+
 \subsubsection{Valeur abstraite}
 
 \begin{frame}{Valeur abstraite}
@@ -716,6 +966,8 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
         En 1-CFA, la pile d'appels ABCBC sera remplacée par C
     \end{exampleblock}
 \end{frame}
+
+\fi
 
 \subsubsection{Algorithme d'analyse}
 
@@ -836,6 +1088,56 @@ Actuellement seulement trois domaines abstraits sont nécessaires pour représen
 
 \section{CFG exécutable}
 
+\begin{frame}{CFG exécutable}
+    Représentation plus bas-niveau que le CFG.
+
+    \begin{itemize}
+        \item Concrétise des traits de langage (n-uplets)
+        \item Unifie les blocs et branchements
+        \item Fixe la sémantique des sauts
+        \item Explicite les opérations sur la pile
+    \end{itemize}
+
+    \begin{block}{Conversion}
+        $\mathbb{B}_{cfg} \times \mathbb{I} \vdash_{\text{cfg'}} \mathbb{B} \times (\mathbb{P} \mapsto \mathbb{B})$
+    \end{block}
+
+    \begin{exampleblock}{Exemple}
+        $a ~ i \vdash_{\text{cfg'}} a' ~ i' ~ B$
+    \end{exampleblock}
+\end{frame}
+
+\begin{frame}{CFG exécutable}{Inlining}
+    Intégrer le contenu d'un bloc à la place d'un appel direct.
+
+    \begin{itemize}
+        \item Renomme les arguments
+        \item Modifie les piles
+        \item Autorise les sauts vers l'intérieur d'une fonction
+    \end{itemize}
+
+    Sont actuellement inlinés tous les blocs appelés exactement 1 fois.
+
+    \begin{block}{Conversion}
+        $\mathbb{B}_{cfg} \times \mathbb{I} \vdash_{\text{cfg'}} \mathbb{B} \times (\mathbb{P} \mapsto \mathbb{B})$
+    \end{block}
+
+    \begin{exampleblock}{Exemple}
+        $a ~ i \vdash_{\text{cfg'}} a' ~ i' ~ B$
+    \end{exampleblock}
+\end{frame}
+
+\begin{frame}{CFG exécutable}{Interprétation}
+    Interpréter le CFG avec des tests.
+
+    \begin{itemize}
+        \item Teste la validité des transformations
+        \item Réalise des benchmarks
+    \end{itemize}
+\end{frame}
+
+
+\iffalse
 L'objectif principal de ce langage intermédiaire est d'avoir une représentation bas-niveau stable et facile à interpréter sur laquelle effectuer des benchmarks. L'inlining a lieu sur le CFG exécutable car les modifications apportées peuvent casser la sémantique d'appel ce qui doit être représenté au niveau de la pile.
 
 \subsection{Langage}
@@ -957,6 +1259,7 @@ Le CFG exécutable est très similaire au CFG, si ce n'est que quasiment tous le
     \end{gather}
 \end{frame}
 
+
 \subsubsection{Autres fonctions}
 
 \begin{frame}{Taille}
@@ -975,6 +1278,8 @@ Inliner un bloc consiste à intégrer son contenu dans le bloc appelant à la pl
     Sont actuellement inlinés tous les blocs appelés exactement 1 fois (les blocs spécialisés lors de l'analyse du flot de contrôle sont ainsi tous concernés).
 \end{frame}
 
+
+
 \subsection{Interprétation}
 
 C'est le CFG exécutable que j'interprête pour dans un premier temps m'assurer de la validité de toutes les transformations et dans un second temps réaliser des benchmarks.
@@ -986,6 +1291,8 @@ C'est le CFG exécutable que j'interprête pour dans un premier temps m'assurer 
 \begin{frame}{Benchmarks}
     Durant l'interprêtation j'enregistre diverses informations intéressantes, comme le nombre de sauts, de variables lues ou écrites. Celles-ci sont affichées après éxécution du programme pour identifier la pertinence de certaines optimisations.
 \end{frame}
+
+
 
 \section{Heuristiques d'inlining}
 
@@ -1051,14 +1358,43 @@ Les phases de compilation étant prêtes et à mes yeux suffisamment expressives
     Évidemment au stade actuel cette technique ne reste qu'une hypothèse et il faudra vérifier à la fois sa faisabilité et son efficacité. Il est par ailleurs fort probable qu'elle ne soit pas possible à mettre en place dans l'évaluateur de bytecode.
 \end{frame}
 
+\fi
+
+
 \section{Conclusion}
 
-J'ai beaucoup travaillé sur les représentations intermédiaires essentielles pour à la fois réaliser la meilleure analyse possible et me permettre d'avoir tous les outils en main pour inliner. J'ai commencé avec 2 représentations, l'AST et la forme CPS (désormais le CFG) puis j'en ai créé 2 nouvelles, l'AST rafraîchi et le CFG exécutable pour alléger les différentes transformations. Toutes ont beaucoup évoluées pour me rapprocher de la sémantique la plus simple et la plus natuelle, ce qui a demandé beaucoup de choix pas toujours évidents. Le fait de les avoir formalisées dans ce rapport m'a permis de corriger certaines erreurs qui auraient été difficile de détecter dans le code.
+\begin{frame}{Conclusion}
+    Importance des représentations intermédiaires.
 
-J'ai évidemment passé beaucoup de temps sur l'interprétation abstraite et rencontré de nombreuses difficultés dont certaines n'ont pas été surmontées. En particulier certaines erreurs rencontrées avec les abstractions de pile n-CFA n'apparaissant pas avec l'abstraction par motifs laissent supposer que je n'exploite pas toujours de la bonne manière la pile abstraite dans mon algorithme. J'ai également des erreurs qui peuvent apparaître lorsque je réalise au moins 2 analyses consécutives mais uniquement avec une étape de propagation entre les deux. Exceptées ces deux problèmes rencontrés, l'analyse tient la plupart de ses promesses pour ce que j'attends d'elle, c'est à dire me donner de manière la plus exhaustive possible les blocs candidats pour les appels indirects, et d'assez bonnes précisions sur les valeurs taggées. Il est néanmoins très important de noter que durant ce stage j'ai fait totalement abstraction de la complexité de mon analyse. J'essaye de garantir de mon mieux qu'elle termine mais il est fort probable qu'elle soit exponentielle et la toute petite taille de mes tests ne me permet de m'en faire une idée.
+    \begin{itemize}
+        \item Avoir des transformations simples
+        \item Fixer une sémantique naturelle
+        \item Mieux vaut trop de représentations que pas assez
+    \end{itemize}
 
-Concernant l'inlining, d'après les premiers tests que j'ai réalisés, il apparaît que spécialiser systématiquement les blocs de très petite taille (de l'ordre d'1 instruction) permet à la fois de réduire grandement la taille du code tout en diminuant les instructions exécutées lors de l'évaluation. Augmenter légèrement ce seuil (de l'ordre de 2-3 instructions) permet généralement de gagner quelques instructions exécutées mais augmente aussi la taille du code, ce qui fait que les bénéfices sont durs à déterminer. Au delà de quelques instructions, sans autre forme d'heuristiques comme par exemple l'élimination de branchements en connaissant le motif, il semblerait que cela n'ait plus aucun ou très peu d'impact sur le nombre d'instructions exécutées tout en augmentant considérablement la taille du code, ce qui n'est évidemment pas souhaitable.
+    L'interprétation abstraite, c'est compliqué.
 
-Pour conclure je suis assez satisfait de ce que j'ai appris et produit durant ce stage, à la fois d'un point de vue théorique et pratique. J'ai sous la main un ensemble de phases de compilations cohérentes pour un petit langage certes mais très expressif et je pense être capable sans trop de difficultés d'implémenter et tester de nouvelles heuristiques d'inlining. Pour mener au mieux de telles expérimentations il me sera par contre nécessaire de disposer d'une base de tests exhaustifs et d'en assurer l'automatisation, ce qui en soit ne sera probablement pas la chose la plus aisée de ce stage.
+    \begin{itemize}
+        \item Difficultés pour traiter les piles
+        \item Complexité (certainement) exponentielle
+        \item Résultats satisfaisants
+    \end{itemize}
+
+    Résultats sur l'inlining.
+
+    \begin{itemize}
+        \item Toujours inliner les petits blocs
+        \item Pas toujours intéressant pour les blocs de moyenne taille
+        \item Inintéressant pour les plus gros blocs sans autre heuristique
+    \end{itemize}
+
+    D'autres expérimentations à mener.
+
+    \begin{itemize}
+        \item De plus gros tests
+        \item Ajouter de nouveaux traits de langage
+        \item Automatiser les tests
+    \end{itemize}
+\end{frame}
 
 \end{document}
