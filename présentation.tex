@@ -6,8 +6,8 @@
 
 \usetheme{Madrid}
 
-\title[Soutenance de stage STL]{Heuristique d'inlining complexe}
-\subtitle{Heuristique d'inlining complexe}
+\title[Soutenance de stage STL]{Heuristiques d'inlining complexe}
+%\subtitle{Heuristique d'inlining complexe}
 \author{Adrien Simonnet}
 \institute{Sorbonne Université}
 \date{Avril - Septembre 2023}
@@ -18,16 +18,11 @@
 
 \frame{\titlepage}
 
-\begin{frame}{Plan}
-    \tableofcontents
-\end{frame}
-
 \begin{frame}{Introduction}
     OCamlPro
 
     \begin{itemize}
-        \item Fondée en 2011
-        \item Issue de l'INRIA
+        \item Fondée en 2011 par un chercheur de l'INRIA
         \item Spécialisée dans les langages de programmation
     \end{itemize}
 
@@ -41,11 +36,11 @@
 \end{frame}
 
 \begin{frame}{Introduction}{Inlining}
-    Optimisation centrale d'un compilateur
+    Optimisation cruciale pour beaucoup de compilateurs
 
     \begin{block}{Avantages}
         \begin{itemize}
-            \item Améliore significativement les performance 
+            \item Améliore significativement les performances
             \item Permet aux autres optimisations de s'activer
         \end{itemize}
     \end{block}
@@ -66,7 +61,7 @@
     \begin{itemize}
         \item Lambda-calcul
         \item Opérations élémentaires
-        \item Fermetures (mutuellement) récursives
+        \item Fonctions (mutuellement) récursives
         \item Types Somme et filtrage par motifs
     \end{itemize}
 
@@ -99,9 +94,9 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
     Grammaire (presque) identique à celle d'OCaml
 
     \begin{itemize}
-        \item Pas de filtrage par motif ``profond"
-        \item Pas de valeurs récursives
-        \item Pas de types
+        \item Fonctions unaires
+        \item Filtrage par motif simple
+        \item Pas de typage
     \end{itemize}
 
     AST généré par Menhir
@@ -113,107 +108,129 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
     Rafraîchissement de l'AST
 
     \begin{itemize}
-        \item Les variables deviennent des identifiants uniques
+        \item Numéro unique pour les variables
         \item Index pour le nom des constructeurs
         \item Autorise les variables libres
     \end{itemize}
 
-    \begin{block}{Conversion}
-        $\mathbb{E}_{ast} \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right) \times \left( \mathbb{T}_{ast} \mapsto \mathbb{T} \right) \vdash_{\text{ast'}} \mathbb{E} \times \left( \mathbb{V} \mapsto \mathbb{V}_{ast} \right) \times \left( \mathbb{V}_{ast} \mapsto \mathbb{V} \right)$
-    \end{block}
-
     \begin{exampleblock}{Exemple}
-        $\text{Fun}(\text{``x"}, \text{Var} ~ ``y") ~ \emptyset ~ \emptyset \vdash \text{Fun}(0, \text{Var} ~ 1) ~ \lbrace 0 \rightarrow \text{``x"} \rbrace ~ \lbrace \text{``y"} \rightarrow 1 \rbrace$
+        $\text{Cons}(\text{``Some"}, [\text{``x"}]) ~ \lbrace \text{``x"} \rightarrow 0 \rbrace ~ \lbrace \text{``Some"} \rightarrow 0 \rbrace \vdash \text{Cons}(0, [0]) ~ \emptyset ~ \emptyset$
     \end{exampleblock}
 
     \begin{exampleblock}{Exemple}
-        $\text{Cons}(\text{``Some"}, [\text{``x"}]) ~ \lbrace \text{``x"} \rightarrow 0 \rbrace ~ \lbrace \text{``Some"} \rightarrow 0 \rbrace \vdash \text{Cons}(0, [0]) ~ \emptyset ~ \emptyset$
+        $\text{Fun}(\text{``x"}, \text{Var} ~ ``y") ~ \emptyset ~ \emptyset \vdash \text{Fun}(0, \text{Var} ~ 1) ~ \lbrace 0 \rightarrow \text{``x"} \rbrace ~ \lbrace \text{``y"} \rightarrow 1 \rbrace$
     \end{exampleblock}
 \end{frame}
 
 \section{Analyse du flot de contrôle}
 
 \begin{frame}{Graphe de flot de contrôle}
+    Tranforme l'AST en basic blocks \alert{clos}
+
     \begin{itemize}
-        \item Ensemble de basic blocks \alert{clos}
-        \item Chaque type de bloc a sa sémantique
         \item Expressions construisent des valeurs
-        \item Valeurs déclarées par un identifiant unique
+        \item Déclaration = identifiant unique pour chaque expression
+        \item Branchement = sauter d'un bloc vers un autre
         \item Instruction = déclaration ou branchement
         \item Basic block = suite de déclarations puis branchement
+        \item Bloc associé à un branchement
     \end{itemize}
 
-    \begin{block}{Conversion}
-        $\mathbb{E}_{ast'} \times \mathbb{V} \times \mathcal{P}(\mathbb{V}) \times \mathbb{I} \vdash_{\text{cfg}} \mathbb{I} \times \mathcal{P}(\mathbb{V}) \times (\mathbb{P} \mapsto (\mathbb{B} \times \mathbb{I}))$
-    \end{block}
-
     \begin{exampleblock}{Exemple}
-        $\text{Fun}(1, \text{Var} ~ 1) ~ 0 ~ \emptyset ~ e \vdash \text{Let}(0, \text{Clos}(0, \emptyset), e) ~ \emptyset ~ \lbrace 0 \rightarrow \text{Clos}([1], \emptyset, \text{Return} ~ 1) \rbrace$
-    \end{exampleblock}
-
-
-    \begin{exampleblock}{Exemple}
-        $e ~ v ~ V ~ i \vdash_{\text{cfg}} e' ~ V_e ~ B_e$
+        $\text{Fun}(x, \text{Var} ~ x) ~ v ~ \emptyset ~ e \vdash \text{Let}(v, \text{Clos}(p, \emptyset), e) ~ \emptyset ~ \lbrace p \rightarrow \text{Clos}([x], \emptyset, \text{Return} ~ x) \rbrace$
     \end{exampleblock}
 \end{frame}
+
+\iffalse
 
 \subsection{Nettoyage des alias}
 
 \begin{frame}{Graphe de flot de contrôle}{Nettoyage des alias}
-    Le CFG peut contenir des alias.
+    Le CFG peut contenir des alias
 
     \begin{exampleblock}{Exemple}
         $(\text{Var} ~ x_1) ~ \overline{0} ~ \emptyset ~ (\text{Return} ~ \overline{0}) \vdash_{\text{cfg}} (\text{let} ~ \overline{0} = x_1 ~ \text{in} ~ \text{Return} ~ \overline{0}) ~ \lbrace x_1 \rbrace ~ \emptyset$
     \end{exampleblock}
 
-    La passe de nettoyage supprime tous les alias.
+    Suppression de tous les alias
 
     \begin{exampleblock}{Exemple}
         $\text{let} ~ \overline{0} = x_1 ~ \text{in} ~ \text{Return} ~ \overline{0} \rightarrow \text{Return} ~ x_1$
     \end{exampleblock}
 \end{frame}
 
+\fi
+
 \subsection{Spécialisation}
 
 \begin{frame}{Graphe de flot de contrôle}{Spécialisation}
-    La spécialisation consiste à dupliquer des blocs.
+    Duplication de certains blocs
 
     \begin{itemize}
         \item Améliore la précision de l'analyse
         \item Première étape de l'inlining
     \end{itemize}
 
-    La copie doit :
+    Contraintes :
 
     \begin{itemize}
         \item Conserver les invariants du CFG
         \item Modifier les appels directs
     \end{itemize}
 
-    Les blocs sont choisis selon leur taille.
+    Heuristiques de décision
+
+    \begin{itemize}
+        \item Blocs choisis selon leur taille
+    \end{itemize}
 \end{frame}
 
 \section{Analyse de valeurs par interprétation abstraite}
 
 \begin{frame}{Analyse de valeurs par interprétation abstraite}
-    Etape la plus compliquée et probablement la plus importante.
+    Étape la plus compliquée et probablement la plus importante
+
     \begin{itemize}
-        \item Rendre les appels directs pour inliner
+        \item Transformer les appels indirects en appels directs
         \item Informations cruciales pour les heuristiques
     \end{itemize}
 
-    L'analyse se fait par point d'allocation.
+    Analyse par points d'allocation
+
     \begin{itemize}
         \item Garanties de terminaison
-        \item Autorise la récursivité
+        \item Gère la récursivité
     \end{itemize}
 
-    L'analyse a lieu sur le CFG.
+    Analyse sur le CFG
+
     \begin{itemize}
         \item Importance des invariants
-        \item Disposer des blocs
+        \item Méthode d'analyse standard par itérations successives
     \end{itemize}
 \end{frame}
+
+\subsection{Valeurs abstraites}
+
+\begin{frame}{Analyse de valeurs par interprétation abstraite}{Valeurs abstraites}
+    Entier, fermeture ou valeur taggée
+
+    \begin{block}{Entier}
+        $\text{Top} : \mathbb{I}$
+
+        $\text{Singleton} : \mathbb{Z} \mapsto \mathbb{I}$
+    \end{block}
+
+    \begin{block}{Fermeture}
+        $\mathbb{F} \coloneqq \mathbb{P} \mapsto (\mathbb{V} \mapsto \mathcal{P}(\mathbb{V}))$
+    \end{block}
+
+    \begin{block}{Valeur taggée}
+        $\mathbb{C} \coloneqq \mathbb{T} \mapsto \mathcal{P}(\mathbb{V})^{*}$
+    \end{block}
+\end{frame}
+
+\iffalse
 
 \subsection{Domaines}
 
@@ -293,6 +310,8 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
         $\text{ConstructorDomain} : \mathbb{C} \mapsto \mathbb{A}$
     \end{block}
 \end{frame}
+
+\fi
 
 \subsection{Abstraction de la pile}
 
@@ -388,20 +407,15 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
 \subsection{Terminaison}
 
 \begin{frame}{Analyse de valeurs par interprétation abstraite}{Terminaison}
-    Idées justifiant la terminaison de l'analyse
+    Idées de terminaison
 
     \begin{itemize}
-        \item Identifiants jamais générés
-        \item Un point d'allocation est un identifiant
-        \item Nombre fini de valeurs
-        \item L'union de deux usines converge
+        \item Pas de génération de code
+        \item Point d'allocation = identifiant
+        \item Nombre fini d'identifiants
         \item Abstraction de la pile d'appels
     \end{itemize}
 \end{frame}
-
-
-
-
 
 \section{CFG exécutable}
 
@@ -410,17 +424,25 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
 
     \begin{itemize}
         \item Concrétise les traits de langage (n-uplets)
-        \item Unifie les blocs et branchements
-        \item Fixe la sémantique des sauts
+        \item Fixe la sémantique des blocs et branchements
         \item Explicite les opérations sur la pile
     \end{itemize}
 
-    \begin{block}{Conversion}
-        $\mathbb{B}_{cfg} \times \mathbb{I} \vdash_{\text{cfg'}} \mathbb{B} \times (\mathbb{P} \mapsto \mathbb{B})$
-    \end{block}
+
 
     \begin{exampleblock}{Exemple}
-        $a ~ i \vdash_{\text{cfg'}} a' ~ i' ~ B$
+        $\text{Let}(v, \text{Cons}(t, e), i) \vdash \text{Let}(\overline{t}, \text{Tag} ~ t, \text{Let}(\overline{e}, \text{Tuple} ~ e, \text{Let}(v, \text{Tuple} ~ [\overline{t}, \overline{e}], i)))$
+    \end{exampleblock}
+
+
+
+
+    \begin{exampleblock}{Exemple}
+        $\text{Match}(v, [t, p, [x, y], \lbrace z \rbrace], d, \emptyset) \vdash \text{Let}(\overline{t}, \text{Get}(v, 0), \text{Let}(\overline{e}, \text{Get}(e, 1), \text{Switch}(\overline{t}, [t, p, [\overline{e}, z]], d, []))) ~ \emptyset$
+    \end{exampleblock}
+
+    \begin{exampleblock}{Exemple}
+        $\text{MatchBranch}([x, y], \lbrace z \rbrace, \emptyset) ~ i \vdash [\overline{e}, z] ~ \text{Let}(x, \text{Get}(\overline{e}, 0), \text{Let}(y, \text{Get}(\overline{e}, 1), i)) ~ \emptyset$
     \end{exampleblock}
 \end{frame}
 
@@ -449,12 +471,15 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
 
     Sont inlinés tous les blocs appelés exactement 1 fois
 
-    \begin{block}{Conversion}
-        $\mathbb{B}_{cfg} \times \mathbb{I} \vdash_{\text{cfg'}} \mathbb{B} \times (\mathbb{P} \mapsto \mathbb{B})$
-    \end{block}
 
     \begin{exampleblock}{Exemple}
-        $a ~ i \vdash_{\text{cfg'}} a' ~ i' ~ B$
+        $B = \lbrace p_1 \rightarrow ([c], \text{Switch}(c, b, d, [])) \rbrace$
+        $\text{ApplyDirect}(p_1, [x], [p_2, [z]]) ~ B \vdash \text{Switch}(x, b, d, [p_2, [z]])$
+    \end{exampleblock}
+
+    \begin{exampleblock}{Exemple}
+        $B = \lbrace p_1 \rightarrow ([y], \text{Return} ~ y) \rbrace$
+        $\text{ApplyDirect}(p_1, [x], [p_2, [z]]) ~ B \vdash \text{ApplyDirect}(p_2, [x, z], [])$
     \end{exampleblock}
 \end{frame}
 
@@ -476,10 +501,10 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
 
     \begin{itemize}
         \item Transformations simples
-        \item Sémantique riche d'informations
+        \item Conserver le plus d'informations
     \end{itemize}
 
-    L'interprétation abstraite c'est compliqué
+    L'interprétation abstraite, c'est compliqué
 
     \begin{itemize}
         \item Difficultés pour traiter les piles
@@ -490,14 +515,14 @@ in map (fun x -> x + 10) (Cons (1, Cons (2, Nil)))
 
     \begin{itemize}
         \item Toujours inliner les petits blocs
-        \item D'autres heuristiques nécessaires pour les plus gros blocs
     \end{itemize}
 
     Expérimentations à mener
 
     \begin{itemize}
+        \item Exploiter les résultats de l'analyse
+        \item Nouvelles heuristiques de spécialisation
         \item Tester sur de vrais programmes
-        \item Exploiter les résultats
     \end{itemize}
 \end{frame}
 
