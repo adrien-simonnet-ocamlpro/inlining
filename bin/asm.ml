@@ -18,7 +18,7 @@ type expr =
 | Get of var * int
 | Pointer of int
 
-and instr =
+type instr =
 | Let of var * expr * instr
 | Apply_direct of pointer * var list * stack
 | Apply_indirect of var * var list * stack
