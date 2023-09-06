@@ -26,9 +26,9 @@ type var = Cps.var
 type stack = Cps.frame
 
 type prim = Cps.prim
-type named = Cps.named
+type named = Cps.expr
 type pointer = Cps.pointer
-type expr = Cps.expr
+type expr = Cps.instr
 type address = pointer
 type cont = Cps.blocks
 
@@ -143,7 +143,20 @@ let map_stack2 (k'', args') (env) = k'', map_args2 args' env
 let analysis_named (named : named) (env: environment) (allocations: allocations): value_domain option =
   match named with
   | Var var' -> get env var' allocations
-  | Prim (prim, args) -> analysis_prim prim args env allocations
+  | Const x -> Some (Int_domain (Int_domain.singleton x))
+  | Add (x1, x2) -> begin match get env x1 allocations, get env x2 allocations with
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
+    | _ -> assert false
+    end
+  | Sub (x1, x2) -> begin match get env x1 allocations, get env x2 allocations with
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
+    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
+    | _ -> assert false
+    end
+  | Print _ -> None
   | Tuple vars -> Some (Tuple_domain (map_args2 vars env))
   | Get (var', pos) -> begin
       match get env var' allocations with
@@ -231,8 +244,7 @@ let join_blocks (b1: cont_type) (b2: cont_type) =
   | Match_join (arg1, args1), Match_join (arg2, args2) -> Match_join (Cps.VarSet.union arg1 arg2, List.map2 Cps.VarSet.union args1 args2)
   | _, _ -> assert false
 
-type stack_analysis = (pointer * Cps.VarSet.t list) list
-type context = stack_analysis * cont_type
+type context = stack_allocs * cont_type
 
 module Context = struct
   type t = context
@@ -241,7 +253,7 @@ end
 
 module ContextMap = Map.Make (Context)
 
-let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_analysis -> stack_analysis) (prog: cont) (map: (allocations ContextMap.t) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
+let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (reduce: stack_allocs -> stack_allocs) (prog: cont) (map: (allocations ContextMap.t) Cps.PointerMap.t) : (allocations * cont_type) Cps.PointerMap.t =
   match conts with
   | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), allocations) -> join_allocations allocs allocations, join_blocks acc new_env) (let ((_, new_env), allocations) = List.hd (ContextMap.bindings contexts) in allocations, new_env) (List.tl (ContextMap.bindings contexts))) map
   | (k, block', stack''', allocations) :: conts' -> begin
@@ -282,28 +294,23 @@ let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (r
 
 let start_analysis reduce prog = let args, _ = get_cont prog 0 in analysis [0, Cont (List.map (fun _ -> Cps.VarSet.empty) args), [], Cps.VarMap.empty] reduce prog (Cps.PointerMap.empty)
 
-let propagation_prim (prim : prim) args (env: environment) (allocations: allocations): named * value_domain option =
-  match prim, args with
-  | Const x, _ -> Prim (prim, args), Some (Int_domain (Int_domain.singleton x))
-  | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), []), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
-    | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
-    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
-    | _ -> assert false
-    end
-  | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Prim (Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), []), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
-    | Some (Int_domain _), Some (Int_domain _) -> Prim (prim, args), Some (Int_domain (Int_domain.top))
-    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Prim (prim, args), Some (Int_domain (Int_domain.top))
-    | _ -> assert false
-    end
-  | Print, _ :: _ -> Prim (Print, args), None
-  | _ -> assert false
-
-let propagation_named (named : Cps.named) (env: environment) (allocations: allocations): named * value_domain option =
+let propagation_named (named : Cps.expr) (env: environment) (allocations: allocations): named * value_domain option =
 match named with
 | Var var' -> Var var', get env var' allocations
-| Prim (prim, args) -> propagation_prim prim args env allocations
+| Const x -> Const x, Some (Int_domain (Int_domain.singleton x))
+| Add (x1, x2) -> begin match get env x1 allocations, get env x2 allocations with
+  | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+  | Some (Int_domain _), Some (Int_domain _) -> Add (x1, x2), Some (Int_domain (Int_domain.top))
+  | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Add (x1, x2), Some (Int_domain (Int_domain.top))
+  | _ -> assert false
+  end
+| Sub (x1, x2) -> begin match get env x1 allocations, get env x2 allocations with
+  | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+  | Some (Int_domain _), Some (Int_domain _) -> Sub (x1, x2), Some (Int_domain (Int_domain.top))
+  | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Sub (x1, x2), Some (Int_domain (Int_domain.top))
+  | _ -> assert false
+  end
+| Print x -> Print x, None
 | Tuple vars -> Tuple vars, Some (Tuple_domain (map_args2 vars env))
 | Get (var', pos) -> begin
     match get env var' allocations with
@@ -314,7 +321,7 @@ match named with
 | Closure (k, values) -> Closure (k, values), Some (Closure_domain (Cps.PointerMap.singleton k (map_args2 values env)))
 | Constructor (tag, environment) -> Constructor (tag, environment), Some (Closure_domain (Cps.PointerMap.singleton tag (map_args2 environment env)))
 
-let rec propagation (cps : Cps.expr) (env: environment) (allocations: allocations): expr =
+let rec propagation (cps : Cps.instr) (env: environment) (allocations: allocations): expr =
   match cps with
   | Let (var, named, expr) -> begin
       let named, value = propagation_named named env allocations in

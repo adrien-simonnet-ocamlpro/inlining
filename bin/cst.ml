@@ -60,10 +60,10 @@ let rec find x lst =
   | [] -> raise (Failure "Not Found")
   | h :: t -> if x = h then 0 else 1 + find x t
 
-let binary_operator_to_prim (binary: binary_operator): Cps.prim =
+let binary_operator_to_prim (binary: binary_operator) (x1: Cps.var) (x2: Cps.var): Cps.expr =
   match binary with
-  | Add -> Add
-  | Sub -> Sub
+  | Add -> Add (x1, x2)
+  | Sub -> Sub (x1, x2)
 
 let inc (vars: Cps.var Seq.t): Cps.var * Cps.var Seq.t =
   match Seq.uncons vars with
@@ -71,17 +71,17 @@ let inc (vars: Cps.var Seq.t): Cps.var * Cps.var Seq.t =
   | Some (i, vars') -> i, vars'
 
 let empty_blocks = Cps.PointerMap.empty
-let add_block (pointer: Cps.pointer) (block, expr: Cps.block * Cps.expr) (blocks: Cps.blocks) = Cps.PointerMap.add pointer (block, expr) blocks
+let add_block (pointer: Cps.pointer) (block, expr: Cps.block * Cps.instr) (blocks: Cps.blocks) = Cps.PointerMap.add pointer (block, expr) blocks
 let join_blocks = Cps.PointerMap.union (fun k _ _ -> failwith ("Cst.join_blocks: " ^ (string_of_int k) ^ " not uniques"))
 
-let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : expr) var (expr : Cps.expr): Cps.expr * Cps.var Seq.t * Cps.pointer Seq.t * int list * Cps.blocks =
+let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : expr) var (expr : Cps.instr): Cps.instr * Cps.var Seq.t * Cps.pointer Seq.t * int list * Cps.blocks =
   match ast with
-  | Int i -> Let (var, Prim (Const i, []), expr), vars, pointers, [], empty_blocks
+  | Int i -> Let (var, Const i, expr), vars, pointers, [], empty_blocks
   | Binary (binary_operator, e1, e2) -> begin
       let e1_id, vars = inc vars in
       let e2_id, vars = inc vars in
 
-      let expr: Cps.expr = Let (var, Prim (binary_operator_to_prim binary_operator, [e1_id; e2_id]), expr) in
+      let expr: Cps.instr = Let (var, binary_operator_to_prim binary_operator e1_id e2_id, expr) in
       let expr', vars, pointers, fv', conts' = to_cps vars pointers (e1_id :: fv0) e2 e2_id expr in
       let expr, vars, pointers, fvs, conts = to_cps vars pointers (fv' @ fv0) e1 e1_id expr' in
       expr, vars, pointers, join_fv fvs fv', join_blocks conts conts'

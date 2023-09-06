@@ -55,7 +55,7 @@ let speclist =
 
 let rec step_analysis cps _vars _pointers count logchan =
   if count > 0 then begin
-    let to_copy = Cps.PointerMap.fold (fun k (block, expr) to_copy -> if Cps.size_block block + Cps.size_expr expr < !threshold then Cps.PointerSet.add k to_copy else to_copy) cps Cps.PointerSet.empty in
+    let to_copy = Cps.PointerMap.fold (fun k (block, instr) to_copy -> if Cps.size_block block + Cps.size_instr instr < !threshold then Cps.PointerSet.add k to_copy else to_copy) cps Cps.PointerSet.empty in
     Logger.start "Copying%s\n%!" (Cps.PointerSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
     let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.PointerSet.union (Cps.PointerSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
@@ -65,12 +65,13 @@ let rec step_analysis cps _vars _pointers count logchan =
     Logger.start "Analysing\n%!";
     let _cps_analysis = Analysis.start_analysis !stack_analysis cps in
     let cps = Cps.PointerMap.filter (fun k _ -> if Cps.PointerMap.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
+    Analysis.pp_analysis Format.std_formatter _cps_analysis;
     Logger.stop ();
     Logger.start "Propagating\n%!";
     let cps = Analysis.propagation_blocks cps _cps_analysis in
     Logger.stop ();
     Logger.start "Eliminating unused variables\n%!";
-    (*let cps, __vars, __pointers = Cps.count_vars_expr_blocks cps in
+    (*let cps, __vars, __pointers = Cps.count_vars_instr_blocks cps in
     Array.set __pointers 0 1;
     let cps = Cps.elim_unused_blocks cps __pointers in*)
     Logger.stop ();
@@ -104,8 +105,8 @@ let _ =
       let _pointer0, _pointers = match Seq.uncons (Seq.ints 0) with
       | Some (pointer0, _pointers) -> pointer0, _pointers
       | None -> assert false in
-      let expr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers [] cst var0 (Return var0) in
-      let cps = Cst.add_block _pointer0 (Cps.Cont fv, expr) conts in
+      let instr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers [] cst var0 (Return var0) in
+      let cps = Cst.add_block _pointer0 (Cps.Cont fv, instr) conts in
       let cps, _vars, _pointers = step_analysis cps _vars _pointers !rounds logchan in
       Cps.pp_blocks _subs (Format.formatter_of_out_channel (open_out (input_file ^ ".cps"))) cps;
       Logger.stop ();
