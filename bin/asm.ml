@@ -40,7 +40,8 @@ let rec pp_args ?(subs = (VarMap.empty: string VarMap.t)) ?(empty=(" ": string))
   | [ arg ] -> Format.fprintf fmt "%s" (gen_name arg subs)
   | arg :: args' -> Format.fprintf fmt "%s%s%a" (gen_name arg subs) split (pp_args ~split ~empty ~subs) args'
 
-let pp_frame (fmt: Format.formatter) ((k, args): frame): unit = Format.fprintf fmt "k%d %a" k (pp_args ~subs: VarMap.empty ~split: " " ~empty: "()") args
+let pp_frame (fmt: Format.formatter) ((k, args): frame): unit =
+  Format.fprintf fmt "k%d %a" k (pp_args ~subs: VarMap.empty ~split: " " ~empty: "()") args
 
 let rec pp_stack (fmt: Format.formatter) (stack: stack): unit =
   match stack with
@@ -67,15 +68,21 @@ let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (cps : instr): 
   | Apply_indirect (x, args, stack) -> Format.fprintf fmt "\t!%s %a [%a]" (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
   | Apply_direct (k', args, stack) -> Format.fprintf fmt "\tk%d %a [%a]" k' (pp_args ~split:" " ~subs ~empty: "()") args pp_stack stack
 
-let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit = Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_instr subs) e
+let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit =
+  Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_instr subs) e
 
-let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = PointerMap.iter (fun k block -> Format.fprintf fmt "and k%d %a\n%!" k (pp_block subs) block) block
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit =
+  PointerMap.iter (fun k block -> Format.fprintf fmt "and k%d %a\n%!" k (pp_block subs) block) block
 
-let update_var (var: var) (alias: var VarMap.t): var = if VarMap.mem var alias then VarMap.find var alias else var
-let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun var -> update_var var alias) vars
+let update_var (var: var) (alias: var VarMap.t): var =
+  if VarMap.mem var alias then VarMap.find var alias else var
+let update_vars (vars: var list) (alias: var VarMap.t): var list =
+  List.map (fun var -> update_var var alias) vars
 
-let update_frame_vars (alias: var VarMap.t) (k, args: frame): frame = k, update_vars args alias
-let update_stack_vars (alias: var VarMap.t) (stack: stack): stack = List.map (update_frame_vars alias) stack
+let update_frame_vars (alias: var VarMap.t) (k, args: frame): frame =
+  k, update_vars args alias
+let update_stack_vars (alias: var VarMap.t) (stack: stack): stack =
+  List.map (update_frame_vars alias) stack
 
 let inline_expr (expr : expr) (alias: var VarMap.t): expr =
   match expr with
@@ -196,41 +203,39 @@ and pp_values fmt (values: value list) =
 
 let get = Env.get2
 
-let interp_expr var (expr : expr) (env : (var * value) list) (benchmark: benchmark) =
+let interp_expr (expr : expr) (env : (var * value) list) (benchmark: benchmark): value =
   match expr with
-  | Const x -> benchmark.const <- benchmark.const + 1; [ var, Int x ]
-  | Add (x1, x2) -> benchmark.add <- benchmark.add + 1; 
-    (match (get env x1 : value) with
-     | Int n1 ->
-       (match get env x2 with
-        | Int n2 -> [ var, Int (n1 + n2) ]
-        | _ -> assert false)
-     | _ -> assert false)
-  | Sub (x1, x2) -> benchmark.sub <- benchmark.sub + 1; 
-      (match (get env x1 : value) with
-       | Int n1 ->
-         (match get env x2 with
-          | Int n2 -> [ var, Int (n1 - n2) ]
-          | _ -> assert false)
-       | _ -> assert false)
-  | Print x1 ->
-    (match (get env x1 : value) with
-     | Int n ->
-       Printf.printf "%d\n" n;
-       []
-     | _ -> assert false)
-  | Var x -> benchmark.read <- benchmark.read + 1; [ var, get env x ]
-  | Tuple (args) -> [var, Tuple (List.map (fun arg -> benchmark.read <- benchmark.read + 1; get env arg) args)]
-  | Get (record, pos) -> benchmark.read <- benchmark.read + 1; begin
-    match get env record with
-    | Tuple (values) -> [var, List.nth values pos]
-    | _ -> assert false
+  | Const x -> benchmark.const <- benchmark.const + 1; Int x
+  | Add (x1, x2) -> begin
+      benchmark.add <- benchmark.add + 1; 
+      match get env x1, get env x2 with
+      | Int n1, Int n2 -> Int (n1 + n2)
+      | _ -> assert false
     end
-  | Pointer k -> [ var, Int k ]
+  | Sub (x1, x2) -> begin
+      benchmark.add <- benchmark.add + 1; 
+      match get env x1, get env x2 with
+      | Int n1, Int n2 -> Int (n1 - n2)
+      | _ -> assert false
+    end
+  | Print x1 -> begin
+      match get env x1 with
+      | Int n -> Printf.printf "%d\n" n; get env x1
+      | _ -> assert false
+     end
+  | Var x -> benchmark.read <- benchmark.read + 1; get env x
+  | Tuple args -> Tuple (List.map (fun arg -> benchmark.read <- benchmark.read + 1; get env arg) args)
+  | Get (record, pos) -> begin
+      benchmark.read <- benchmark.read + 1; 
+      match get env record with
+      | Tuple (values) -> List.nth values pos
+      | _ -> assert false
+    end
+  | Pointer k -> Int k
 
 let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (conts : blocks) (benchmark: benchmark): value =
     match cps with
-    | Let (var, expr, instr) -> benchmark.write <- benchmark.write + 1; interp stack instr (interp_expr var expr env benchmark @ env) conts benchmark
+    | Let (var, expr, instr) -> benchmark.write <- benchmark.write + 1; interp stack instr ((var, interp_expr expr env benchmark) :: env) conts benchmark
     | Apply_direct (k, args, stack') -> begin
         benchmark.jmp <- benchmark.jmp + 1;
         if PointerMap.mem k conts then
