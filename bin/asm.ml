@@ -185,6 +185,7 @@ type benchmark = { mutable const: int; mutable write: int; mutable read: int; mu
 
 type value =
   | Int of int
+  | Pointer of pointer
   | Tuple of value list
 
 type 'a map = (var * 'a) list
@@ -194,6 +195,7 @@ type env = value map
 let rec pp_value fmt (value: value) =
   match value with
   | Int i -> Format.fprintf fmt "%d" i
+  | Pointer p -> Format.fprintf fmt "k%d" p
   | Tuple values -> Format.fprintf fmt "[%a]" pp_values values
 and pp_values fmt (values: value list) =
   match values with
@@ -231,7 +233,7 @@ let interp_expr (expr : expr) (env : (var * value) list) (benchmark: benchmark):
       | Tuple (values) -> List.nth values pos
       | _ -> assert false
     end
-  | Pointer k -> Int k
+  | Pointer k -> Pointer k
 
 let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (conts : blocks) (benchmark: benchmark): value =
     match cps with
@@ -266,7 +268,7 @@ let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (c
         benchmark.read <- benchmark.read + 1;
         benchmark.jmp <- benchmark.jmp + 1;
         match get env x with
-        | Int k' -> let args', cont = PointerMap.find k' conts in
+        | Pointer k' -> let args', cont = PointerMap.find k' conts in
           interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> benchmark.read <- benchmark.read + 1; arg', get env arg) args' args)) conts benchmark
         | _ -> failwith ("invalid type")
        end
