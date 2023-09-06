@@ -8,8 +8,6 @@ module VarSet = Set.Make (Int)
 module PointerMap = Map.Make (Int)
 module PointerSet = Set.Make (Int)
 
-type prim = Asm.prim
-
 type expr =
 | Const of int
 | Add of var * var

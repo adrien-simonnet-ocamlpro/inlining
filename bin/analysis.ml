@@ -25,7 +25,6 @@ type var = Cps.var
 
 type stack = Cps.frame
 
-type prim = Cps.prim
 type named = Cps.expr
 type pointer = Cps.pointer
 type expr = Cps.instr
@@ -117,24 +116,6 @@ let get2 (env: environment) value allocations =
 
 let get (env: environment) value allocations =
   let allocs = get env value in join_allocs allocs allocations
-
-let analysis_prim (prim : prim) args (env: environment) (allocations: allocations): value_domain option =
-  match prim, args with
-  | Const x, _ -> Some (Int_domain (Int_domain.singleton x))
-  | Add, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
-    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
-    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
-    | _ -> assert false
-    end
-  | Sub, x1 :: x2 :: _ -> begin match get env x1 allocations, get env x2 allocations with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
-    | Some (Int_domain _), Some (Int_domain _) -> Some (Int_domain (Int_domain.top))
-    | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Some (Int_domain (Int_domain.top))
-    | _ -> assert false
-    end
-  | Print, _ :: _ -> None
-  | _ -> assert false
 
 let map_args2 (args: var list) (env: environment) = List.map (fun arg -> Cps.VarMap.find arg env) args
 

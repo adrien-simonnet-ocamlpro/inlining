@@ -8,12 +8,6 @@ module VarMap = Map.Make (Int)
 module PointerMap = Map.Make (Int)
 module PointerSet = Set.Make (Int)
 
-type prim =
-| Add
-| Sub
-| Const of int
-| Print
-
 type expr =
 | Var of var
 | Const of int
@@ -202,31 +196,6 @@ and pp_values fmt (values: value list) =
   | value :: values' -> Format.fprintf fmt "%a; %a" pp_value value pp_values values'
 
 let get = Env.get2
-
-let interp_prim var (prim : prim) args (env : (var * value) list) (benchmark: benchmark) =
-  match prim, args with
-  | Const x, _ -> benchmark.const <- benchmark.const + 1; [ var, Int x ]
-  | Add, x1 :: x2 :: _ -> benchmark.add <- benchmark.add + 1; 
-    (match (get env x1 : value) with
-     | Int n1 ->
-       (match get env x2 with
-        | Int n2 -> [ var, Int (n1 + n2) ]
-        | _ -> assert false)
-     | _ -> assert false)
-  | Sub, x1 :: x2 :: _ -> benchmark.sub <- benchmark.sub + 1; 
-      (match (get env x1 : value) with
-       | Int n1 ->
-         (match get env x2 with
-          | Int n2 -> [ var, Int (n1 - n2) ]
-          | _ -> assert false)
-       | _ -> assert false)
-  | Print, x1 :: _ ->
-    (match (get env x1 : value) with
-     | Int n ->
-       Printf.printf "%d\n" n;
-       []
-     | _ -> assert false)
-  | _ -> failwith "invalid args"
 
 let interp_expr var (expr : expr) (env : (var * value) list) (benchmark: benchmark) =
   match expr with
