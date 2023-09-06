@@ -77,7 +77,7 @@ let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun
 let update_frame_vars (alias: var VarMap.t) (k, args: frame): frame = k, update_vars args alias
 let update_stack_vars (alias: var VarMap.t) (stack: stack): stack = List.map (update_frame_vars alias) stack
 
-let rec inline_expr (expr : expr) (alias: var VarMap.t): expr =
+let inline_expr (expr : expr) (alias: var VarMap.t): expr =
   match expr with
   | Const x -> Const x
   | Add (x1, x2) -> Add (update_var x1 alias, update_var x2 alias)
@@ -88,7 +88,7 @@ let rec inline_expr (expr : expr) (alias: var VarMap.t): expr =
   | Get (record, pos) -> Get (update_var record alias, pos)
   | Pointer k -> Pointer k
 
-and inline (cps : instr) (alias: var VarMap.t) (stack: (pointer * var list) list): instr =
+let rec inline (cps : instr) (alias: var VarMap.t) (stack: (pointer * var list) list): instr =
   match cps with
   | Let (var, expr, instr) -> Let (update_var var alias, inline_expr expr alias, inline instr alias stack)
   | Apply_direct (k, args, stack') -> Apply_direct (k, update_vars args alias, (update_stack_vars alias stack') @ stack)
@@ -119,8 +119,7 @@ let inline_blocks (blocks : blocks) (targets: PointerSet.t): blocks =
   let targets = PointerMap.filter (fun k _ -> PointerSet.mem k targets) blocks in
   PointerMap.map (fun (args, block) -> args, inline_parent block targets) blocks
 
-
-let rec elim_unused_vars_expr (vars : int array) conts (expr : expr): unit =
+let elim_unused_vars_expr (vars : int array) conts (expr : expr): unit =
   match expr with
   | Const x -> Array.set vars x (Array.get vars x + 1)
   | Add (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
@@ -131,7 +130,7 @@ let rec elim_unused_vars_expr (vars : int array) conts (expr : expr): unit =
   | Get (arg, _) -> Array.set vars arg (Array.get vars arg + 1)
   | Pointer k -> Array.set conts k (Array.get conts k + 1)
 
-and elim_unused_vars (vars : int array) (conts : int array) (cps : instr) : instr =
+let rec elim_unused_vars (vars : int array) (conts : int array) (cps : instr) : instr =
   match cps with
   | Let (var, e1, e2) ->
     let e2' = elim_unused_vars vars conts e2 in
