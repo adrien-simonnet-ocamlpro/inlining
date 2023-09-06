@@ -236,42 +236,68 @@ let interp_expr (expr : expr) (env : env) (benchmark: benchmark): value =
   | Pointer k -> Pointer k
 
 let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (conts : blocks) (benchmark: benchmark): value =
-    match cps with
-    | Let (var, expr, instr) -> benchmark.write <- benchmark.write + 1; interp stack instr (VarMap.add var (interp_expr expr env benchmark) env) conts benchmark
-    | Apply_direct (k, args, stack') -> begin
-        benchmark.jmp <- benchmark.jmp + 1;
-        if PointerMap.mem k conts then
+  match cps with
+  | Let (var, expr, instr) -> begin
+      benchmark.write <- benchmark.write + 1;
+      interp stack instr (VarMap.add var (interp_expr expr env benchmark) env) conts benchmark
+    end
+  | Apply_direct (k, args, stack') -> begin
+      benchmark.jmp <- benchmark.jmp + 1;
+      if PointerMap.mem k conts then begin
         let args', cont = PointerMap.find k conts in
-        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack') @ stack) cont (List.fold_left2 (fun env'' arg' arg -> benchmark.read <- benchmark.read + 1; VarMap.add arg' (get env arg) env'') VarMap.empty args' args ) conts benchmark
-        else failwith ("k" ^ (string_of_int k) ^ "not found")
-      end
-    | If (var, matchs, (kf, argsf), stack') -> begin
-        benchmark.read <- benchmark.read + 1;
-        match get env var with
-        | Int n -> begin
+        let stack''' = (List.map (fun (k, env') -> (k, (List.map (fun arg -> begin
+          benchmark.push <- benchmark.push + 1;
+          get env arg
+        end) env'))) stack') @ stack in
+        let env''' = List.fold_left2 (fun env'' arg' arg -> begin
+          benchmark.read <- benchmark.read + 1;
+          VarMap.add arg' (get env arg) env''
+        end) VarMap.empty args' args in
+        interp stack''' cont env''' conts benchmark
+      end else failwith ("k" ^ (string_of_int k) ^ "not found")
+    end
+  | If (var, matchs, (kf, argsf), stack') -> begin
+      benchmark.read <- benchmark.read + 1;
+      match get env var with
+      | Int n -> begin
           match List.find_opt (fun (n', _, _) -> benchmark.jmp <- benchmark.jmp + 1; n = n') matchs with
           | Some (_, kt, argst) -> interp stack (Apply_direct (kt, argst, stack')) env conts benchmark
           | None -> interp stack (Apply_direct (kf, argsf, stack')) env conts benchmark
-          end
-        | _ -> assert false
-      end
-    | Return v -> begin
-        benchmark.pop <- benchmark.pop + 1; 
-        match stack with
-        | [] -> benchmark.read <- benchmark.read + 1; get env v
-        | (k, env') :: stack' -> begin
-            let args2', cont'' = PointerMap.find k conts in
-            interp stack' cont'' (benchmark.read <- benchmark.read + 1; VarMap.add (List.hd args2') (get env v) (List.fold_left2 (fun env'' arg' arg -> benchmark.pop <- benchmark.pop + 1; VarMap.add arg' arg env'') VarMap.empty (List.tl args2') env')) conts benchmark
-          end
-      end
-    | Apply_indirect (x, args, stack') -> begin
-        benchmark.read <- benchmark.read + 1;
-        benchmark.jmp <- benchmark.jmp + 1;
-        match get env x with
-        | Pointer k' -> let args', cont = PointerMap.find k' conts in
-          interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack')@stack) cont (List.fold_left2 (fun env'' arg' arg -> benchmark.read <- benchmark.read + 1; VarMap.add arg' (get env arg) env'') VarMap.empty args' args) conts benchmark
-        | _ -> failwith ("invalid type")
-       end
+        end
+      | _ -> assert false
+    end
+  | Return v -> begin
+      benchmark.pop <- benchmark.pop + 1;
+      benchmark.read <- benchmark.read + 1;
+      match stack with
+      | [] -> benchmark.read <- benchmark.read + 1; get env v
+      | (k, env') :: stack' -> begin
+          let args2', cont'' = PointerMap.find k conts in
+          let env''' = VarMap.add (List.hd args2') (get env v) (List.fold_left2 (fun env'' arg' arg -> begin
+            benchmark.pop <- benchmark.pop + 1;
+            VarMap.add arg' arg env''
+          end) VarMap.empty (List.tl args2') env') in
+          interp stack' cont'' env''' conts benchmark
+        end
+    end
+  | Apply_indirect (x, args, stack') -> begin
+      benchmark.read <- benchmark.read + 1;
+      benchmark.jmp <- benchmark.jmp + 1;
+      match get env x with
+      | Pointer k' -> begin
+          let args', cont = PointerMap.find k' conts in
+          let stack''' = (List.map (fun (k, env') -> (k, (List.map (fun arg -> begin
+            benchmark.push <- benchmark.push + 1;
+            get env arg
+          end) env'))) stack')@stack in
+          let env''' = List.fold_left2 (fun env'' arg' arg -> begin
+            benchmark.read <- benchmark.read + 1;
+            VarMap.add arg' (get env arg) env''
+          end) VarMap.empty args' args in
+          interp stack''' cont env''' conts benchmark
+        end
+      | _ -> failwith ("invalid type")
+    end
 
 let interp_blocks (blocks : blocks) k env: value * benchmark =
   let benchmark = { const =  0; write = 0; read = 0; add =  0; sub =  0; push =  0; pop =  0; jmp =  0 } in
