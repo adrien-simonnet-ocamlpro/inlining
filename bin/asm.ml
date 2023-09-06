@@ -190,7 +190,7 @@ type value =
 
 type 'a map = (var * 'a) list
 
-type env = value map
+type env = value VarMap.t
 
 let rec pp_value fmt (value: value) =
   match value with
@@ -203,9 +203,9 @@ and pp_values fmt (values: value list) =
   | [ value ] -> Format.fprintf fmt "%a" pp_value value
   | value :: values' -> Format.fprintf fmt "%a; %a" pp_value value pp_values values'
 
-let get = Env.get2
+let get env x = VarMap.find x env
 
-let interp_expr (expr : expr) (env : (var * value) list) (benchmark: benchmark): value =
+let interp_expr (expr : expr) (env : env) (benchmark: benchmark): value =
   match expr with
   | Const x -> benchmark.const <- benchmark.const + 1; Int x
   | Add (x1, x2) -> begin
@@ -237,12 +237,12 @@ let interp_expr (expr : expr) (env : (var * value) list) (benchmark: benchmark):
 
 let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (conts : blocks) (benchmark: benchmark): value =
     match cps with
-    | Let (var, expr, instr) -> benchmark.write <- benchmark.write + 1; interp stack instr ((var, interp_expr expr env benchmark) :: env) conts benchmark
+    | Let (var, expr, instr) -> benchmark.write <- benchmark.write + 1; interp stack instr (VarMap.add var (interp_expr expr env benchmark) env) conts benchmark
     | Apply_direct (k, args, stack') -> begin
         benchmark.jmp <- benchmark.jmp + 1;
         if PointerMap.mem k conts then
         let args', cont = PointerMap.find k conts in
-        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack') @ stack) cont (List.map2 (fun arg' arg -> benchmark.read <- benchmark.read + 1; arg', get env arg) args' args ) conts benchmark
+        interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack') @ stack) cont (List.fold_left2 (fun env'' arg' arg -> benchmark.read <- benchmark.read + 1; VarMap.add arg' (get env arg) env'') VarMap.empty args' args ) conts benchmark
         else failwith ("k" ^ (string_of_int k) ^ "not found")
       end
     | If (var, matchs, (kf, argsf), stack') -> begin
@@ -261,7 +261,7 @@ let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (c
         | [] -> benchmark.read <- benchmark.read + 1; get env v
         | (k, env') :: stack' -> begin
             let args2', cont'' = PointerMap.find k conts in
-            interp stack' cont'' ((benchmark.read <- benchmark.read + 1; List.hd args2', get env v) :: (List.map2 (fun arg' arg -> benchmark.pop <- benchmark.pop + 1; arg', arg) (List.tl args2') env') ) conts benchmark
+            interp stack' cont'' (benchmark.read <- benchmark.read + 1; VarMap.add (List.hd args2') (get env v) (List.fold_left2 (fun env'' arg' arg -> benchmark.pop <- benchmark.pop + 1; VarMap.add arg' arg env'') VarMap.empty (List.tl args2') env')) conts benchmark
           end
       end
     | Apply_indirect (x, args, stack') -> begin
@@ -269,7 +269,7 @@ let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (c
         benchmark.jmp <- benchmark.jmp + 1;
         match get env x with
         | Pointer k' -> let args', cont = PointerMap.find k' conts in
-          interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack')@stack) cont ((List.map2 (fun arg' arg -> benchmark.read <- benchmark.read + 1; arg', get env arg) args' args)) conts benchmark
+          interp ((List.map (fun (k, env') -> (k, (List.map (fun arg -> benchmark.push <- benchmark.push + 1; get env arg) env'))) stack')@stack) cont (List.fold_left2 (fun env'' arg' arg -> benchmark.read <- benchmark.read + 1; VarMap.add arg' (get env arg) env'') VarMap.empty args' args) conts benchmark
         | _ -> failwith ("invalid type")
        end
 
