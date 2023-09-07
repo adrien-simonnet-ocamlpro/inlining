@@ -143,8 +143,8 @@ bindings :
 | terme POINT IDENT { Ast.Field ($1, $3) }*/
 
 arguments :
-| i = IDENT FLECHE e = terme { Ast.Fun (i, e) }
-| i = IDENT args = arguments { Ast.Fun (i, args) }
+| i = IDENT FLECHE e = terme { Ast.Fun ([i], e) }
+| i = IDENT args = arguments { Ast.Fun ([i], args) }
 
 /*liste :
 | CROCHET_FERMANT { Ast.Nil }

@@ -14,7 +14,7 @@ type binary_operator =
 
 type expr =
 | Var of var
-| Fun of var * expr
+| Fun of var list * expr
 | App of expr * expr
 | Let of var * expr * expr
 | Let_rec of (var * expr) list * expr
@@ -49,11 +49,17 @@ and pp_exprs ?(empty=(" ": string)) ?(split=(" ": string)) (fmt: Format.formatte
   | [ e ] -> Format.fprintf fmt "%a" pp_expr e
   | e :: exprs' -> Format.fprintf fmt "%a%s%a" pp_expr e split (pp_exprs ~split ~empty) exprs'
 
+and pp_vars ?(empty=(" ": string)) ?(split=(" ": string)) (fmt: Format.formatter) (exprs: var list): unit =
+  match exprs with
+  | [] -> Format.fprintf fmt "%s" empty
+  | [ e ] -> Format.fprintf fmt "%s" e
+  | e :: exprs' -> Format.fprintf fmt "%s%s%a" e split (pp_vars ~split ~empty) exprs'
+
 and pp_expr fmt expr =
   match expr with
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)%!" pp_expr a pp_binary op pp_expr b
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" x pp_expr e
+  | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" (pp_vars ~empty: "" ~split: " ") args pp_expr e
   | Var x -> Format.fprintf fmt "%s%!" x
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)%!" pp_expr expr
@@ -92,10 +98,13 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Cst.var V
       let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (union_abs fvs1 substitutions) constructors in
       Binary (binary_to_cst op, e1', e2'), vars, union_subs subs1 subs2, union_abs fvs1 fvs2
     end
-  | Fun (x, e) -> begin
-      let arg_id, vars = inc vars in
-      let e', vars, subs, fvs = expr_to_cst e vars (add_abs x arg_id substitutions) constructors in
-      Fun (arg_id, e'), vars, add_subs arg_id x subs, fvs
+  | Fun (args, e) -> begin
+      let vars, args_ids = List.fold_left_map (fun vars _ -> begin
+        let arg_id, vars = inc vars in
+        vars, arg_id
+      end) vars args in
+      let e', vars, subs, fvs = expr_to_cst e vars (List.fold_left (fun substitutions' (arg, arg_id) -> add_abs arg arg_id substitutions') substitutions (List.combine args args_ids)) constructors in
+      Fun (args_ids, e'), vars, (List.fold_left (fun subs' (arg, arg_id) -> add_subs arg_id arg subs') subs (List.combine args args_ids)), fvs
     end
   | Var x -> if has_abs x substitutions then Var (get_abs x substitutions), vars, empty_subs, empty_abs else begin
       let var_id, vars = inc vars in

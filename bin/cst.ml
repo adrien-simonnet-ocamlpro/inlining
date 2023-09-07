@@ -10,7 +10,7 @@ type binary_operator =
 
 type expr =
 | Var of var
-| Fun of var * expr
+| Fun of var list * expr
 | App of expr * expr
 | Let of var * expr * expr
 | Let_rec of (var * expr) list * expr
@@ -31,12 +31,18 @@ let pp_binary fmt operator =
   | Add -> Format.fprintf fmt "+"
   | Sub -> Format.fprintf fmt "-"
 
+let rec pp_vars ?(empty=(" ": string)) ?(split=(" ": string)) (subs: string VarMap.t) (fmt: Format.formatter) (exprs: var list): unit =
+  match exprs with
+  | [] -> Format.fprintf fmt "%s" empty
+  | [ e ] -> Format.fprintf fmt "%s" (gen_name e subs)
+  | e :: exprs' -> Format.fprintf fmt "%s%s%a" (gen_name e subs) split (pp_vars ~split ~empty subs) exprs'
+
 let rec pp_expr subs fmt expr =
   let pp_expr = pp_expr subs in
   match expr with
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a%!" pp_expr a pp_binary op pp_expr b
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)%!" (gen_name x subs) pp_expr e
+  | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" (pp_vars ~empty: "" ~split: " " subs) args pp_expr e
   | Var x -> Format.fprintf fmt "%s%!" (gen_name x subs)
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" (gen_name var subs) pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" (gen_name var subs) pp_expr e) "" _bindings) pp_expr expr
@@ -101,9 +107,9 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : ex
   | Fun (argument_name, body) -> begin
       let body_return_id, vars = inc vars in
       let body_cps, vars, pointers, body_free_variables, body_continuations = to_cps vars pointers [] body body_return_id (Return body_return_id) in
-      let body_free_variables = List.filter (fun body_free_variable -> body_free_variable <> argument_name) body_free_variables in
+      let body_free_variables = List.filter (fun body_free_variable -> not (List.mem body_free_variable argument_name)) body_free_variables in
       let closure_id, pointers = inc pointers in
-      Let (var, Closure (closure_id, body_free_variables), expr), vars, pointers, body_free_variables, add_block closure_id (Clos (body_free_variables, [argument_name]), body_cps) body_continuations
+      Let (var, Closure (closure_id, body_free_variables), expr), vars, pointers, body_free_variables, add_block closure_id (Clos (body_free_variables, argument_name), body_cps) body_continuations
     end
   (*
       let var = variable_name in
@@ -171,7 +177,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : ex
       let clos_id, pointers = inc pointers in
 
       (* Body free variables without whose who are in bindings. *)
-      let binding_body_free_variables_no_arg_no_bindings = (List.filter (fun binding_body_free_variable -> not (binding_body_free_variable = arg) && not (List.mem binding_body_free_variable bindind_body_bindind_variable_ids)) binding_body_free_variables) in
+      let binding_body_free_variables_no_arg_no_bindings = (List.filter (fun binding_body_free_variable -> not (List.mem binding_body_free_variable arg) && not (List.mem binding_body_free_variable bindind_body_bindind_variable_ids)) binding_body_free_variables) in
       (vars, pointers), (scope_binding_variable_id, clos_id, binding_body_cps, bindind_body_bindind_variable_ids, arg, binding_body_free_variables_no_arg_no_bindings)
     end) (vars, pointers) (List.combine scope_binding_variable_ids closures) in
 
@@ -188,17 +194,17 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) fv0 (ast : ex
       let local_environment_id, vars = inc vars in
       
       (* *)
-      let _binding_body_with_free_variables = List.fold_left (fun binding_body_function_continuation binding_body_free_variable_no_arg_no_bindings -> Cps.Let (binding_body_free_variable_no_arg_no_bindings, Get (local_environment_id, (find binding_body_free_variable_no_arg_no_bindings all_binding_bodies_free_variables)), binding_body_function_continuation)) (Apply_block (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: caller_free_variable_ids))) caller_free_variable_ids in
+      let _binding_body_with_free_variables = List.fold_left (fun binding_body_function_continuation binding_body_free_variable_no_arg_no_bindings -> Cps.Let (binding_body_free_variable_no_arg_no_bindings, Get (local_environment_id, (find binding_body_free_variable_no_arg_no_bindings all_binding_bodies_free_variables)), binding_body_function_continuation)) (Apply_block (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id @ caller_free_variable_ids))) caller_free_variable_ids in
     
       (* *)
       let bindind_body_bindind_closures_ids = List.map2 (fun bindind_body_bindind_variable_id (_, binding_body_binding_closure_continuation, _, _, _, _) -> (bindind_body_bindind_variable_id, binding_body_binding_closure_continuation)) bindind_body_bindind_variable_ids closures2 in
       
       (* TODO MUST FIX closure_continuation_id -> need Closure_rec *)
       (* *)
-      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_block (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id :: all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
+      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_block (binding_body_function_continuation_id, bindind_body_bindind_variable_ids @ (binding_body_arg_id @ all_binding_bodies_free_variables))) bindind_body_bindind_closures_ids in
 
       (* *)
-      vars, pointers, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), add_block binding_body_closure_continuation_id (Clos (all_binding_bodies_free_variables, [binding_body_arg_id]), binding_body_with_free_and_binding_variables) (add_block binding_body_function_continuation_id (Cont (bindind_body_bindind_variable_ids @ (binding_body_arg_id :: binding_body_free_variables_no_arg_no_bindings)), binding_body_cps) scope_and_closures_conts')
+      vars, pointers, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (remove_var (binding_body_free_variables_no_arg_no_bindings) var), add_block binding_body_closure_continuation_id (Clos (all_binding_bodies_free_variables, binding_body_arg_id), binding_body_with_free_and_binding_variables) (add_block binding_body_function_continuation_id (Cont (bindind_body_bindind_variable_ids @ (binding_body_arg_id @ binding_body_free_variables_no_arg_no_bindings)), binding_body_cps) scope_and_closures_conts')
     
     ) (vars, pointers, scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
     scope_cps, vars, pointers, join_fv all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts
