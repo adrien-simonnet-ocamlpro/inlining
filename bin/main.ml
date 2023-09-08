@@ -105,8 +105,8 @@ let _ =
       let _pointer0, _pointers = match Seq.uncons (Seq.ints 0) with
       | Some (pointer0, _pointers) -> pointer0, _pointers
       | None -> assert false in
-      let instr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers [] cst var0 (Return var0) in
-      let cps = Cst.add_block _pointer0 (Cps.Cont fv, instr) conts in
+      let instr, _vars, _pointers, fv, conts = Cst.to_cps _vars _pointers Cps.VarSet.empty cst var0 (Return var0) in
+      let cps = Cst.add_block _pointer0 (Cps.Cont (Cst.fvs_to_list fv), instr) conts in
       let cps, _vars, _pointers = step_analysis cps _vars _pointers !rounds logchan in
       Cps.pp_blocks _subs (Format.formatter_of_out_channel (open_out (input_file ^ ".cps"))) cps;
       Logger.stop ();
@@ -126,7 +126,7 @@ let _ =
       Asm.pp_blocks _subs (Format.formatter_of_out_channel (open_out (input_file ^ ".asm"))) asm;
       Printf.printf " Size = %d.\n %s\n%!" (Asm.size_blocks asm) (input_file ^ ".asm");
       Logger.stop ();
-      let init = List.fold_left (fun env fv -> let i = Printf.printf "%s = " (Env.get_var (Ast.VarMap.bindings _fvs) fv) ; int_of_string (read_line ()) in Asm.VarMap.add fv (Asm.Int i) env) Asm.VarMap.empty fv in
+      let init = Cps.VarSet.fold (fun fv env -> let i = Printf.printf "%s = " (Env.get_var (Ast.VarMap.bindings _fvs) fv) ; int_of_string (read_line ()) in Asm.VarMap.add fv (Asm.Int i) env) fv Asm.VarMap.empty in
       let r, _benchmark = Asm.interp_blocks asm 0 init in
       Asm.pp_benchmark _benchmark Format.std_formatter;
       Asm.pp_value Format.std_formatter r;
