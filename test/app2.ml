@@ -1,1 +1,1 @@
-let x = f (if 0 then 1 else 2) in y
+let x = (fun z -> z) (if 0 then 1 else 2) in y
