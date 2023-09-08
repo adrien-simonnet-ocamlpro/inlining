@@ -1,7 +1,6 @@
 type var = int
 type pointer = int
 type tag = int
-type frame = pointer * var list
 
 module VarMap = Map.Make (Int)
 module VarSet = Set.Make (Int)
@@ -22,8 +21,8 @@ type expr =
 type instr =
 | Let of var * expr * instr
 | Apply_block of pointer * var list
-| Call_direct of pointer * var * var list * frame
-| Call of var * var list * frame
+| Call_direct of pointer * var * var list * (pointer * var list)
+| Call of var * var list * (pointer * var list)
 | If of var * (int * pointer * var list) list * (pointer * var list) * var list
 | Match_pattern of var * (tag * pointer * var list * var list) list * (pointer * var list) * var list
 | Return of var

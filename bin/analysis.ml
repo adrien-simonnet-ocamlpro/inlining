@@ -23,8 +23,6 @@ type t = (value_domain list) Cps.PointerMap.t
 
 type var = Cps.var
 
-type stack = Cps.frame
-
 type named = Cps.expr
 type pointer = Cps.pointer
 type expr = Cps.instr
