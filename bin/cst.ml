@@ -75,7 +75,7 @@ let singleton_fv fv = Cps.VarSet.singleton fv
 let remove_fv fvs fv = Cps.VarSet.remove fv fvs
 let fvs_from_list l = List.fold_left (fun fvs fv -> Cps.VarSet.add fv fvs) Cps.VarSet.empty l
 
-let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.VarSet.t) (ast : expr) var (expr : Cps.instr): Cps.instr * Cps.var Seq.t * Cps.pointer Seq.t * Cps.VarSet.t * Cps.blocks =
+let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.VarSet.t) (ast : expr) var (expr : Cps.instr): Cps.instr * Cps.var Seq.t * Cps.pointer Seq.t * Cps.VarSet.t * Cps.blocks =
   match ast with
   | Int i -> Let (var, Const i, expr), vars, pointers, empty_fvs, empty_blocks
   | Binary (binary_operator, e1, e2) -> begin
@@ -83,9 +83,9 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
       let e2_id, vars = inc vars in
 
       let expr: Cps.instr = Let (var, binary_operator_to_prim binary_operator e1_id e2_id, expr) in
-      let expr', vars, pointers, fv', conts' = to_cps vars pointers (add_fv e1_id fv0) e2 e2_id expr in
-      let expr, vars, pointers, fvs, conts = to_cps vars pointers (union_fvs fv' fv0) e1 e1_id expr' in
-      expr, vars, pointers, union_fvs fvs fv', join_blocks conts conts'
+      let expr', vars, pointers, fv', conts' = to_cps vars pointers (add_fv e1_id fvs) e2 e2_id expr in
+      let expr, vars, pointers, fvs', conts = to_cps vars pointers (union_fvs fv' fvs) e1 e1_id expr' in
+      expr, vars, pointers, union_fvs fvs' fv', join_blocks conts conts'
     end
   (*
       let closure_environment_id = Environment body_free_variables in
@@ -112,8 +112,8 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
   *)
   | Var variable_name -> Let (var, Var variable_name, expr), vars, pointers, singleton_fv variable_name, empty_blocks
   | Let (var', e1, e2) -> begin
-      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers fv0 e2 var expr in
-      let cps2, vars, pointers, fv2, conts2 = to_cps vars pointers (remove_fv (union_fvs fv1 fv0) var') e1 var' cps1 in
+      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers fvs e2 var expr in
+      let cps2, vars, pointers, fv2, conts2 = to_cps vars pointers (remove_fv (union_fvs fv1 fvs) var') e1 var' cps1 in
       cps2, vars, pointers, union_fvs fv2 (remove_fv fv1 var'), join_blocks conts1 conts2
     end
     (*
@@ -145,7 +145,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
         exprn
   *)
   | Let_rec (bindings, scope) ->
-    let scope_cps, vars, pointers, scope_free_variables, scope_conts = to_cps vars pointers fv0 scope var expr in
+    let scope_cps, vars, pointers, scope_free_variables, scope_conts = to_cps vars pointers fvs scope var expr in
 
     (*let scope_substitutions = scope_substitutions @ in*)
     
@@ -153,7 +153,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
     let scope_binding_variable_ids = List.map (fun (var', _) -> var') bindings in
 
     (* Scope free variables without whose who are in bindings. *)
-    let scope_free_variables_no_bindings = List.fold_left (fun fvs fv -> remove_fv fvs fv) scope_free_variables scope_binding_variable_ids in
+    let scope_free_variables_no_bindings = List.fold_left (fun fvs' fv -> remove_fv fvs' fv) scope_free_variables scope_binding_variable_ids in
     
     (*  *)
     let (vars, pointers, scope_and_closures_conts), closures = List.fold_left_map (fun (vars, pointers, scope_conts') (_, binding_expr) -> begin
@@ -220,12 +220,12 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
       let e3_kid, pointers = inc pointers in
       let merge_kid, pointers = inc pointers in
 
-      let true_cps, vars, pointers, true_free_variables_id, true_continuations = to_cps vars pointers fv0 e2 e2_id (If_return (merge_kid, e2_id, fvs_to_list fv0)) in
-      let false_cps, vars, pointers, false_free_variables_id, false_continuations = to_cps vars pointers fv0 e3 e3_id (If_return (merge_kid, e3_id, fvs_to_list fv0)) in
+      let true_cps, vars, pointers, true_free_variables_id, true_continuations = to_cps vars pointers fvs e2 e2_id (If_return (merge_kid, e2_id, fvs_to_list fvs)) in
+      let false_cps, vars, pointers, false_free_variables_id, false_continuations = to_cps vars pointers fvs e3 e3_id (If_return (merge_kid, e3_id, fvs_to_list fvs)) in
       
-      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (union_fvs fv0 (union_fvs true_free_variables_id false_free_variables_id)) e1 e1_id (If (e1_id, [(0, e3_kid, fvs_to_list false_free_variables_id)], (e2_kid, fvs_to_list true_free_variables_id), fvs_to_list fv0)) in
+      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (union_fvs fvs (union_fvs true_free_variables_id false_free_variables_id)) e1 e1_id (If (e1_id, [(0, e3_kid, fvs_to_list false_free_variables_id)], (e2_kid, fvs_to_list true_free_variables_id), fvs_to_list fvs)) in
 
-      cps1, vars, pointers, union_fvs fv1 (union_fvs true_free_variables_id false_free_variables_id), add_block merge_kid (If_join (var, fvs_to_list fv0), expr) (add_block e3_kid (If_branch (fvs_to_list false_free_variables_id, fvs_to_list fv0), false_cps) (add_block e2_kid (If_branch (fvs_to_list true_free_variables_id, fvs_to_list fv0), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
+      cps1, vars, pointers, union_fvs fv1 (union_fvs true_free_variables_id false_free_variables_id), add_block merge_kid (If_join (var, fvs_to_list fvs), expr) (add_block e3_kid (If_branch (fvs_to_list false_free_variables_id, fvs_to_list fvs), false_cps) (add_block e2_kid (If_branch (fvs_to_list true_free_variables_id, fvs_to_list fvs), true_cps) (join_blocks true_continuations (join_blocks false_continuations conts1))))
     end
     (*
           let closure_id = e1 in
@@ -244,9 +244,9 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
       (* Continuations IDs. *)
       let return_kid, pointers = inc pointers in
 
-      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (add_fv e1_id fv0) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fvs_to_list fv0))) in
-      let cps2, vars, pointers, fv2, conts2 = to_cps vars pointers (union_fvs fv1 fv0) e1 e1_id cps1 in
-      cps2, vars, pointers, union_fvs fv2 fv1, add_block return_kid (Return (var, fvs_to_list fv0), expr) (join_blocks conts2 conts1)
+      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers (add_fv e1_id fvs) e2 e2_id (Call (e1_id, [e2_id], (return_kid, fvs_to_list fvs))) in
+      let cps2, vars, pointers, fv2, conts2 = to_cps vars pointers (union_fvs fv1 fvs) e1 e1_id cps1 in
+      cps2, vars, pointers, union_fvs fv2 fv1, add_block return_kid (Return (var, fvs_to_list fvs), expr) (join_blocks conts2 conts1)
     end
   (*
 
@@ -257,7 +257,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
 
       (* Default branch cps generation. *)
       let default_branch_return_id, vars = inc vars in
-      let default_branch_cps, vars, pointers, default_branch_free_variables, default_branch_continuations = to_cps vars pointers fv0 default_branch_expr default_branch_return_id (Match_return (return_continuation_id, default_branch_return_id, fvs_to_list fv0)) in
+      let default_branch_cps, vars, pointers, default_branch_free_variables, default_branch_continuations = to_cps vars pointers fvs default_branch_expr default_branch_return_id (Match_return (return_continuation_id, default_branch_return_id, fvs_to_list fvs)) in
       
       (* Default branch continuation. *)
       let default_continuation_id, pointers = inc pointers in
@@ -266,7 +266,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
       let (vars, pointers, branchs_continuations), branchs_bodies = List.fold_left_map (fun (vars, pointers, default_continuation') (branch_index, branch_arguments_names, branch_expr) -> begin
         (* Branch cps generation. *)
         let branch_return_id, vars = inc vars in
-        let branch_cps, vars, pointers, branch_free_variables, branch_continuations = to_cps vars pointers fv0 branch_expr branch_return_id (Match_return (return_continuation_id, branch_return_id, fvs_to_list fv0)) in
+        let branch_cps, vars, pointers, branch_free_variables, branch_continuations = to_cps vars pointers fvs branch_expr branch_return_id (Match_return (return_continuation_id, branch_return_id, fvs_to_list fvs)) in
                 
         (* Branch free variables that are not passed in arguments. *)
         let branch_free_variables = Cps.VarSet.filter (fun branch_free_variable -> not (List.mem branch_free_variable branch_arguments_names)) branch_free_variables in
@@ -277,7 +277,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
         
         (* Branch continuation and body informations. *)
         let branch_continuation_id, pointers = inc pointers in
-        (vars, pointers, add_block branch_continuation_id (Match_branch (branch_arguments_names, fvs_to_list branch_free_variables, fvs_to_list fv0), branch_cps) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
+        (vars, pointers, add_block branch_continuation_id (Match_branch (branch_arguments_names, fvs_to_list branch_free_variables, fvs_to_list fvs), branch_cps) (join_blocks branch_continuations default_continuation')), (branch_index, branch_continuation_id, branch_free_variables)
       end) (vars, pointers, empty_blocks) branchs in
       
       (* Substitued free variables. *)
@@ -285,9 +285,9 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
 
       (* Pattern matching. *)
       let pattern_id, vars = inc vars in
-      let expr'', vars, pointers, fvs, conts = to_cps vars pointers (union_fvs fv0 (union_fvs default_branch_free_variables (fold_fvs free_variables_branchs))) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((_, branch_arguments_names, _), ((n, k, _), fvs)) -> n, k, branch_arguments_names, fvs_to_list fvs) (List.combine branchs (List.combine branchs_bodies free_variables_branchs)), (default_continuation_id, fvs_to_list default_branch_free_variables), fvs_to_list fv0)) in
+      let expr'', vars, pointers, fvs', conts = to_cps vars pointers (union_fvs fvs (union_fvs default_branch_free_variables (fold_fvs free_variables_branchs))) pattern_expr pattern_id (Match_pattern (pattern_id, List.map (fun ((_, branch_arguments_names, _), ((n, k, _), fvs')) -> n, k, branch_arguments_names, fvs_to_list fvs') (List.combine branchs (List.combine branchs_bodies free_variables_branchs)), (default_continuation_id, fvs_to_list default_branch_free_variables), fvs_to_list fvs)) in
 
-      expr'', vars, pointers, union_fvs fvs (union_fvs default_branch_free_variables (fold_fvs free_variables_branchs)), add_block default_continuation_id (Match_branch ([], fvs_to_list default_branch_free_variables, fvs_to_list fv0), default_branch_cps) (add_block return_continuation_id (Match_join (var, fvs_to_list fv0), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
+      expr'', vars, pointers, union_fvs fvs' (union_fvs default_branch_free_variables (fold_fvs free_variables_branchs)), add_block default_continuation_id (Match_branch ([], fvs_to_list default_branch_free_variables, fvs_to_list fvs), default_branch_cps) (add_block return_continuation_id (Match_join (var, fvs_to_list fvs), expr) (join_blocks conts (join_blocks default_branch_continuations branchs_continuations)))
     end
     (*
     
@@ -298,7 +298,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
         vars, (var_id, arg)
       end) vars args in
       List.fold_left (fun (expr', vars, pointers, fv', conts') (var, e) -> begin
-        let expr'', vars, pointers, fv'', conts'' = to_cps vars pointers (union_fvs (remove_fv fv' var) fv0) e var expr' in
+        let expr'', vars, pointers, fv'', conts'' = to_cps vars pointers (union_fvs (remove_fv fv' var) fvs) e var expr' in
         expr'', vars, pointers, union_fvs fv'' (remove_fv fv' var), join_blocks conts' conts''
       end) (Let (var, Tuple (List.map (fun (var, _) -> var) args_ids), expr), vars, pointers, fvs_from_list (List.map (fun (var, _) -> var) args_ids), empty_blocks) args_ids
     end
@@ -311,7 +311,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fv0: Cps.Var
         vars, (var_id, arg)
       end) vars args in
       List.fold_left (fun (expr', vars, pointers, fv', conts') (var, e) -> begin
-        let expr'', vars, pointers, fv'', conts'' = to_cps vars pointers (union_fvs (remove_fv fv' var) fv0) e var expr' in
+        let expr'', vars, pointers, fv'', conts'' = to_cps vars pointers (union_fvs (remove_fv fv' var) fvs) e var expr' in
         expr'', vars, pointers, union_fvs fv'' (remove_fv fv' var), join_blocks conts' conts''
       end) (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, pointers, fvs_from_list (List.map (fun (var, _) -> var) args_ids), empty_blocks) args_ids
     end
