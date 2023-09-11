@@ -110,20 +110,39 @@ let clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Closure (k, vars) -> Closure (k, update_env vars alias)
   | Constructor (tag, vars) -> Constructor (tag, update_vars vars alias)
 
-let rec clean_instr (instr: instr) (alias: var VarMap.t): instr =
+let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   match instr with
-  | Let (var, Var var', instr') -> clean_instr instr' (VarMap.add var var' alias)
-  | Let (var, expr, instr) -> Let (var, clean_expr expr alias, clean_instr instr alias)
-  | Apply_block (k, args) -> Apply_block (k, update_env args alias)
-  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_env args alias) matchs, (kf, update_env argsf alias), update_env fvs alias)
-  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args alias) matchs, (kf, update_env argsf alias), update_env fvs alias)
-  | Return var -> Return (update_var var alias)
-  | If_return (k, arg, args) -> If_return (k, update_var arg alias, update_env args alias)
-  | Match_return (k, arg, args) -> Match_return (k, update_var arg alias, update_env args alias)
-  | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_env kargs alias))
-  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_env kargs alias))
+  | Let (var, expr, instr) -> Let (var, clean_expr expr aliases, clean_instr instr aliases)
+  | Apply_block (k, args) -> Apply_block (k, update_env args aliases)
+  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var aliases, List.map (fun (n, k, args) -> n, k, update_env args aliases) matchs, (kf, update_env argsf aliases), update_env fvs aliases)
+  | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id aliases, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args aliases) matchs, (kf, update_env argsf aliases), update_env fvs aliases)
+  | Return var -> Return (update_var var aliases)
+  | If_return (k, arg, args) -> If_return (k, update_var arg aliases, update_env args aliases)
+  | Match_return (k, arg, args) -> Match_return (k, update_var arg aliases, update_env args aliases)
+  | Call (x, args, (k, kargs)) -> Call (update_var x aliases, update_vars args aliases, (k, update_env kargs aliases))
+  | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x aliases, update_vars args aliases, (k, update_env kargs aliases))
+  
+let clean_block (block: block) (aliases: var VarMap.t): block =
+  match block with
+  | Cont args -> Cont (update_env args aliases)
+  | Clos (env, args) -> Clos (update_env env aliases, args)
+  | Return (arg, args) -> Return (update_var arg aliases, update_env args aliases)
+  | If_branch (args, fvs) -> If_branch (update_env args aliases, update_env fvs aliases)
+  | If_join (arg, args) -> If_join (update_var arg aliases, update_env args aliases)
+  | Match_branch (env, args, fvs) -> Match_branch (update_vars env aliases, update_env args aliases, update_env fvs aliases)
+  | Match_join (arg, args) -> Match_join (update_var arg aliases, update_env args aliases)
+  
+let rec get_aliases (instr: instr) (aliases: var VarMap.t): var VarMap.t =
+  match instr with
+  | Let (var, Var var', instr') -> get_aliases instr' (VarMap.add var var' aliases)
+  | _ -> aliases
 
-let clean_blocks: blocks -> blocks = PointerMap.map (fun (block, instr) -> block, clean_instr instr VarMap.empty)
+let clean_blocks (blocks: blocks): blocks = 
+  let aliases = PointerMap.fold (fun _ (_, instr) aliases -> begin
+    let aliases = get_aliases instr aliases in
+    aliases
+  end) blocks VarMap.empty in
+  PointerMap.map (fun (block, instr) -> clean_block block aliases, clean_instr instr aliases) blocks
 
 let inc (vars: var Seq.t): var * var Seq.t =
   match Seq.uncons vars with

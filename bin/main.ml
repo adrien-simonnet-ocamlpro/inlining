@@ -59,8 +59,8 @@ let rec step_analysis cps _vars _pointers count logchan =
     Logger.start "Copying%s\n%!" (Cps.PointerSet.fold (fun k s -> s ^ " k" ^ (string_of_int k)) to_copy "");
     let cps, _vars, _pointers = Cps.copy_blocks cps (Cps.PointerSet.union (Cps.PointerSet.of_list !copy_conts) to_copy) _vars _pointers in
     Logger.stop ();
-    Logger.start "Must fix cleaning\n%!";
-    (*let cps = Cps.clean_blocks cps in*)
+    Logger.start "Cleaning\n%!";
+    let cps = Cps.clean_blocks cps in
     Logger.stop ();
     Logger.start "Analysing\n%!";
     let _cps_analysis = Analysis.start_analysis !stack_analysis cps in
