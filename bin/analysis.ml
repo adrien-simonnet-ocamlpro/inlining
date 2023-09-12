@@ -42,18 +42,18 @@ let rec pp_value_domain fmt = function
 | Int_domain d ->  Int_domain.pp fmt d
 | Tuple_domain values -> Format.fprintf fmt "[%a]" (pp_args "") values
 | Closure_domain clos -> Format.fprintf fmt "Closure:"; Cps.PointerMap.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_env "") env) clos
-| Constructor_domain clos -> Format.fprintf fmt "Closure:"; Cps.PointerMap.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_args "") env) clos
+| Constructor_domain clos -> Format.fprintf fmt "Constructor:"; Cps.PointerMap.iter (fun k env -> Format.fprintf fmt " %d: %a" k (pp_args "") env) clos
 
 and pp_args _empty fmt args = Format.fprintf fmt "[ "; List.iter (Format.fprintf fmt "%a " pp_alloc) args; Format.fprintf fmt "]"
 
-and pp_env _empty fmt args = Format.fprintf fmt "[ "; Cps.VarMap.iter (fun v a -> Format.fprintf fmt "k%d -> %a " v pp_alloc a) args; Format.fprintf fmt "]"
+and pp_env _empty fmt args = Format.fprintf fmt "{ "; Cps.VarMap.iter (fun v a -> Format.fprintf fmt "k%d -> %a " v pp_alloc a) args; Format.fprintf fmt "}"
 
 let pp_frame fmt (k, env) = Format.fprintf fmt "(%d: %a)" k (pp_env "") env
   
 let pp_stack fmt stack =
-  Printf.printf "[";
+  Format.printf "[";
   List.iter (fun frame -> pp_frame fmt frame) stack;
-  Printf.printf "]"
+  Format.printf "]"
 
 type environment = Cps.VarSet.t Cps.VarMap.t
 type allocations = value_domain Cps.VarMap.t
@@ -74,13 +74,6 @@ let pp_analysis fmt (map: (allocations * cont_type) Cps.PointerMap.t) = Format.f
 
 let get env value = Cps.VarMap.find value env
 let get0 env value = Cps.VarMap.find value env
-
-let _get2 env var =
-  match List.find_opt (fun (var', _) -> var = var') env with
-  | Some (_, v) -> v
-  | None -> assert false
-;;
-
 
 let map_values args values = List.fold_left2 (fun env arg1 arg2 -> Cps.VarMap.add arg1 arg2 env) Cps.VarMap.empty args values
 
@@ -113,13 +106,6 @@ let join_allocs allocs allocations =
     Some (join_value_list values_domain)
   end
 
-
-
-let has (env: environment) value =
-  let allocs = get env value in not (Cps.VarSet.is_empty allocs)
-
-let get2 (env: environment) value allocations =
-  let allocs = get env value in match join_allocs allocs allocations with Some value -> value | _ -> assert false
 
 let get (env: environment) value allocations =
   let allocs = get env value in join_allocs allocs allocations
@@ -166,9 +152,14 @@ let rec analysis_cont (cps: expr) (stack: stack_allocs) (env: environment) (allo
     end
   | Let (var, named, expr) -> begin
       let value = analysis_named named env allocations in
-      match value with
-      | Some value' -> analysis_cont expr stack (Cps.VarMap.add var (Cps.VarSet.singleton var) env) (Cps.VarMap.update var (fun value'' -> if Option.is_some value'' then Some (join_values (Option.get value'') value') else Some value') allocations)
-      | None -> analysis_cont expr stack (Cps.VarMap.add var (Cps.VarSet.empty) env) allocations
+      let env, allocs = (match value with
+      | Some value' -> (Cps.VarMap.add var (Cps.VarSet.singleton var) env), (Cps.VarMap.update var (fun value'' -> begin
+          if Option.is_some value''
+            then Some (join_values (Option.get value'') value')
+            else Some value'
+          end) allocations)
+      | None -> (Cps.VarMap.add var (Cps.VarSet.empty) env), allocations) in
+      analysis_cont expr stack env allocs
     end
   | Apply_block (k', args) -> [k', Cont (map_env args env), stack, allocations]
   | If (var, matchs, (kf, argsf), fvs) -> begin
@@ -281,7 +272,9 @@ let rec analysis (conts: (int * cont_type * stack_allocs * allocations) list) (r
       end
     end
 
-let start_analysis reduce prog = let args, _ = get_cont prog 0 in analysis [0, Cont (Cps.VarSet.fold (fun v env -> Cps.VarMap.add v Cps.VarSet.empty env) args Cps.VarMap.empty), [], Cps.VarMap.empty] reduce prog (Cps.PointerMap.empty)
+let start_analysis reduce prog =
+  let args, _ = get_cont prog 0 in
+  analysis [0, Cont (Cps.VarSet.fold (fun v env -> Cps.VarMap.add v Cps.VarSet.empty env) args Cps.VarMap.empty), [], Cps.VarMap.empty] reduce prog (Cps.PointerMap.empty)
 
 let propagation_named (named : Cps.expr) (env: environment) (allocations: allocations): named * value_domain option =
 match named with
