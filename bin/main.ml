@@ -14,7 +14,7 @@ let rec remove_n_list n list =
   | _::l' -> remove_n_list (n-1) l'
   | _ -> assert false
 
-let periodic_stack_heuristic stack = let n = cherche_periode [] stack in remove_n_list n stack
+let rec periodic_stack_heuristic stack = let n = cherche_periode [] stack in if n > 0 then periodic_stack_heuristic (remove_n_list n stack) else stack
 let cfa n stack = if n < 0 then stack else []
 
 
