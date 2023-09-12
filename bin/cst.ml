@@ -21,7 +21,7 @@ type expr =
 | Match of expr * (tag * var list * expr) list * expr
 | Tuple of expr list
 
-let gen_name (var: var) (subs: string VarMap.t): string =
+let pp_var (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
   | Some str -> str ^ "_" ^ (string_of_int var)
   | None -> "_" ^ (string_of_int var)
@@ -34,8 +34,8 @@ let pp_binary fmt operator =
 let rec pp_vars ?(empty=(" ": string)) ?(split=(" ": string)) (subs: string VarMap.t) (fmt: Format.formatter) (exprs: var list): unit =
   match exprs with
   | [] -> Format.fprintf fmt "%s" empty
-  | [ e ] -> Format.fprintf fmt "%s" (gen_name e subs)
-  | e :: exprs' -> Format.fprintf fmt "%s%s%a" (gen_name e subs) split (pp_vars ~split ~empty subs) exprs'
+  | [ e ] -> Format.fprintf fmt "%s" (pp_var e subs)
+  | e :: exprs' -> Format.fprintf fmt "%s%s%a" (pp_var e subs) split (pp_vars ~split ~empty subs) exprs'
 
 let rec pp_expr subs fmt expr =
   let pp_expr = pp_expr subs in
@@ -43,9 +43,9 @@ let rec pp_expr subs fmt expr =
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a%!" pp_expr a pp_binary op pp_expr b
   | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" (pp_vars ~empty: "" ~split: " " subs) args pp_expr e
-  | Var x -> Format.fprintf fmt "%s%!" (gen_name x subs)
-  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" (gen_name var subs) pp_expr e1 pp_expr e2
-  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" (gen_name var subs) pp_expr e) "" _bindings) pp_expr expr
+  | Var x -> Format.fprintf fmt "%s%!" (pp_var x subs)
+  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" (pp_var var subs) pp_expr e1 pp_expr e2
+  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" (pp_var var subs) pp_expr e) "" _bindings) pp_expr expr
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
   | Constructor (_, _) -> Format.fprintf fmt "constructor%!"

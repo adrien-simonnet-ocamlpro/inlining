@@ -40,7 +40,7 @@ type block =
 
 type blocks = (block * instr) PointerMap.t
 
-let gen_name (var: var) (subs: string VarMap.t): string =
+let pp_var (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
   | Some str -> str ^ "_" ^ (string_of_int var)
   | None -> "_" ^ (string_of_int var)
@@ -48,48 +48,48 @@ let gen_name (var: var) (subs: string VarMap.t): string =
 let rec pp_args ?(subs = (VarMap.empty: string VarMap.t)) ?(empty=(" ": string)) ?(split=(" ": string)) (fmt: Format.formatter) (args: var list): unit =
   match args with
   | [] -> Format.fprintf fmt "%s" empty
-  | [ arg ] -> Format.fprintf fmt "%s" (gen_name arg subs)
-  | arg :: args' -> Format.fprintf fmt "%s%s%a" (gen_name arg subs) split (pp_args ~split ~empty ~subs) args'
+  | [ arg ] -> Format.fprintf fmt "%s" (pp_var arg subs)
+  | arg :: args' -> Format.fprintf fmt "%s%s%a" (pp_var arg subs) split (pp_args ~split ~empty ~subs) args'
 
 let pp_env (subs: string VarMap.t) (fmt: Format.formatter) (env: VarSet.t): unit =
   match (VarSet.elements env) with
   | [] -> Format.fprintf fmt "{}"
-  | [ arg ] -> Format.fprintf fmt "{ %s }" (gen_name arg subs)
-  | vars -> Format.fprintf fmt "{ "; List.iter (fun var -> Format.fprintf fmt "%s " (gen_name var subs)) vars; Format.fprintf fmt "}"
+  | [ arg ] -> Format.fprintf fmt "{ %s }" (pp_var arg subs)
+  | vars -> Format.fprintf fmt "{ "; List.iter (fun var -> Format.fprintf fmt "%s " (pp_var var subs)) vars; Format.fprintf fmt "}"
 
 let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) expr =
   match expr with
   | Const x -> Format.fprintf fmt "Int %d" x
-  | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (gen_name x1 subs) (gen_name x2 subs)
-  | Print x1 -> Format.fprintf fmt "print %s" (gen_name x1 subs)
-  | Var x -> Format.fprintf fmt "%s" (gen_name x subs)
+  | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (pp_var x1 subs) (pp_var x2 subs)
+  | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (pp_var x1 subs) (pp_var x2 subs)
+  | Print x1 -> Format.fprintf fmt "print %s" (pp_var x1 subs)
+  | Var x -> Format.fprintf fmt "%s" (pp_var x subs)
   | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
-  | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (gen_name record subs) pos
+  | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (pp_var record subs) pos
   | Closure (k, env) -> Format.fprintf fmt "Closure (f%d, %a)" k (pp_env subs) env
   | Constructor (tag, env) -> Format.fprintf fmt "Constructor (%d, [%a])" tag (pp_args ~split: "; " ~subs ~empty: "") env
 
 let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (block : instr) : unit =
   match block with
-  | Let (var, expr, instr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (gen_name var subs) (pp_expr subs) expr (pp_instr subs) instr
+  | Let (var, expr, instr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (pp_var var subs) (pp_expr subs) expr (pp_instr subs) instr
   | Apply_block (k, args) -> Format.fprintf fmt "\tk%d %a" k (pp_env subs) args
-  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
-  | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (gen_name var subs) (List.fold_left (fun acc (n, pld, kt, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args ~subs ~empty: "()" ~split: " ") pld kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
-  | Return x -> Format.fprintf fmt "\t%s" (gen_name x subs)
-  | If_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (gen_name arg subs) (pp_env subs) args
-  | Match_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (gen_name arg subs) (pp_env subs) args
-  | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_env subs) kargs
-  | Call_direct (k', x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (k%d %s %a) %a" k k' (gen_name x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_env subs) kargs
+  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s with%s | _ -> k%d %a" (pp_var var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
+  | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (pp_var var subs) (List.fold_left (fun acc (n, pld, kt, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args ~subs ~empty: "()" ~split: " ") pld kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
+  | Return x -> Format.fprintf fmt "\t%s" (pp_var x subs)
+  | If_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (pp_var arg subs) (pp_env subs) args
+  | Match_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (pp_var arg subs) (pp_env subs) args
+  | Call (x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (%s %a) %a" k (pp_var x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_env subs) kargs
+  | Call_direct (k', x, args, (k, kargs)) -> Format.fprintf fmt "\tk%d (k%d %s %a) %a" k k' (pp_var x subs) (pp_args ~split:" " ~subs ~empty: "()") args (pp_env subs) kargs
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
   | Cont args -> Format.fprintf fmt "Cont %a" (pp_env subs) args
   | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_env subs) env
-  | Return (arg, args) -> Format.fprintf fmt "Return %s %a" (gen_name arg subs) (pp_env subs) args
+  | Return (arg, args) -> Format.fprintf fmt "Return %s %a" (pp_var arg subs) (pp_env subs) args
   | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" (pp_env subs) args (pp_env subs) fvs
-  | If_join (arg, args) -> Format.fprintf fmt "If_join %s %a" (gen_name arg subs) (pp_env subs) args
+  | If_join (arg, args) -> Format.fprintf fmt "If_join %s %a" (pp_var arg subs) (pp_env subs) args
   | Match_branch (env, args, fvs) -> Format.fprintf fmt "Match_branch %a %a %a" (pp_env subs) args (pp_args ~subs ~empty: "()" ~split: " ") env (pp_env subs) fvs
-  | Match_join (arg, args) -> Format.fprintf fmt "Match_join %s %a" (gen_name arg subs) (pp_env subs) args
+  | Match_join (arg, args) -> Format.fprintf fmt "Match_join %s %a" (pp_var arg subs) (pp_env subs) args
   
 let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit = PointerMap.iter (fun k (block, instr) -> Format.fprintf fmt "k%d %a =\n%a\n%!" k (pp_block subs) block (pp_instr subs) instr) block
 
