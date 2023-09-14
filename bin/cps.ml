@@ -23,7 +23,7 @@ type instr =
 | Apply_block of pointer * VarSet.t
 | Call_direct of pointer * var * var list * (pointer * VarSet.t)
 | Call of var * var list * (pointer * VarSet.t)
-| If of var * (int * pointer * VarSet.t) list * (pointer * VarSet.t) * VarSet.t
+| If of var * (pointer * VarSet.t) * (pointer * VarSet.t) * VarSet.t
 | Match_pattern of var * (tag * var list * pointer * VarSet.t) list * (pointer * VarSet.t) * VarSet.t
 | Return of var
 | If_return of pointer * var * VarSet.t
@@ -73,7 +73,7 @@ let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (block : instr)
   match block with
   | Let (var, expr, instr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (string_of_sub var subs) (pp_expr subs) expr (pp_instr subs) instr
   | Apply_block (k, args) -> Format.fprintf fmt "\tk%d %a" k (pp_env subs) args
-  | If (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s with%s | _ -> k%d %a" (string_of_sub var subs) (List.fold_left (fun acc (n, kt, argst) -> acc ^ (Format.asprintf "| Int %d -> k%d %a " n kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
+  | If (var, (kt, argst), (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s = 0 then k%d %a else k%d %a" (string_of_sub var subs) kt (pp_env subs) (VarSet.union argst fvs) kf (pp_env subs) (VarSet.union argsf fvs)
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (string_of_sub var subs) (List.fold_left (fun acc (n, pld, kt, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args subs) pld kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
   | Return x -> Format.fprintf fmt "\t%s" (string_of_sub x subs)
   | If_return (k, arg, args) -> Format.fprintf fmt "\tk%d %s %a" k (string_of_sub arg subs) (pp_env subs) args
@@ -114,7 +114,7 @@ let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   match instr with
   | Let (var, expr, instr) -> Let (var, clean_expr expr aliases, clean_instr instr aliases)
   | Apply_block (k, args) -> Apply_block (k, update_env args aliases)
-  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var aliases, List.map (fun (n, k, args) -> n, k, update_env args aliases) matchs, (kf, update_env argsf aliases), update_env fvs aliases)
+  | If (var, (kt, argst), (kf, argsf), fvs) -> If (update_var var aliases, (kt, update_env argst aliases), (kf, update_env argsf aliases), update_env fvs aliases)
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id aliases, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args aliases) matchs, (kf, update_env argsf aliases), update_env fvs aliases)
   | Return var -> Return (update_var var aliases)
   | If_return (k, arg, args) -> If_return (k, update_var arg aliases, update_env args aliases)
@@ -157,7 +157,7 @@ let rec copy_instr (instr: instr) (vars: var Seq.t) (alias: var VarMap.t): instr
       Let (var_id, clean_expr expr alias, instr), vars
     end
   | Apply_block (k, args) -> Apply_block (k, update_env args alias), vars
-  | If (var, matchs, (kf, argsf), fvs) -> If (update_var var alias, List.map (fun (n, k, args) -> n, k, update_env args alias) matchs, (kf, update_env argsf alias), update_env fvs alias), vars
+  | If (var, (kt, argst), (kf, argsf), fvs) -> If (update_var var alias, (kt, update_env argst alias), (kf, update_env argsf alias), update_env fvs alias), vars
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args alias) matchs, (kf, update_env argsf alias), update_env fvs alias), vars
   | Return var -> Return (update_var var alias), vars
   | If_return (k, arg, args) -> If_return (k, update_var arg alias, update_env args alias), vars
@@ -262,8 +262,7 @@ let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq
       asm, vars, pointers, blocks
     end
   | Apply_block (k, args) -> Apply_direct (k, fvs_to_list args, []), vars, pointers, Asm.PointerMap.empty
-  | If (_, [], (kf, argsf), fvs) -> Apply_direct (kf, fvs_to_list argsf @ fvs_to_list fvs, []), vars, pointers, Asm.PointerMap.empty
-  | If (var, matchs, (kf, argsf), fvs) -> If (var, List.map (fun (n, k, argst) -> n, k, (fvs_to_list argst) @ (fvs_to_list fvs)) matchs, (kf, (fvs_to_list argsf) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
+  | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
       let payload_id, vars = inc vars in
@@ -324,7 +323,7 @@ let rec size_instr (cps : instr): int =
   match cps with
   | Let (_, expr, instr) -> 1 + size_expr expr + size_instr instr
   | Apply_block (_, args) -> 1 + VarSet.cardinal args
-  | If (_, matchs, (_, argsf), fvs) -> List.fold_left (fun size (_, _, args) -> size + 1 + VarSet.cardinal args + VarSet.cardinal fvs) 0 matchs + 1 + VarSet.cardinal argsf + VarSet.cardinal fvs
+  | If (_, (_, argst), (_, argsf), fvs) -> 1 + VarSet.cardinal argst + VarSet.cardinal fvs + 1 + VarSet.cardinal argsf + VarSet.cardinal fvs
   | Match_pattern (_, matchs, (_, argsf), fvs) -> List.fold_left (fun size (_, pld, _, args) -> size + 1 + List.length pld + VarSet.cardinal args + VarSet.cardinal fvs) 0 matchs + 1 + VarSet.cardinal argsf + VarSet.cardinal fvs
   | Return _ -> 1
   | If_return (_, _, args) -> 2 + VarSet.cardinal args
@@ -386,13 +385,14 @@ let rec count_vars_instr (instr : instr) (vars : int array) (conts: int array): 
     VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args';
     Call (clos, args, (k', args'))
   end
-  | If (var, matchs, (kf, argsf), fvs) -> begin
+  | If (var, (kt, argst), (kf, argsf), fvs) -> begin
       Array.set vars var (Array.get vars var + 1);
       VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) fvs;
-      List.iter (fun (_, kt, args) -> VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args; Array.set conts kt (Array.get conts kt + 1)) matchs;
+      Array.set conts kt (Array.get conts kt + 1);
+      VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argst;
       Array.set conts kf (Array.get conts kf + 1);
       VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) argsf;
-      If (var, matchs, (kf, argsf), fvs)
+      If (var, (kt, argst), (kf, argsf), fvs)
     end
   | Return x -> begin
       Array.set vars x (Array.get vars x + 1);

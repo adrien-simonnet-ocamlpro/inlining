@@ -209,7 +209,7 @@ let map_args (args: var list) (env: environment) = List.map (fun arg -> Cps.VarM
 let map_env (allocs: allocations) (env: environment): environment =
   Cps.VarMap.filter (fun p _ -> Cps.VarSet.mem p allocs) env
 
-let analysis_named (expr : expr) (env: environment) (factory: factory): value_type =
+let analysis_expr (expr : expr) (env: environment) (factory: factory): value_type =
   match expr with
   | Var var' -> get2 env var' factory
   | Const x -> Value (Int_domain (Int_domain.singleton x))
@@ -247,13 +247,13 @@ type abstract_jump =
 | Calll of (pointer * abstract_block * abstract_frame) list
 | Ret of allocations
 
-let rec block_analysis (instr: instr) (env: environment) (factory: factory): abstract_jump * factory =
+let rec analysis_instr (instr: instr) (env: environment) (factory: factory): abstract_jump * factory =
   match instr with
   | Let (var, Var var', instr) -> begin
-      block_analysis instr (Cps.VarMap.add var (Cps.VarMap.find var' env) env) factory
+      analysis_instr instr (Cps.VarMap.add var (Cps.VarMap.find var' env) env) factory
     end
   | Let (var, expr, instr) -> begin
-      let value = analysis_named expr env factory in
+      let value = analysis_expr expr env factory in
       let env, allocs = (match value with
       | Value value' -> (Cps.VarMap.add var (Cps.VarSet.singleton var) env), (Cps.VarMap.update var (fun value'' -> begin
           if Option.is_some value''
@@ -261,17 +261,17 @@ let rec block_analysis (instr: instr) (env: environment) (factory: factory): abs
             else Some value'
           end) factory)
       | Bottom | Top -> (Cps.VarMap.add var (Cps.VarSet.empty) env), factory) in
-      block_analysis instr env allocs
+      analysis_instr instr env allocs
     end
   | Apply_block (k', args) -> Jmp [k', Cont (map_env args env)], factory
-  | If (var, matchs, (kf, argsf), fvs) -> begin
+  | If (var, (kt, argst), (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
-        match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> Jmp [kt, If_branch (map_env argst env, map_env fvs env)], factory
-        | None -> Jmp [kf, If_branch (map_env argsf env, map_env fvs env)], factory
+        match Int_domain.get_singleton i with
+        | 0 -> Jmp [kf, If_branch (map_env argsf env, map_env fvs env)], factory
+        | _ -> Jmp [kt, If_branch (map_env argst env, map_env fvs env)], factory
         end
-      | Some (Int_domain _) | None -> Jmp ((kf, If_branch (map_env argsf env, map_env fvs env)) :: (List.map (fun (_, kt, argst) -> kt, If_branch (map_env argst env, map_env fvs env)) matchs)), factory
+      | Some (Int_domain _) | None -> Jmp ([ (kf, If_branch (map_env argsf env, map_env fvs env)) ; (kt, If_branch (map_env argst env, map_env fvs env)) ]), factory
       | _ -> assert false
     end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
@@ -351,7 +351,7 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
           end else begin
             let block, instr = Cps.PointerMap.find k blocks in
             let next_conts = begin
-              match block_analysis instr (block_env block block') new_factory with
+              match analysis_instr instr (block_env block block') new_factory with
               | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
               | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
               | Ret allocations, factory -> begin
@@ -365,7 +365,7 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
         end else begin
           let block, instr = Cps.PointerMap.find k blocks in
           let next_conts = begin
-            match block_analysis instr (block_env block block') factory with
+            match analysis_instr instr (block_env block block') factory with
             | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
             | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
             | Ret allocations, factory -> begin
@@ -379,7 +379,7 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
       end else begin
         let block, instr = Cps.PointerMap.find k blocks in
         let next_conts = begin
-          match block_analysis instr (block_env block block') factory with
+          match analysis_instr instr (block_env block block') factory with
           | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
           | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
           | Ret allocations, factory -> begin
@@ -436,7 +436,7 @@ let rec propagation (instr : Cps.instr) (env: environment) (factory: factory): i
       | None -> Let (var, expr, propagation instr (Cps.VarMap.add var (Cps.VarSet.empty) env) factory)
     end
   | Apply_block (k', args) -> Apply_block (k', args)
-  | If (var, matchs, (kf, argsf), fvs) -> begin
+  | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, (kt, argst), (kf, argsf), fvs) (*begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
@@ -445,7 +445,7 @@ let rec propagation (instr : Cps.instr) (env: environment) (factory: factory): i
         end
       | Some (Int_domain _) | None -> If (var, matchs, (kf, argsf), fvs)
       | _ -> assert false
-    end
+    end*)
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Constructor_domain clos) -> Match_pattern (var, List.filter (fun (n, _, _, _) -> List.exists (fun (n', _) -> n = n') (Cps.PointerMap.bindings clos)) matchs, (kf, argsf), fvs)
@@ -513,8 +513,7 @@ let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars:
       asm, vars, pointers, blocks
     end
   | Apply_block (k, args) -> Apply_direct (k, fvs_to_list args, []), vars, pointers, Asm.PointerMap.empty
-  | If (_, [], (kf, argsf), fvs) -> Apply_direct (kf, fvs_to_list argsf @ fvs_to_list fvs, []), vars, pointers, Asm.PointerMap.empty
-  | If (var, matchs, (kf, argsf), fvs) -> If (var, List.map (fun (n, k, argst) -> n, k, (fvs_to_list argst) @ (fvs_to_list fvs)) matchs, (kf, (fvs_to_list argsf) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
+  | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
       let payload_id, vars = inc vars in
