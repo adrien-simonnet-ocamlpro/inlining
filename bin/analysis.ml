@@ -241,15 +241,15 @@ let analysis_named (expr : expr) (env: environment) (factory: factory): value_ty
   | Constructor (tag, environment) -> Value (Constructor_domain (Cps.PointerMap.singleton tag (map_args environment env)))
 
 
-type bblock =
-| Jmp of (pointer * abstract_block * factory) list
-| Calll of (pointer * abstract_block * abstract_frame * factory) list
-| Ret of allocations * factory
+type abstract_jump =
+| Jmp of (pointer * abstract_block) list
+| Calll of (pointer * abstract_block * abstract_frame) list
+| Ret of allocations
 
-let rec analysis_cont (cps: instr) (env: environment) (factory: factory): bblock =
-  match cps with
+let rec block_analysis (instr: instr) (env: environment) (factory: factory): abstract_jump * factory =
+  match instr with
   | Let (var, Var var', instr) -> begin
-      analysis_cont instr (Cps.VarMap.add var (Cps.VarMap.find var' env) env) factory
+      block_analysis instr (Cps.VarMap.add var (Cps.VarMap.find var' env) env) factory
     end
   | Let (var, expr, instr) -> begin
       let value = analysis_named expr env factory in
@@ -260,44 +260,40 @@ let rec analysis_cont (cps: instr) (env: environment) (factory: factory): bblock
             else Some value'
           end) factory)
       | Bottom | Top -> (Cps.VarMap.add var (Cps.VarSet.empty) env), factory) in
-      analysis_cont instr env allocs
+      block_analysis instr env allocs
     end
-  | Apply_block (k', args) -> Jmp [k', Cont (map_env args env), factory]
+  | Apply_block (k', args) -> Jmp [k', Cont (map_env args env)], factory
   | If (var, matchs, (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
         match List.find_opt (fun (n', _, _) -> Int_domain.get_singleton i = n') matchs with
-        | Some (_, kt, argst) -> Jmp [kt, If_branch (map_env argst env, map_env fvs env), factory]
-        | None -> Jmp [kf, If_branch (map_env argsf env, map_env fvs env), factory]
+        | Some (_, kt, argst) -> Jmp [kt, If_branch (map_env argst env, map_env fvs env)], factory
+        | None -> Jmp [kf, If_branch (map_env argsf env, map_env fvs env)], factory
         end
-      | Some (Int_domain _) | None -> Jmp ((kf, If_branch (map_env argsf env, map_env fvs env), factory)::(List.map (fun (_, kt, argst) -> kt, If_branch (map_env argst env, map_env fvs env), factory) matchs))
+      | Some (Int_domain _) | None -> Jmp ((kf, If_branch (map_env argsf env, map_env fvs env)) :: (List.map (fun (_, kt, argst) -> kt, If_branch (map_env argst env, map_env fvs env)) matchs)), factory
       | _ -> assert false
     end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Constructor_domain clos) -> Jmp (List.map (fun (n, env') -> begin
           match List.find_opt (fun (n', _, _, _) -> n = n') matchs with
-          | Some (_, _, k, args) -> k, Match_branch (env', map_env args env, map_env fvs env), factory
-          | None -> kf, Match_branch ([], map_env argsf env, map_env fvs env), factory
-          end) (Cps.PointerMap.bindings clos))
-      | None -> Jmp ((kf, Match_branch ([], map_env argsf env, map_env fvs env), factory)::(List.map (fun (_, pld, kt, argst) -> kt, Match_branch (List.map (fun _ -> Cps.VarSet.empty) pld, map_env argst env, map_env fvs env), factory) matchs))
+          | Some (_, _, k, args) -> k, Match_branch (env', map_env args env, map_env fvs env)
+          | None -> kf, Match_branch ([], map_env argsf env, map_env fvs env)
+          end) (Cps.PointerMap.bindings clos)), factory
+      | None -> Jmp ((kf, Match_branch ([], map_env argsf env, map_env fvs env)) :: (List.map (fun (_, pld, kt, argst) -> kt, Match_branch (List.map (fun _ -> Cps.VarSet.empty) pld, map_env argst env, map_env fvs env)) matchs)), factory
       | _ -> assert false
     end
-  | Return x -> Ret (Cps.VarMap.find x env, factory) (*begin
-      match stack with
-      | [] -> []
-      | (k, args)::stack' -> [k, Return (Cps.VarMap.find x env, args), stack', factory]
-    end*)
-  | If_return (k, arg, args) -> Jmp [k, If_join (Cps.VarMap.find arg env, map_env args env), factory]
-  | Match_return (k, arg, args) -> Jmp [k, Match_join (Cps.VarMap.find arg env, map_env args env), factory]
+  | Return x -> Ret (Cps.VarMap.find x env), factory
+  | If_return (k, arg, args) -> Jmp [k, If_join (Cps.VarMap.find arg env, map_env args env)], factory
+  | Match_return (k, arg, args) -> Jmp [k, Match_join (Cps.VarMap.find arg env, map_env args env)], factory
   | Call (x, args, (k', args')) -> begin
       match get env x factory with
-      | Some (Closure_domain clos) -> Calll (List.map (fun (k, env') -> k, Clos (env', map_args args env), ((k', map_env args' env)), factory) (Cps.PointerMap.bindings clos))
+      | Some (Closure_domain clos) -> Calll (List.map (fun (k, env') -> k, Clos (env', map_args args env), ((k', map_env args' env))) (Cps.PointerMap.bindings clos)), factory
       | _ -> assert false
     end
   | Call_direct (k, x, args, (k', args')) -> begin
       match get env x factory with
-      | Some (Closure_domain clos) -> assert (Cps.PointerMap.cardinal clos = 1); Calll (List.map (fun (_, env') -> k, Clos (env', map_args args env), ((k', map_env args' env)), factory) (Cps.PointerMap.bindings clos))
+      | Some (Closure_domain clos) -> assert (Cps.PointerMap.cardinal clos = 1); Calll (List.map (fun (_, env') -> k, Clos (env', map_args args env), ((k', map_env args' env))) (Cps.PointerMap.bindings clos)), factory
       | _ -> assert false
     end
 
@@ -354,10 +350,10 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
           end else begin
             let block, instr = Cps.PointerMap.find k blocks in
             let next_conts = begin
-              match analysis_cont instr (block_env block block') new_factory with
-              | Jmp l -> List.map (fun (k, block', factory) -> k, block', stack''', factory) l
-              | Calll l -> List.map (fun (k, block', frame, factory) -> k, block', frame :: stack''', factory) l
-              | Ret (allocations, factory) -> begin
+              match block_analysis instr (block_env block block') new_factory with
+              | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
+              | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
+              | Ret allocations, factory -> begin
                   match stack''' with
                   | [] -> []
                   | (k, args) :: stack' -> [k, Return (allocations, args), stack', factory]
@@ -368,10 +364,10 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
         end else begin
           let block, instr = Cps.PointerMap.find k blocks in
           let next_conts = begin
-            match analysis_cont instr (block_env block block') factory with
-            | Jmp l -> List.map (fun (k, block', factory) -> k, block', stack''', factory) l
-            | Calll l -> List.map (fun (k, block', frame, factory) -> k, block', frame :: stack''', factory) l
-            | Ret (allocations, factory) -> begin
+            match block_analysis instr (block_env block block') factory with
+            | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
+            | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
+            | Ret allocations, factory -> begin
                 match stack''' with
                 | [] -> []
                 | (k, args) :: stack' -> [k, Return (allocations, args), stack', factory]
@@ -382,10 +378,10 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
       end else begin
         let block, instr = Cps.PointerMap.find k blocks in
         let next_conts = begin
-          match analysis_cont instr (block_env block block') factory with
-          | Jmp l -> List.map (fun (k, block', factory) -> k, block', stack''', factory) l
-          | Calll l -> List.map (fun (k, block', frame, factory) -> k, block', frame :: stack''', factory) l
-          | Ret (allocations, factory) -> begin
+          match block_analysis instr (block_env block block') factory with
+          | Jmp l, factory -> List.map (fun (k, block') -> k, block', stack''', factory) l
+          | Calll l, factory -> List.map (fun (k, block', frame) -> k, block', frame :: stack''', factory) l
+          | Ret allocations, factory -> begin
               match stack''' with
               | [] -> []
               | (k, args) :: stack' -> [k, Return (allocations, args), stack', factory]
@@ -430,8 +426,8 @@ let propagation_named (expr: expr) (env: environment) (factory: factory): expr *
   | Closure (k, values) -> Closure (k, values), Some (Closure_domain (Cps.PointerMap.singleton k (map_env values env)))
   | Constructor (tag, environment) -> Constructor (tag, environment), Some (Constructor_domain (Cps.PointerMap.singleton tag (map_args environment env)))
 
-let rec propagation (cps : Cps.instr) (env: environment) (factory: factory): instr =
-  match cps with
+let rec propagation (instr : Cps.instr) (env: environment) (factory: factory): instr =
+  match instr with
   | Let (var, expr, instr) -> begin
       let expr, value = propagation_named expr env factory in
       match value with
