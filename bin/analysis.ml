@@ -3,6 +3,7 @@ type var = Cps.var
 type expr = Cps.expr
 type pointer = Cps.pointer
 type instr = Cps.instr
+type block = Cps.block
 type blocks = Cps.blocks
 
 type allocations = Cps.VarSet.t
@@ -468,3 +469,92 @@ let propagation_blocks (blocks: Cps.blocks) (map: (factory * abstract_block) Cps
       block, propagation instr (block_env block block') factory
     else block, instr
   end) blocks
+
+let inc (vars: var Seq.t): var * var Seq.t =
+  match Seq.uncons vars with
+  | None -> assert false
+  | Some (i, vars') -> i, vars'
+
+let fvs_to_list fvs = Cps.VarSet.elements fvs
+
+let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (factory: factory) (vars: var Seq.t): Asm.instr * var Seq.t =
+  match expr with
+  | Const x -> Let (var, Const x, asm), vars
+  | Add (x1, x2) -> begin
+      match get_value var factory with
+      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Const (Int_domain.get_singleton d), asm), vars
+      | _ -> Let (var, Add (x1, x2), asm), vars
+    end
+  | Sub (x1, x2) -> begin
+      match get_value var factory with
+      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Const (Int_domain.get_singleton d), asm), vars
+      | _ -> Let (var, Sub (x1, x2), asm), vars
+    end
+  | Print x -> Let (var, Print x, asm), vars
+  | Var x -> Let (var, Var x, asm), vars
+  | Tuple args -> Let (var, Tuple args, asm), vars
+  | Get (record, pos) -> Let (var, Get (record, pos), asm), vars
+  | Closure (k, env) -> begin
+      let k_id, vars = inc vars in
+      let env_id, vars = inc vars in
+      Let (k_id, Pointer k, Let (env_id, Tuple (fvs_to_list env), Let (var, Tuple [k_id; env_id], asm))), vars
+    end
+  | Constructor (tag, env) -> begin
+      let tag_id, vars = inc vars in
+      let env_id, vars = inc vars in
+      Let (tag_id, Const tag, Let (env_id, Tuple env, Let (var, Tuple [tag_id; env_id], asm))), vars
+    end
+
+let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars: var Seq.t) (pointers: Asm.pointer Seq.t): Asm.instr * Asm.var Seq.t * Asm.pointer Seq.t * Asm.blocks =
+  match block with
+  | Let (var, expr, instr) -> begin
+      let asm, vars, pointers, blocks = instr_to_asm instr env factory vars pointers in
+      let asm, vars = expr_to_asm var expr asm factory vars in
+      asm, vars, pointers, blocks
+    end
+  | Apply_block (k, args) -> Apply_direct (k, fvs_to_list args, []), vars, pointers, Asm.PointerMap.empty
+  | If (_, [], (kf, argsf), fvs) -> Apply_direct (kf, fvs_to_list argsf @ fvs_to_list fvs, []), vars, pointers, Asm.PointerMap.empty
+  | If (var, matchs, (kf, argsf), fvs) -> If (var, List.map (fun (n, k, argst) -> n, k, (fvs_to_list argst) @ (fvs_to_list fvs)) matchs, (kf, (fvs_to_list argsf) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
+  | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
+      let tag_id, vars = inc vars in
+      let payload_id, vars = inc vars in
+      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), If (tag_id, List.map (fun (n, _, k, args) -> (n, k, payload_id :: (fvs_to_list args) @ (fvs_to_list fvs))) matchs, (kf, payload_id :: (fvs_to_list argsf) @ (fvs_to_list fvs)), [])))), vars, pointers, Asm.PointerMap.empty
+    end
+  | Return var -> Return var, vars, pointers, Asm.PointerMap.empty
+  | If_return (k, arg, args) -> Apply_direct (k, arg :: (fvs_to_list args), []), vars, pointers, Asm.PointerMap.empty
+  | Match_return (k, arg, args) -> Apply_direct (k, arg :: (fvs_to_list args), []), vars, pointers, Asm.PointerMap.empty
+  | Call (clos, args, (p, args')) -> begin
+      let k_id, vars = inc vars in
+      let env_id, vars = inc vars in
+      Let (k_id, Get (clos, 0), Let (env_id, Get (clos, 1), Apply_indirect (k_id, env_id :: args, [p, fvs_to_list args']))), vars, pointers, Asm.PointerMap.empty
+    end
+  | Call_direct (k, clos, args, (p, args')) -> begin
+      let env_id, vars = inc vars in
+      Let (env_id, Get (clos, 1), Apply_direct (k, env_id :: args, [p, fvs_to_list args'])), vars, pointers, Asm.PointerMap.empty
+    end
+
+let block_to_asm (block: block) (asm1: Asm.instr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
+  match block with
+  | Cont (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
+  | Return (arg, args') -> (arg :: fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
+  | Clos (body_free_variables, args') -> begin
+      let function_id, pointers = inc pointers in
+      let environment_id, vars = inc vars in
+      let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) (Apply_direct (function_id, args' @ fvs_to_list body_free_variables, [])) (List.mapi (fun i fv -> i, fv) (fvs_to_list body_free_variables)) in
+      (environment_id :: args', body), vars, pointers, Asm.PointerMap.singleton function_id (args' @ fvs_to_list body_free_variables, asm1)
+    end
+  | If_branch (args, fvs) -> (fvs_to_list args @ fvs_to_list fvs, asm1), vars, pointers, Asm.PointerMap.empty
+  | If_join (arg, args) -> (arg :: fvs_to_list args, asm1), vars, pointers, Asm.PointerMap.empty
+  | Match_branch (body_free_variables, args', fvs) -> begin
+      let environment_id, vars = inc vars in
+      let body = List.fold_left (fun block' (pos, body_free_variable) -> Asm.Let (body_free_variable, Asm.Get (environment_id, pos), block')) asm1 (List.mapi (fun i fv -> i, fv) body_free_variables) in
+      (environment_id :: fvs_to_list args' @ fvs_to_list fvs, body), vars, pointers, Asm.PointerMap.empty
+    end
+  | Match_join (arg, args) -> (arg :: fvs_to_list args, asm1), vars, pointers, Asm.PointerMap.empty
+
+let blocks_to_asm (blocks: blocks) (env: environment) (factory: factory) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.blocks * Asm.var Seq.t * Asm.pointer Seq.t =
+  Cps.PointerMap.fold (fun k (block, instr) (blocks, vars, pointers) -> begin
+    let asm, vars, pointers, blocks' = instr_to_asm instr env factory vars pointers in  
+    let block, vars, pointers, blocks'' = block_to_asm block asm vars pointers in
+    Asm.PointerMap.add k block (Asm.PointerMap.union (fun _ -> assert false) blocks (Asm.PointerMap.union (fun _ -> assert false) blocks' blocks'')), vars, pointers
+  end) blocks (Asm.PointerMap.empty, vars, pointers)
