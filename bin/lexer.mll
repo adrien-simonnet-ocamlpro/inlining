@@ -1,5 +1,7 @@
 {
   open Parser
+
+  exception Unexpected_character of string
 }
 
 rule jetons = parse
@@ -15,8 +17,6 @@ rule jetons = parse
 | "+" { PLUS }
 | "-" { MOINS }
 
-| "print" { PRINT }
-
 | ";" { POINT_VIRGULE }
 | "::" { DEUX_POINTS_DEUX_POINTS }
 
@@ -25,7 +25,6 @@ rule jetons = parse
 | "else" { ELSE }
 
 | "fun" { FUN }
-(*| "fix" { FIX }*)
 | "->" { FLECHE }
 
 | "let" { LET }
@@ -59,7 +58,7 @@ rule jetons = parse
 
 | eof { EOF }
 
-| _ as c{ raise(Failure ("unexpected character " ^ (String.make 1 c))) }
+| _ as c { raise(Unexpected_character (String.make 1 c)) }
 
 and commentaires = parse
 | "*)" { jetons lexbuf }
