@@ -6,9 +6,9 @@ rule jetons = parse
 | "(*" { commentaires lexbuf }
 | "(" { PARENTHESE_OUVRANTE }
 | ")" { PARENTHESE_FERMANTE }
-(*| "[" { CROCHET_OUVRANT }
+| "[" { CROCHET_OUVRANT }
 | "]" { CROCHET_FERMANT }
-| "{" { ACCOLADE_OUVRANTE }
+(*| "{" { ACCOLADE_OUVRANTE }
 | "}" { ACCOLADE_FERMANTE }*)
 
 | ['0'-'9']+ as integer  { NAT (int_of_string integer) }
@@ -17,10 +17,8 @@ rule jetons = parse
 
 | "print" { PRINT }
 
-(*| "cons" { CONS }
+| ";" { POINT_VIRGULE }
 | "::" { DEUX_POINTS_DEUX_POINTS }
-| "hd" { HD }
-| "tl" { TL }*)
 
 | "if" { IFZERO }
 (*| "ifempty" { IFEMPTY }*)

@@ -3,7 +3,7 @@
 %}
 
 %token PARENTHESE_OUVRANTE PARENTHESE_FERMANTE
-//%token CROCHET_OUVRANT CROCHET_FERMANT
+%token CROCHET_OUVRANT CROCHET_FERMANT
 //%token ACCOLADE_OUVRANTE ACCOLADE_FERMANTE
 
 %token<int> NAT
@@ -11,7 +11,7 @@
 
 %token PRINT
 
-//%token NIL CONS DEUX_POINTS_DEUX_POINTS HD TL
+%token DEUX_POINTS_DEUX_POINTS POINT_VIRGULE
 
 %token IFZERO /*IFEMPTY*/ THEN ELSE WHILE
 
@@ -68,14 +68,10 @@ terme :
 | i = NAT { Ast.Int i }
 | e1 = terme bop = binary_operator e2 = terme { Ast.Binary (bop, e1, e2) }
 
-/*| NIL { Ast.Nil }
-| CONS terme terme { Ast.Cons ($2, $3) }
-| terme DEUX_POINTS_DEUX_POINTS terme { Ast.Cons ($1, $3) }
-| HD terme { Ast.Head ($2) }
-| TL terme { Ast.Tail ($2) }*/
+
+| hd = terme DEUX_POINTS_DEUX_POINTS tl = terme { Ast.Constructor ("Cons", [hd; tl]) }
 
 | IFZERO cond = terme THEN iftrue = terme ELSE iffalse = terme { Ast.If (cond, iftrue, iffalse) }
-/*| IFEMPTY terme THEN terme ELSE terme { Ast.Ifempty ($2, $4, $6) }*/
 
 | i = IDENT { Ast.Var i }
 | constructor_name = CONSTRUCTOR_NAME { Ast.Constructor (constructor_name, []) }
@@ -83,7 +79,7 @@ terme :
 | constructor_name = CONSTRUCTOR_NAME PARENTHESE_OUVRANTE payload = payload_expr PARENTHESE_FERMANTE { Ast.Constructor (constructor_name, payload) }
 
 | FUN args = arguments { args }
-/*| FIX PARENTHESE_OUVRANTE IDENT FLECHE terme PARENTHESE_FERMANTE { Ast.Fix ($3, $5) }*/
+
 | e1 = terme e2 = terme %prec app { Ast.App (e1, e2) }
 
 | TYPE i = IDENT EGAL constructors = constructors expr = terme { Ast.Type (i, constructors, expr) }
@@ -92,6 +88,8 @@ terme :
 | LET i = IDENT EGAL e1 = terme IN e2 = terme { Ast.Let (i, e1, e2) }
 
 | MATCH e = terme WITH ps = patterns { Ast.Match (e, ps) }
+
+| CROCHET_OUVRANT l = liste { l }
 
 binary_operator:
 | PLUS { Ast.Add }
@@ -137,7 +135,7 @@ bindings :
 | EXCLAMATION terme { Ast.Deref $2 }
 | terme DEUX_POINTS_EGAL terme { Ast.Assign ($1, $3) }*/
 
-/*| CROCHET_OUVRANT liste { $2 }*/
+
 
 /*| ACCOLADE_OUVRANTE enregistrement { $2 }
 | terme POINT IDENT { Ast.Field ($1, $3) }*/
@@ -146,10 +144,10 @@ arguments :
 | i = IDENT FLECHE e = terme { Ast.Fun ([i], e) }
 | i = IDENT args = arguments { Ast.Fun ([i], args) }
 
-/*liste :
-| CROCHET_FERMANT { Ast.Nil }
-| terme CROCHET_FERMANT { Ast.Cons ($1, Ast.Nil) }
-| terme liste { Ast.Cons ($1, $2) }*/
+liste :
+| CROCHET_FERMANT { Ast.Constructor ("Empty", []) }
+| e = terme CROCHET_FERMANT { Ast.Constructor ("Cons", [e; Ast.Constructor ("Empty", [])]) }
+| hd = terme POINT_VIRGULE tl = liste { Ast.Constructor ("Cons", [hd; tl]) }
 
 /*enregistrement :
 | terme ACCOLADE_FERMANTE { $1 }
