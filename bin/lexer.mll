@@ -20,8 +20,7 @@ rule jetons = parse
 | ";" { POINT_VIRGULE }
 | "::" { DEUX_POINTS_DEUX_POINTS }
 
-| "if" { IFZERO }
-(*| "ifempty" { IFEMPTY }*)
+| "if" { IF }
 | "then" { THEN }
 | "else" { ELSE }
 

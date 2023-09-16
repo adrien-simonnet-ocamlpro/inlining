@@ -13,12 +13,12 @@
 
 %token DEUX_POINTS_DEUX_POINTS POINT_VIRGULE
 
-%token IFZERO /*IFEMPTY*/ THEN ELSE WHILE
+%token IF THEN ELSE WHILE
 
 %token<string> IDENT
 %token<string> CONSTRUCTOR_NAME
 
-%token FUN /*FIX*/ FLECHE
+%token FUN FLECHE
 
 %token LET REC AND IN EGAL
 
@@ -71,7 +71,7 @@ terme :
 
 | hd = terme DEUX_POINTS_DEUX_POINTS tl = terme { Ast.Constructor ("Cons", [hd; tl]) }
 
-| IFZERO cond = terme THEN iftrue = terme ELSE iffalse = terme { Ast.If (cond, iftrue, iffalse) }
+| IF cond = terme THEN iftrue = terme ELSE iffalse = terme { Ast.If (cond, iftrue, iffalse) }
 
 | i = IDENT { Ast.Var i }
 | constructor_name = CONSTRUCTOR_NAME { Ast.Constructor (constructor_name, []) }
