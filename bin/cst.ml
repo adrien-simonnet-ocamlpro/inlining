@@ -22,6 +22,7 @@ type expr =
 | Fun of var list * expr
 | App of expr * expr
 | Let of var * expr * expr
+| Let_tuple of var list * expr * expr
 | Let_rec of (var * expr) list * expr
 | Int of int
 | Binary of binary_operator * expr * expr
@@ -61,12 +62,17 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): un
   | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" (pp_args subs) args pp_expr e
   | Var x -> Format.fprintf fmt "%s%!" (string_of_sub x subs)
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in %a)%!" (string_of_sub var subs) pp_expr e1 pp_expr e2
+  | Let_tuple ([], e1, e2) -> Format.fprintf fmt "(let () = %a in\n%a)%!" pp_expr e1 pp_expr e2
+  | Let_tuple ([var], e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" (string_of_sub var subs) pp_expr e1 pp_expr e2
+  | Let_tuple (var :: vars, e1, e2) -> Format.fprintf fmt "(let %s" (string_of_sub var subs); List.iter (fun var -> Format.fprintf fmt ", %s" (string_of_sub var subs)) vars; Format.fprintf fmt " = %a in\n%a)%!"  pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec %s in %a)%!" (List.fold_left (fun str (var, e) -> str ^ Format.asprintf "%s = %a" (string_of_sub var subs) pp_expr e) "" _bindings) pp_expr expr
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
   | Constructor (_, _) -> Format.fprintf fmt "constructor%!"
   | Match (_, _, _) -> Format.fprintf fmt "match%!"
-  | Tuple _ -> Format.fprintf fmt "tuple%!"
+  | Tuple [] -> Format.fprintf fmt "()"
+  | Tuple [expr] -> Format.fprintf fmt "%a" pp_expr expr
+  | Tuple (expr :: exprs) -> Format.fprintf fmt "(%a" pp_expr expr; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs; Format.fprintf fmt ")"
 
 let binary_operator_to_prim (binary: binary_operator) (x1: Cps.var) (x2: Cps.var): Cps.expr =
   match binary with
@@ -88,6 +94,7 @@ let union_fvs fv1 fv2 = Cps.VarSet.union fv1 fv2
 let fold_fvs fvs = List.fold_left (fun fvs fv -> union_fvs fvs fv) Cps.VarSet.empty fvs
 let singleton_fv fv = Cps.VarSet.singleton fv
 let remove_fv fvs fv = Cps.VarSet.remove fv fvs
+let remove_fvs fvs fvs' = List.fold_left (fun fvs fv -> Cps.VarSet.remove fv fvs) fvs fvs'
 let fvs_from_list l = List.fold_left (fun fvs fv -> Cps.VarSet.add fv fvs) Cps.VarSet.empty l
 
 let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.VarSet.t) (ast : expr) var (expr : Cps.instr): Cps.instr * Cps.var Seq.t * Cps.pointer Seq.t * Cps.VarSet.t * Cps.blocks =
@@ -131,6 +138,13 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.Var
       let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers fvs e2 var expr in
       let cps2, vars, pointers, fv2, conts2 = to_cps vars pointers (remove_fv (union_fvs fv1 fvs) var') e1 var' cps1 in
       cps2, vars, pointers, union_fvs fv2 (remove_fv fv1 var'), join_blocks conts1 conts2
+    end
+  | Let_tuple (vars', e1, e2) -> begin
+      let tuple_id, vars = inc vars in
+      let cps1, vars, pointers, fv1, conts1 = to_cps vars pointers fvs e2 var expr in
+      let cps2 = List.fold_left (fun cps (i, var) ->  Cps.Let (var, Cps.Get (tuple_id, i), cps)) cps1 (List.mapi (fun i v -> i, v) vars') in
+      let cps3, vars, pointers, fv2, conts2 = to_cps vars pointers (remove_fvs (union_fvs fv1 fvs) vars') e1 tuple_id cps2 in
+      cps3, vars, pointers, union_fvs fv2 (remove_fvs fv1 vars'), join_blocks conts1 conts2
     end
     (*
         let env = fvs_1 ∪ ... ∪ fvs_n

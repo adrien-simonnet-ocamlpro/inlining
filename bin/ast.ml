@@ -48,7 +48,9 @@ type expr =
 | Var of var
 | Fun of var list * expr
 | App of expr * expr
+| Tuple of expr list
 | Let of var * expr * expr
+| Let_tuple of var list * expr * expr
 | Let_rec of (var * expr) list * expr
 | Int of int
 | Binary of binary_operator * expr * expr
@@ -83,8 +85,14 @@ let rec pp_expr fmt expr =
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)%!" pp_expr a pp_binary_operator op pp_expr b
   | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" pp_args args pp_expr e
+  | Tuple [] -> Format.fprintf fmt "()"
+  | Tuple [expr] -> Format.fprintf fmt "%a" pp_expr expr
+  | Tuple (expr :: exprs) -> Format.fprintf fmt "(%a" pp_expr expr; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs; Format.fprintf fmt ")"
   | Var x -> Format.fprintf fmt "%s%!" x
   | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
+  | Let_tuple ([], e1, e2) -> Format.fprintf fmt "(let () = %a in\n%a)%!" pp_expr e1 pp_expr e2
+  | Let_tuple ([var], e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
+  | Let_tuple (var :: vars, e1, e2) -> Format.fprintf fmt "(let %s" var; List.iter (fun var -> Format.fprintf fmt ", %s" var) vars; Format.fprintf fmt " = %a in\n%a)%!"  pp_expr e1 pp_expr e2
   | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)%!" pp_expr expr
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)%!" pp_expr e1 pp_expr e2
@@ -123,6 +131,13 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
       let e', vars, subs, fvs = expr_to_cst e vars (List.fold_left (fun substitutions' (arg, arg_id) -> Abs.add arg arg_id substitutions') substitutions (List.combine args args_ids)) constructors in
       Fun (args_ids, e'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Subs.add arg_id arg subs') subs (List.combine args args_ids)), fvs
     end
+  | Tuple exprs -> begin
+      let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors in
+        (vars, Subs.union subs' subs, Fvs.union fvs' fvs), expr'
+      end) (vars, Subs.empty, Abs.empty) exprs in
+      Tuple exprs', vars, subs, fvs
+    end
   | Var x -> if Abs.mem x substitutions then Var (Abs.find x substitutions), vars, Subs.empty, Fvs.empty else begin
       let var_id, vars = inc vars in
       Var (var_id), vars, Subs.empty, Fvs.singleton x var_id
@@ -140,6 +155,15 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
       let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
       let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Abs.add var var_id (Fvs.union fvs1 substitutions)) constructors in
       Let (var_id, e1', e2'), vars, Subs.add var_id var (Subs.union subs1 subs2), Fvs.union fvs1 fvs2
+    end
+  | Let_tuple (vars', e1, e2) -> begin
+      let vars, vars_ids = List.fold_left_map (fun vars _ -> begin
+        let arg_id, vars = inc vars in
+        vars, arg_id
+      end) vars vars' in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (List.fold_left (fun substitutions (var, var_id) -> Abs.add var var_id substitutions) (Fvs.union fvs1 substitutions) (List.combine vars' vars_ids)) constructors in
+      Let_tuple (vars_ids, e1', e2'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Subs.add arg_id arg subs') (Subs.union subs1 subs2) (List.combine vars' vars_ids)), Fvs.union fvs1 fvs2
     end
   | If (e1, e2, e3) -> begin
       let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in

@@ -63,6 +63,7 @@ expr :
 | PARENTHESE_OUVRANTE e = expr PARENTHESE_FERMANTE { e }
 | n = NAT { Ast.Int n }
 | LET i = IDENT EGAL e1 = expr IN e2 = expr { Ast.Let (i, e1, e2) }
+| LET i = IDENT VIRGULE ti = tuple_idents EGAL e1 = expr IN e2 = expr { Ast.Let_tuple (i :: ti, e1, e2) }
 | LET i = IDENT fund = fun_definition IN e2 = expr { Ast.Let (i, fund, e2) }
 | LET REC bindings = bindings IN e2 = expr { Ast.Let_rec (bindings, e2) }
 | FUN args = arguments { args }
@@ -77,6 +78,15 @@ expr :
 | MATCH e = expr WITH ps = patterns { Ast.Match (e, ps) }
 | CROCHET_OUVRANT l = list { l }
 | hd = expr DEUX_POINTS_DEUX_POINTS tl = expr { Ast.Constructor ("Cons", [hd; tl]) }
+| PARENTHESE_OUVRANTE e = expr VIRGULE t = tuple_exprs PARENTHESE_FERMANTE { Ast.Tuple (e :: t) }
+
+tuple_idents:
+| i = IDENT { [i] }
+| i = IDENT VIRGULE ti = tuple_idents { i :: ti }
+
+tuple_exprs:
+| e = expr { [e] }
+| e = expr VIRGULE t = tuple_exprs { e :: t }
 
 binary_operator:
 | PLUS { Ast.Add }
