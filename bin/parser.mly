@@ -22,8 +22,6 @@
 
 %token MATCH WITH
 
-%token JOKER
-
 %token TYPE OF
 
 %token STAR
@@ -130,7 +128,6 @@ pattern :
 | cname = CONSTRUCTOR_NAME { Ast.Deconstructor (cname, []) }
 | cname = CONSTRUCTOR_NAME ident = IDENT { Ast.Deconstructor (cname, [ident]) }
 | cname = CONSTRUCTOR_NAME LEFT_PARENTHESIS pl = payload_idents RIGHT_PARENTHESIS { Ast.Deconstructor (cname, pl) }
-| JOKER { Ast.Joker "_" }
 
 payload_idents:
 | ident = IDENT { [ident] }
