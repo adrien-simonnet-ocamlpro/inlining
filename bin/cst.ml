@@ -292,7 +292,7 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.Var
           expr
     *)
   | App (e1, e2) -> begin
-      (* Varialbes that will hold expression result. *)
+      (* Variables that will hold expression result. *)
       let e1_id, vars = inc vars in
       let e2_id, vars = inc vars in
 
