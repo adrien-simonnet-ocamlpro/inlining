@@ -6,26 +6,26 @@
 
 rule jetons = parse
 | "(*" { commentaires lexbuf }
-| "(" { PARENTHESE_OUVRANTE }
-| ")" { PARENTHESE_FERMANTE }
-| "[" { CROCHET_OUVRANT }
-| "]" { CROCHET_FERMANT }
-(*| "{" { ACCOLADE_OUVRANTE }
-| "}" { ACCOLADE_FERMANTE }*)
+| "(" { LEFT_PARENTHESIS }
+| ")" { RIGHT_PARENTHESIS }
+| "[" { LEFT_BRACKET }
+| "]" { RIGHT_BRACKET }
+(*| "{" { LEFT_BRACE }
+| "}" { RIGHT_BRACE }*)
 
-| ['0'-'9']+ as integer  { NAT (int_of_string integer) }
+| ['0'-'9']+ as integer  { INT (int_of_string integer) }
 | "+" { PLUS }
-| "-" { MOINS }
+| "-" { MINUS }
 
-| ";" { POINT_VIRGULE }
-| "::" { DEUX_POINTS_DEUX_POINTS }
+| ";" { SEMICOLON }
+| "::" { CONS }
 
 | "if" { IF }
 | "then" { THEN }
 | "else" { ELSE }
 
 | "fun" { FUN }
-| "->" { FLECHE }
+| "->" { ARROW }
 
 | "let" { LET }
 | "rec" { REC }
@@ -38,16 +38,16 @@ rule jetons = parse
 
 | "type" { TYPE }
 | "of" { OF }
-| "|" { BARRE }
-| "*" { ASTERISQUE }
+| "|" { BAR }
+| "*" { STAR }
 
 (*| "ref" { REF }
 | "!" { EXCLAMATION }
 | ":=" { DEUX_POINTS_EGAL }*)
 
-| ":" { DEUX_POINTS }
-| "," { VIRGULE }
-| "." { POINT }
+| ":" { COLONS }
+| "," { COMMA }
+| "." { DOT }
 
 | "_" { JOKER }
 
