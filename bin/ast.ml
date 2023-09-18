@@ -44,7 +44,6 @@ type match_pattern =
 | Joker of var
 
 type expr =
-| Unit
 | Var of var
 | Fun of var list * expr
 | App of expr * expr
@@ -81,7 +80,6 @@ let pp_args (fmt: Format.formatter) (args: var list): unit =
 
 let rec pp_expr fmt expr =
   match expr with
-  | Unit -> Format.fprintf fmt "()"
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)%!" pp_expr a pp_binary_operator op pp_expr b
   | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" pp_args args pp_expr e
@@ -139,7 +137,6 @@ let binary_to_cst (binary: binary_operator): Cst.binary_operator =
 
 let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (constructors: Cst.var TagMap.t): Cst.expr * Cst.var Seq.t * var Cst.VarMap.t * Cst.var VarMap.t =
   match expr with
-  | Unit -> Unit, vars, Subs.empty, Abs.empty
   | Int i -> Int i, vars, Subs.empty, Abs.empty
   | Binary (op, e1, e2) -> begin
       let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in

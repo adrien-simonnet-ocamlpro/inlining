@@ -17,7 +17,6 @@ type binary_operator =
 | Sub
 
 type expr =
-| Unit
 | Var of var
 | Fun of var list * expr
 | App of expr * expr
@@ -56,7 +55,6 @@ let pp_args (subs: string VarMap.t) (fmt: Format.formatter) (args: var list): un
 let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): unit =
   let pp_expr = pp_expr subs in
   match expr with
-  | Unit -> Format.fprintf fmt "()"
   | Int i -> Format.fprintf fmt "%d%!" i
   | Binary (op, a, b) -> Format.fprintf fmt "%a %a %a%!" pp_expr a pp_binary_operator op pp_expr b
   | Fun (args, e) -> Format.fprintf fmt "(fun %a -> %a)%!" (pp_args subs) args pp_expr e
@@ -125,7 +123,6 @@ let fvs_from_list l = List.fold_left (fun fvs fv -> Cps.VarSet.add fv fvs) Cps.V
 
 let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.VarSet.t) (ast : expr) var (expr : Cps.instr): Cps.instr * Cps.var Seq.t * Cps.pointer Seq.t * Cps.VarSet.t * Cps.blocks =
   match ast with
-  | Unit -> Let (var, Tuple [], expr), vars, pointers, empty_fvs, empty_blocks
   | Int i -> Let (var, Const i, expr), vars, pointers, empty_fvs, empty_blocks
   | Binary (binary_operator, e1, e2) -> begin
       let e1_id, vars = inc vars in

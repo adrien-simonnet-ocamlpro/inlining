@@ -59,7 +59,7 @@
 file : e = expr EOF { e } ;
 
 expr :
-| LEFT_PARENTHESIS RIGHT_PARENTHESIS { Ast.Unit }
+| LEFT_PARENTHESIS RIGHT_PARENTHESIS { Ast.Tuple [] }
 | LEFT_PARENTHESIS e = expr RIGHT_PARENTHESIS { e }
 | n = INT { Ast.Int n }
 | LET i = IDENT EGAL e1 = expr IN e2 = expr { Ast.Let (i, e1, e2) }
