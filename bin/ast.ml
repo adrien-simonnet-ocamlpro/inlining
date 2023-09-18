@@ -89,18 +89,41 @@ let rec pp_expr fmt expr =
   | Tuple [expr] -> Format.fprintf fmt "%a" pp_expr expr
   | Tuple (expr :: exprs) -> Format.fprintf fmt "(%a" pp_expr expr; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs; Format.fprintf fmt ")"
   | Var x -> Format.fprintf fmt "%s%!" x
-  | Let (var, e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
-  | Let_tuple ([], e1, e2) -> Format.fprintf fmt "(let () = %a in\n%a)%!" pp_expr e1 pp_expr e2
-  | Let_tuple ([var], e1, e2) -> Format.fprintf fmt "(let %s = %a in\n%a)%!" var pp_expr e1 pp_expr e2
-  | Let_tuple (var :: vars, e1, e2) -> Format.fprintf fmt "(let %s" var; List.iter (fun var -> Format.fprintf fmt ", %s" var) vars; Format.fprintf fmt " = %a in\n%a)%!"  pp_expr e1 pp_expr e2
-  | Let_rec (_bindings, expr) -> Format.fprintf fmt "(let rec in\n%a)%!" pp_expr expr
+  | Let (var, e1, e2) -> Format.fprintf fmt "let %s = %a in\n\n%a%!" var pp_expr e1 pp_expr e2
+  | Let_tuple ([], e1, e2) -> Format.fprintf fmt "let () = %a in\n\n%a%!" pp_expr e1 pp_expr e2
+  | Let_tuple ([var], e1, e2) -> Format.fprintf fmt "let %s = %a in\n\n%a%!" var pp_expr e1 pp_expr e2
+  | Let_tuple (var :: vars, e1, e2) -> Format.fprintf fmt "let %s" var; List.iter (fun var -> Format.fprintf fmt ", %s" var) vars; Format.fprintf fmt " = %a in\n\n%a)%!"  pp_expr e1 pp_expr e2
+  | Let_rec (bindings, expr0) -> begin
+      Format.fprintf fmt "let rec"; begin
+        match bindings with
+        | [] -> Format.fprintf fmt "\n"
+        | [var, e] -> Format.fprintf fmt " %s = %a" var pp_expr e
+        | (var, e) :: bindings' -> begin
+            Format.fprintf fmt " %s = %a" var pp_expr e;
+            List.iter (fun (var, expr) -> Format.fprintf fmt "\nand %s = %a" var pp_expr expr) bindings'
+          end;
+      end;
+      Format.fprintf fmt " in\n\n%a%!" pp_expr expr0
+    end
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)%!" pp_expr e1 pp_expr e2
-  | Type (name, _, expr) -> Format.fprintf fmt "type %s = %s \n\n%a%!" name "constructors" pp_expr expr
+  | Type (name, constructors, expr) -> begin
+      Format.fprintf fmt "type %s =" name; List.iter (fun (cname, ctype) -> begin
+        match ctype with
+        | [] -> Format.fprintf fmt "\n| %s" cname
+        | [t] -> Format.fprintf fmt "\n| %s of %s" cname t
+        | t :: ts -> Format.fprintf fmt "\n| %s of %s" cname t; List.iter (fun t -> Format.fprintf fmt " * %s" t) ts
+      end) constructors;
+      Format.fprintf fmt "\n\n%a%!" pp_expr expr
+    end
   | Constructor (name, []) -> Format.fprintf fmt "%s" name
   | Constructor (name, [ e ]) -> Format.fprintf fmt "%s %a" name pp_expr e
   | Constructor (name, e :: exprs') -> Format.fprintf fmt "%s (%a" name pp_expr e; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs'; Format.fprintf fmt ")"
-  | Match (e, matchs) -> Format.fprintf fmt "(match %a with %!" pp_expr e; (List.iter (fun (pattern, e) -> Format.fprintf fmt "%a -> %a" pp_match_pattern pattern pp_expr e) matchs); Format.fprintf fmt ")"
+  | Match (e, matchs) -> begin
+      Format.fprintf fmt "(match %a with" pp_expr e;
+      List.iter (fun (pattern, e) -> Format.fprintf fmt "\n| %a -> %a" pp_match_pattern pattern pp_expr e) matchs;
+      Format.fprintf fmt ")%!"
+    end
   
 let inc (vars: Cst.var Seq.t): Cst.var * Cst.var Seq.t =
   match Seq.uncons vars with
