@@ -29,6 +29,7 @@ type expr =
 | Constructor of tag * expr list
 | Match of expr * (tag * var list * expr) list * expr
 | Tuple of expr list
+| Get of expr * int
 
 
 (* Utils *)
@@ -97,6 +98,7 @@ let rec pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): un
   | Tuple [] -> Format.fprintf fmt "()"
   | Tuple [expr] -> Format.fprintf fmt "%a" pp_expr expr
   | Tuple (expr :: exprs) -> Format.fprintf fmt "(%a" pp_expr expr; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs; Format.fprintf fmt ")"
+  | Get (e, i) -> Format.fprintf fmt "%a.%d%!" pp_expr e i
 
 let binary_operator_to_prim (binary: binary_operator) (x1: Cps.var) (x2: Cps.var): Cps.expr =
   match binary with
@@ -367,4 +369,8 @@ let rec to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cps.Var
         let expr'', vars, pointers, fv'', conts'' = to_cps vars pointers (union_fvs (remove_fv fv' var) fvs) e var expr' in
         expr'', vars, pointers, union_fvs fv'' (remove_fv fv' var), join_blocks conts' conts''
       end) (Let (var, Constructor (tag, List.map (fun (var, _) -> var) args_ids), expr), vars, pointers, fvs_from_list (List.map (fun (var, _) -> var) args_ids), empty_blocks) args_ids
+    end
+  | Get (e, i) -> begin
+      let e_id, vars = inc vars in
+      to_cps vars pointers fvs e e_id (Let (var, Get (e_id, i), expr))
     end

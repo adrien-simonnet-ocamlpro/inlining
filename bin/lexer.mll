@@ -10,8 +10,8 @@ rule tokens = parse
 | ")" { RIGHT_PARENTHESIS }
 | "[" { LEFT_BRACKET }
 | "]" { RIGHT_BRACKET }
-(*| "{" { LEFT_BRACE }
-| "}" { RIGHT_BRACE }*)
+| "{" { LEFT_BRACE }
+| "}" { RIGHT_BRACE }
 
 | ['0'-'9']+ as integer  { INT (int_of_string integer) }
 | "+" { PLUS }
@@ -40,10 +40,6 @@ rule tokens = parse
 | "of" { OF }
 | "|" { BAR }
 | "*" { STAR }
-
-(*| "ref" { REF }
-| "!" { EXCLAMATION }
-| ":=" { DEUX_POINTS_EGAL }*)
 
 | ":" { COLONS }
 | "," { COMMA }

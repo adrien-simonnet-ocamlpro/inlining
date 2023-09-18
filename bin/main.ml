@@ -95,7 +95,7 @@ let _ =
       Ast.pp_expr (Format.formatter_of_out_channel (open_out (input_file ^ ".ast"))) ast;
       Logger.stop ();
       Logger.start "CST -> %s\n%!" (input_file ^ ".cst");
-      let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) Ast.VarMap.empty Ast.TagMap.empty in
+      let cst, _vars, _subs, _fvs = Ast.expr_to_cst ast (Seq.ints 0) Ast.VarMap.empty Ast.TagMap.empty Ast.VarMap.empty in
       Cst.pp_expr (List.fold_left (fun map (s, v) -> Cps.VarMap.add v s map) _subs (Ast.VarMap.fold (fun i v subs -> (i, v)::subs) _fvs [])) (Format.formatter_of_out_channel (open_out (input_file ^ ".cst"))) cst;
       Logger.stop ();
       Logger.start "CPS -> %s\n%!" (input_file ^ ".cps");

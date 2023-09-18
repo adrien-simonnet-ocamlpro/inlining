@@ -4,7 +4,7 @@
 
 %token LEFT_PARENTHESIS RIGHT_PARENTHESIS
 %token LEFT_BRACKET RIGHT_BRACKET
-//%token LEFT_BRACE RIGHT_BRACE
+%token LEFT_BRACE RIGHT_BRACE
 
 %token<int> INT
 %token PLUS MINUS
@@ -29,8 +29,6 @@
 %token STAR
 
 %token BAR
-
-//%token REF EXCLAMATION DEUX_POINTS_EGAL
 
 %token COLONS COMMA DOT
 
@@ -71,8 +69,7 @@ expr :
 | i = IDENT { Ast.Var i }
 | e1 = expr bop = binary_operator e2 = expr { Ast.Binary (bop, e1, e2) }
 | IF cond = expr THEN iftrue = expr ELSE iffalse = expr { Ast.If (cond, iftrue, iffalse) }
-| TYPE i = IDENT EGAL constructors = constructors expr = expr { Ast.Type (i, constructors, expr) }
-| TYPE i = IDENT EGAL BAR constructors = constructors expr = expr { Ast.Type (i, constructors, expr) }
+| TYPE i = IDENT EGAL td = type_declaration expr = expr { Ast.Type (i, td, expr) }
 | cname = CONSTRUCTOR_NAME { Ast.Constructor (cname, []) }
 | cname = CONSTRUCTOR_NAME expr = expr { Ast.Constructor (cname, [expr]) }
 | cname = CONSTRUCTOR_NAME LEFT_PARENTHESIS pl = payload_exprs RIGHT_PARENTHESIS { Ast.Constructor (cname, pl) }
@@ -80,6 +77,19 @@ expr :
 | LEFT_BRACKET l = list { l }
 | hd = expr CONS tl = expr { Ast.Constructor ("Cons", [hd; tl]) }
 | LEFT_PARENTHESIS e = expr COMMA t = tuple_exprs RIGHT_PARENTHESIS { Ast.Tuple (e :: t) }
+| LEFT_BRACE r = record_construction RIGHT_BRACE { Ast.Record_construction r }
+| e = expr DOT i = IDENT { Ast.Record_field (e, i) }
+
+type_definition:
+| i = IDENT { Ast.Type_name i }
+| tdef1 = type_definition STAR tdef2 = type_definition { Ast.Star (tdef1, tdef2) }
+| tdef1 = type_definition ARROW tdef2 = type_definition { Ast.Arrow (tdef1, tdef2) }
+
+type_declaration:
+| tdef = type_definition { Ast.Alias tdef }
+| cdef = constructors_definition { Ast.Data cdef }
+| BAR cdef = constructors_definition { Ast.Data cdef }
+| LEFT_BRACE fdef = fields_definition RIGHT_BRACE { Ast.Record fdef }
 
 tuple_idents:
 | i = IDENT { [i] }
@@ -93,18 +103,23 @@ binary_operator:
 | PLUS { Ast.Add }
 | MINUS { Ast.Sub }
 
-constructors :
+constructor_types:
+| tn = type_definition { [tn] }
+| tn = type_definition STAR tdef = constructor_types { tn :: tdef }
+
+constructors_definition :
 | cname = CONSTRUCTOR_NAME { [cname, []] }
-| cname = CONSTRUCTOR_NAME OF ctype = constructor_type { [cname, ctype] }
-| cname = CONSTRUCTOR_NAME BAR constructors = constructors { (cname, []) :: constructors }
-| cname = CONSTRUCTOR_NAME OF ctype = constructor_type BAR constructors = constructors { (cname, ctype) :: constructors }
+| cname = CONSTRUCTOR_NAME OF tdef = constructor_types { [cname, tdef] }
+| cname = CONSTRUCTOR_NAME BAR cdef = constructors_definition { (cname, []) :: cdef }
+| cname = CONSTRUCTOR_NAME OF tdef = constructor_types BAR cdef = constructors_definition { (cname, tdef) :: cdef }
 
-constructor_type :
-| tn = type_name { [tn] }
-| tn = type_name STAR ctype = constructor_type { tn :: ctype }
+fields_definition:
+| i = IDENT COLONS t = type_definition { [i, t] }
+| i = IDENT COLONS t = type_definition SEMICOLON r = fields_definition { (i, t) :: r }
 
-type_name :
-| ident = IDENT { ident }
+record_construction:
+| i = IDENT EGAL e = expr { [i, e] }
+| i = IDENT EGAL e = expr SEMICOLON r = record_construction { (i, e) :: r }
 
 patterns :
 | BAR p = pattern ARROW e = expr { [p, e] }
@@ -129,15 +144,6 @@ bindings :
 | i = IDENT fund = fun_definition { [i, fund] }
 | i = IDENT fund = fun_definition AND bindings = bindings { (i, fund) :: bindings }
 
-/*| REF expr { Ast.Ref $2 }
-| EXCLAMATION expr { Ast.Deref $2 }
-| expr DEUX_POINTS_EGAL expr { Ast.Assign ($1, $3) }*/
-
-
-
-/*| LEFT_BRACE enregistrement { $2 }
-| expr DOT IDENT { Ast.Field ($1, $3) }*/
-
 arguments:
 | i = IDENT ARROW e = expr { Ast.Fun ([i], e) }
 | i = IDENT args = arguments { Ast.Fun ([i], args) }
@@ -150,9 +156,5 @@ list:
 | RIGHT_BRACKET { Ast.Constructor ("Empty", []) }
 | e = expr RIGHT_BRACKET { Ast.Constructor ("Cons", [e; Ast.Constructor ("Empty", [])]) }
 | hd = expr SEMICOLON tl = list { Ast.Constructor ("Cons", [hd; tl]) }
-
-/*enregistrement :
-| expr RIGHT_BRACE { $1 }
-| IDENT COLONS expr COMMA enregistrement { Ast.Record (($1, $3), $5) }*/
 
 %%

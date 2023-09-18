@@ -2,6 +2,8 @@
 
 type var = string
 type tag = string
+type typename = string
+type field_name = string
 
 (* Modules *)
 
@@ -43,6 +45,16 @@ type match_pattern =
 | Deconstructor of tag * var list
 | Joker of var
 
+type type_definition =
+| Type_name of typename
+| Star of type_definition * type_definition
+| Arrow of type_definition * type_definition
+
+type type_declaration =
+| Alias of type_definition
+| Data of (var * type_definition list) list
+| Record of (field_name * type_definition) list
+
 type expr =
 | Var of var
 | Fun of var list * expr
@@ -54,9 +66,11 @@ type expr =
 | Int of int
 | Binary of binary_operator * expr * expr
 | If of expr * expr * expr
-| Type of var * (var * var list) list * expr
+| Type of var * type_declaration * expr
 | Constructor of tag * (expr list)
 | Match of expr * (match_pattern * expr) list
+| Record_construction of (field_name * expr) list
+| Record_field of expr * field_name
 
 (* Pretty printers *)
 
@@ -77,6 +91,12 @@ let pp_args (fmt: Format.formatter) (args: var list): unit =
   | [] -> Format.fprintf fmt "()"
   | [ arg ] -> Format.fprintf fmt "%s" arg
   | arg :: args' -> Format.fprintf fmt "%s" arg; List.iter (fun arg' -> Format.fprintf fmt " %s" arg') args'
+
+let rec pp_type_definition fmt tdef =
+  match tdef with
+  | Type_name n -> Format.fprintf fmt "%s" n
+  | Star (tdef1, tdef2) -> Format.fprintf fmt "(%a * %a)" pp_type_definition tdef1 pp_type_definition tdef2
+  | Arrow (tdef1, tdef2) -> Format.fprintf fmt "(%a -> %a)" pp_type_definition tdef1 pp_type_definition tdef2
 
 let rec pp_expr fmt expr =
   match expr with
@@ -105,15 +125,21 @@ let rec pp_expr fmt expr =
     end
   | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
   | App (e1, e2) -> Format.fprintf fmt "(%a %a)%!" pp_expr e1 pp_expr e2
-  | Type (name, constructors, expr) -> begin
+  | Type (name, Data constructors, expr) -> begin
       Format.fprintf fmt "type %s =" name; List.iter (fun (cname, ctype) -> begin
         match ctype with
         | [] -> Format.fprintf fmt "\n| %s" cname
-        | [t] -> Format.fprintf fmt "\n| %s of %s" cname t
-        | t :: ts -> Format.fprintf fmt "\n| %s of %s" cname t; List.iter (fun t -> Format.fprintf fmt " * %s" t) ts
+        | [t] -> Format.fprintf fmt "\n| %s of %a" cname pp_type_definition t
+        | t :: ts -> Format.fprintf fmt "\n| %s of %a" cname pp_type_definition t; List.iter (fun t -> Format.fprintf fmt " * %a" pp_type_definition t) ts
       end) constructors;
       Format.fprintf fmt "\n\n%a%!" pp_expr expr
     end
+  | Type (name, Record fields, expr) -> begin
+      Format.fprintf fmt "type %s = {" name;
+      List.iter (fun (cname, ctype) -> Format.fprintf fmt "\n\t%s: %a" cname pp_type_definition ctype) fields;
+      Format.fprintf fmt "\n}\n\n%a%!" pp_expr expr
+    end
+  | Type (name, Alias alias, expr) -> Format.fprintf fmt "type %s = %a\n\n%a" name pp_type_definition alias pp_expr expr;
   | Constructor (name, []) -> Format.fprintf fmt "%s" name
   | Constructor (name, [ e ]) -> Format.fprintf fmt "%s %a" name pp_expr e
   | Constructor (name, e :: exprs') -> Format.fprintf fmt "%s (%a" name pp_expr e; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs'; Format.fprintf fmt ")"
@@ -122,6 +148,14 @@ let rec pp_expr fmt expr =
       List.iter (fun (pattern, e) -> Format.fprintf fmt "\n| %a -> %a" pp_match_pattern pattern pp_expr e) matchs;
       Format.fprintf fmt ")%!"
     end
+  | Record_construction [] -> Format.fprintf fmt "{ }"
+  | Record_construction [fn, e] -> Format.fprintf fmt "{ %s = %a }" fn pp_expr e
+  | Record_construction ((fn, e) :: exprs') -> begin
+      Format.fprintf fmt "{ %s = %a" fn pp_expr e;
+      List.iter (fun (fn, e) -> Format.fprintf fmt "; %s = %a" fn pp_expr e) exprs';
+      Format.fprintf fmt " }"
+    end
+  | Record_field (e, fname) -> Format.fprintf fmt "%a.%s" pp_expr e fname
   
 let inc (vars: Cst.var Seq.t): Cst.var * Cst.var Seq.t =
   match Seq.uncons vars with
@@ -135,12 +169,12 @@ let binary_to_cst (binary: binary_operator): Cst.binary_operator =
   | Add -> Add
   | Sub -> Sub
 
-let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (constructors: Cst.var TagMap.t): Cst.expr * Cst.var Seq.t * var Cst.VarMap.t * Cst.var VarMap.t =
+let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (constructors: Cst.var TagMap.t) (records: int VarMap.t): Cst.expr * Cst.var Seq.t * var Cst.VarMap.t * Cst.var VarMap.t =
   match expr with
   | Int i -> Int i, vars, Subs.empty, Abs.empty
   | Binary (op, e1, e2) -> begin
-      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
-      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors records in
       Binary (binary_to_cst op, e1', e2'), vars, Subs.union subs1 subs2, Fvs.union fvs1 fvs2
     end
   | Fun (args, e) -> begin
@@ -148,12 +182,12 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
         let arg_id, vars = inc vars in
         vars, arg_id
       end) vars args in
-      let e', vars, subs, fvs = expr_to_cst e vars (List.fold_left (fun substitutions' (arg, arg_id) -> Abs.add arg arg_id substitutions') substitutions (List.combine args args_ids)) constructors in
+      let e', vars, subs, fvs = expr_to_cst e vars (List.fold_left (fun substitutions' (arg, arg_id) -> Abs.add arg arg_id substitutions') substitutions (List.combine args args_ids)) constructors records in
       Fun (args_ids, e'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Subs.add arg_id arg subs') subs (List.combine args args_ids)), fvs
     end
   | Tuple exprs -> begin
       let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
-        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors in
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors records in
         (vars, Subs.union subs' subs, Fvs.union fvs' fvs), expr'
       end) (vars, Subs.empty, Abs.empty) exprs in
       Tuple exprs', vars, subs, fvs
@@ -165,15 +199,15 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
   | Constructor (str, exprs) -> begin
       let index = TagMap.find str constructors in
       let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
-        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors in
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors records in
         (vars, Subs.union subs' subs, Fvs.union fvs' fvs), expr'
       end) (vars, Subs.empty, Abs.empty) exprs in
       Constructor (index, exprs'), vars, subs, fvs
     end
   | Let (var, e1, e2) -> begin
       let var_id, vars = inc vars in
-      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
-      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Abs.add var var_id (Fvs.union fvs1 substitutions)) constructors in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Abs.add var var_id (Fvs.union fvs1 substitutions)) constructors records in
       Let (var_id, e1', e2'), vars, Subs.add var_id var (Subs.union subs1 subs2), Fvs.union fvs1 fvs2
     end
   | Let_tuple (vars', e1, e2) -> begin
@@ -181,19 +215,19 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
         let arg_id, vars = inc vars in
         vars, arg_id
       end) vars vars' in
-      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
-      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (List.fold_left (fun substitutions (var, var_id) -> Abs.add var var_id substitutions) (Fvs.union fvs1 substitutions) (List.combine vars' vars_ids)) constructors in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (List.fold_left (fun substitutions (var, var_id) -> Abs.add var var_id substitutions) (Fvs.union fvs1 substitutions) (List.combine vars' vars_ids)) constructors records in
       Let_tuple (vars_ids, e1', e2'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Subs.add arg_id arg subs') (Subs.union subs1 subs2) (List.combine vars' vars_ids)), Fvs.union fvs1 fvs2
     end
   | If (e1, e2, e3) -> begin
-      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
-      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors in
-      let e3', vars, subs3, fvs3 = expr_to_cst e3 vars (Fvs.union fvs2 (Fvs.union fvs1 substitutions)) constructors in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors records in
+      let e3', vars, subs3, fvs3 = expr_to_cst e3 vars (Fvs.union fvs2 (Fvs.union fvs1 substitutions)) constructors records in
       If (e1', e2', e3'), vars, Subs.union subs1 (Subs.union subs2 subs3), Fvs.union fvs1 (Fvs.union fvs2 fvs3)
     end
   | App (e1, e2) -> begin
-      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors in
-      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Fvs.union fvs1 substitutions) constructors records in
       App (e1', e2'), vars, Subs.union subs1 subs2, Fvs.union fvs1 fvs2
     end
   | Let_rec (bindings, e) -> begin
@@ -202,10 +236,10 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
         vars, (var, var_id)
       end) vars bindings in
       let (vars, subs, fvs), bindings' = List.fold_left_map (fun (vars, subs, fvs) ((_, expr), (_, var_id)) -> begin
-        let expr', vars, subs', fvs' = expr_to_cst expr vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty bindings_ids) (Fvs.union fvs substitutions)) constructors in
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty bindings_ids) (Fvs.union fvs substitutions)) constructors records in
         (vars, Subs.union subs' subs, Fvs.union fvs' fvs), (var_id, expr')
       end) (vars, Subs.empty, Abs.empty) (List.combine bindings bindings_ids) in
-      let e', vars, subs', fvs' = expr_to_cst e vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty bindings_ids) (Fvs.union fvs substitutions)) constructors in
+      let e', vars, subs', fvs' = expr_to_cst e vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty bindings_ids) (Fvs.union fvs substitutions)) constructors records in
       Let_rec (bindings', e'), vars, Subs.union (List.fold_left (fun subs'' (b, b_id) -> Subs.add b_id b subs'') Subs.empty bindings_ids) (Subs.union subs subs'), Fvs.union fvs fvs'
     end
   | Match (x, branchs) -> begin
@@ -222,13 +256,28 @@ let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abs.t) (c
               vars, (var, var_id)
             end) vars payload_values in
             let pattern_index = TagMap.find constructor_name constructors in
-            let e', vars, subs', fvs' = expr_to_cst e vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty args_ids) (Fvs.union fvs substitutions)) constructors in
+            let e', vars, subs', fvs' = expr_to_cst e vars (Abs.union (List.fold_left (fun subs'' (b, b_id) -> Abs.add b b_id subs'') Abs.empty args_ids) (Fvs.union fvs substitutions)) constructors records in
             (vars, Subs.union (List.fold_left (fun subs'' (b, b_id) -> Subs.add b_id b subs'') Subs.empty args_ids) (Subs.union subs subs'), Fvs.union fvs fvs'), (pattern_index, List.map (fun (_, arg_id) -> arg_id) args_ids, e')
           end
         | _ -> assert false
       end) (vars, Subs.empty, Abs.empty) (List.filter (fun (pattern, _) -> match pattern with | Deconstructor _ -> true | _ -> false) branchs) in
-      let e', vars, subs', fvs' = expr_to_cst x vars (Fvs.union fvs substitutions) constructors in
-      let default_expr, vars, subs'', fvs'' = expr_to_cst default_expr vars (Fvs.union fvs' (Fvs.union fvs substitutions)) constructors in
+      let e', vars, subs', fvs' = expr_to_cst x vars (Fvs.union fvs substitutions) constructors records in
+      let default_expr, vars, subs'', fvs'' = expr_to_cst default_expr vars (Fvs.union fvs' (Fvs.union fvs substitutions)) constructors records in
       Match (e', branchs', default_expr), vars, Subs.union subs (Subs.union subs' subs''), Fvs.union fvs (Fvs.union fvs' fvs'')
     end
-  | Type (_, constructors', expr) -> expr_to_cst expr vars substitutions (List.fold_left (fun constructors'' ((constructor_name, _), index) -> TagMap.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors'))
+  | Type (_, Data constructors', expr) -> expr_to_cst expr vars substitutions (List.fold_left (fun constructors'' ((constructor_name, _), index) -> TagMap.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors')) records
+  | Type (_typename, Record fields, expr) -> expr_to_cst expr vars substitutions constructors (List.fold_left (fun records'' ((fname, _), index) -> TagMap.add (fname) index records'') records (List.mapi (fun i v -> v, i) fields))
+  | Type (_, Alias _, _) -> assert false
+  | Record_construction fields -> begin
+      let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Fvs.union fvs substitutions) constructors records in
+        (vars, Subs.union subs' subs, Fvs.union fvs' fvs), expr'
+      end) (vars, Subs.empty, Abs.empty) (List.map (fun (_, e) -> e) (List.sort (fun (fn1, _) (fn2, _) -> TagMap.find fn1 records - TagMap.find fn2 records) fields)) in
+      Tuple exprs', vars, subs, fvs
+    end
+  | Record_field (e, fname) -> begin
+      let index = TagMap.find fname records in
+      let e', vars, subs, fvs = expr_to_cst e vars substitutions constructors records in
+      Get (e', index), vars, subs, fvs
+  end
+
