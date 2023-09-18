@@ -45,8 +45,6 @@ rule tokens = parse
 | "," { COMMA }
 | "." { DOT }
 
-| "_" { JOKER }
-
 | ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as id { CONSTRUCTOR_NAME (id) }
 | ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as id { IDENT (id) }
 
