@@ -91,7 +91,7 @@ let _ =
     let source = Lexing.from_channel entree in
     try
       Logger.start "AST -> %s\n%!" (input_file ^ ".ast");
-      let ast = Parser.file Lexer.jetons source in
+      let ast = Parser.file Lexer.tokens source in
       Ast.pp_expr (Format.formatter_of_out_channel (open_out (input_file ^ ".ast"))) ast;
       Logger.stop ();
       Logger.start "CST -> %s\n%!" (input_file ^ ".cst");

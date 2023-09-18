@@ -4,8 +4,8 @@
   exception Unexpected_character of string
 }
 
-rule jetons = parse
-| "(*" { commentaires lexbuf }
+rule tokens = parse
+| "(*" { comments lexbuf }
 | "(" { LEFT_PARENTHESIS }
 | ")" { RIGHT_PARENTHESIS }
 | "[" { LEFT_BRACKET }
@@ -51,15 +51,15 @@ rule jetons = parse
 
 | "_" { JOKER }
 
-| ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as identificateur { CONSTRUCTOR_NAME (identificateur) }
-| ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as identificateur { IDENT (identificateur) }
+| ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as id { CONSTRUCTOR_NAME (id) }
+| ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as id { IDENT (id) }
 
-| [' ' '\t' '\n' '\r'] { jetons lexbuf }
+| [' ' '\t' '\n' '\r'] { tokens lexbuf }
 
 | eof { EOF }
 
-| _ as c { raise(Unexpected_character (String.make 1 c)) }
+| _ as c { raise (Unexpected_character (String.make 1 c)) }
 
-and commentaires = parse
-| "*)" { jetons lexbuf }
-| _ { commentaires lexbuf }
+and comments = parse
+| "*)" { tokens lexbuf }
+| _ { comments lexbuf }
