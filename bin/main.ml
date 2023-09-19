@@ -63,7 +63,7 @@ let rec step_analysis cps _vars _pointers count logchan =
     let cps = Cps.clean_blocks cps in
     Logger.stop ();
     Logger.start "Analysing\n%!";
-    let _cps_analysis = Analysis.start_analysis !stack_analysis cps in
+    let _cps_analysis = Analysis.join_stacks (Analysis.start_analysis !stack_analysis cps) in
     let cps = Cps.PointerMap.filter (fun k _ -> if Cps.PointerMap.mem k _cps_analysis then true else (Logger.log "Filtred k%d\n" k; false)) cps in
     Analysis.pp_analysis Format.std_formatter _cps_analysis;
     Logger.stop ();

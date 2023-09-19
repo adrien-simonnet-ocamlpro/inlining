@@ -321,11 +321,12 @@ let join_blocks (b1: abstract_block) (b2: abstract_block) =
   | Match_join (arg1, args1), Match_join (arg2, args2) -> Match_join (Cps.VarSet.union arg1 arg2, Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) args1 args2)
   | _, _ -> assert false
 
+let join_stacks (map: (factory ContextMap.t) Cps.PointerMap.t): (factory * abstract_block) Cps.PointerMap.t =
+  Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), factory) -> join_factory allocs factory, join_blocks acc new_env) (let ((_, new_env), factory) = List.hd (ContextMap.bindings contexts) in factory, new_env) (List.tl (ContextMap.bindings contexts))) map
 
-
-let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list) (reduce: abstract_stack -> abstract_stack) (blocks: blocks) (map: (factory ContextMap.t) Cps.PointerMap.t) : (factory * abstract_block) Cps.PointerMap.t =
+let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list) (reduce: abstract_stack -> abstract_stack) (blocks: blocks) (map: (factory ContextMap.t) Cps.PointerMap.t): (factory ContextMap.t) Cps.PointerMap.t =
   match conts with
-  | [] -> Cps.PointerMap.map (fun contexts -> List.fold_left (fun (allocs, acc) ((_, new_env), factory) -> join_factory allocs factory, join_blocks acc new_env) (let ((_, new_env), factory) = List.hd (ContextMap.bindings contexts) in factory, new_env) (List.tl (ContextMap.bindings contexts))) map
+  | [] -> map
   | (k, block', stack''', factory) :: conts' -> begin
     (*Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_factory factory;*)
     Logger.stop ();
