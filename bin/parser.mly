@@ -7,43 +7,37 @@
 %token LEFT_BRACE RIGHT_BRACE
 
 %token<int> INT
-%token PLUS MINUS
-
-%token CONS SEMICOLON
-
-%token IF THEN ELSE WHILE
-
 %token<string> IDENT
 %token<string> CONSTRUCTOR_NAME
-
+%token PLUS MINUS
+%token CONS SEMICOLON
+%token IF THEN ELSE
 %token FUN ARROW
-
 %token LET REC AND IN EGAL
-
 %token MATCH WITH
-
 %token TYPE OF
-
 %token STAR
-
 %token BAR
-
 %token COLONS COMMA DOT
-
 %token EOF
 
-%nonassoc LEFT_PARENTHESIS
-%nonassoc LET
 %nonassoc IN
-%nonassoc ELSE
-%nonassoc WHILE
-%nonassoc FUN
-%nonassoc ARROW
-%nonassoc IF
-%nonassoc INT
-%nonassoc IDENT
-%left MINUS
-%left PLUS
+%nonassoc SEMICOLON                     /* below EQUAL ({lbl=...; lbl=...}) */
+%nonassoc LET                           /* above SEMI ( ...; let ... in ...) */
+%nonassoc FUN WITH                      /* below BAR  (match ... with ...) */
+%nonassoc AND                           /* above WITH (module rec A: SIG with ... and ...) */
+%nonassoc THEN                          /* below ELSE (if ... then ...) */
+%nonassoc ELSE                          /* (if ... then ... else ...) */
+/*%left     BAR                            pattern (p|p|p) */
+%left     COMMA                         /* expr/expr_comma_list (e,e,e) */
+/*%right    ARROW                          function_type (t -> t -> t) */
+%right    CONS                          /* expr (e :: e :: e) */
+%left     PLUS MINUS                    /* expr (e OP e OP e) */
+%left     STAR                          /* expr (e OP e OP e) */
+%nonassoc DOT
+/* Finally, the first tokens of simple_expr are above everything else. */
+%nonassoc INT LEFT_BRACE LEFT_BRACKET IDENT LEFT_PARENTHESIS
+
 %left app
 
 %start <Ast.expr> file
@@ -52,9 +46,13 @@
 
 %%
 
-file : e = expr EOF { e } ;
+file: e = toplevel EOF { e }
 
-expr :
+toplevel:
+| TYPE i = IDENT EGAL td = type_declaration t = toplevel { Ast.Type (i, td, t) }
+| e = expr { e }
+
+expr:
 | LEFT_PARENTHESIS RIGHT_PARENTHESIS { Ast.Tuple [] }
 | LEFT_PARENTHESIS e = expr RIGHT_PARENTHESIS { e }
 | n = INT { Ast.Int n }
@@ -67,7 +65,6 @@ expr :
 | i = IDENT { Ast.Var i }
 | e1 = expr bop = binary_operator e2 = expr { Ast.Binary (bop, e1, e2) }
 | IF cond = expr THEN iftrue = expr ELSE iffalse = expr { Ast.If (cond, iftrue, iffalse) }
-| TYPE i = IDENT EGAL td = type_declaration expr = expr { Ast.Type (i, td, expr) }
 | cname = CONSTRUCTOR_NAME { Ast.Constructor (cname, []) }
 | cname = CONSTRUCTOR_NAME expr = expr { Ast.Constructor (cname, [expr]) }
 | cname = CONSTRUCTOR_NAME LEFT_PARENTHESIS pl = payload_exprs RIGHT_PARENTHESIS { Ast.Constructor (cname, pl) }
@@ -105,7 +102,7 @@ constructor_types:
 | tn = type_definition { [tn] }
 | tn = type_definition STAR tdef = constructor_types { tn :: tdef }
 
-constructors_definition :
+constructors_definition:
 | cname = CONSTRUCTOR_NAME { [cname, []] }
 | cname = CONSTRUCTOR_NAME OF tdef = constructor_types { [cname, tdef] }
 | cname = CONSTRUCTOR_NAME BAR cdef = constructors_definition { (cname, []) :: cdef }
@@ -119,11 +116,11 @@ record_construction:
 | i = IDENT EGAL e = expr { [i, e] }
 | i = IDENT EGAL e = expr SEMICOLON r = record_construction { (i, e) :: r }
 
-patterns :
+patterns:
 | BAR p = pattern ARROW e = expr { [p, e] }
 | BAR p = pattern ARROW e = expr ps = patterns { (p, e) :: ps }
 
-pattern :
+pattern:
 | i = IDENT { Ast.Joker i }
 | cname = CONSTRUCTOR_NAME { Ast.Deconstructor (cname, []) }
 | cname = CONSTRUCTOR_NAME ident = IDENT { Ast.Deconstructor (cname, [ident]) }
