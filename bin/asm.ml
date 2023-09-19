@@ -28,6 +28,26 @@ type block = var list * instr
 
 type blocks = block PointerMap.t
 
+type benchmark = {
+  mutable const: int;
+  mutable write: int;
+  mutable read: int;
+  mutable add: int;
+  mutable sub: int;
+  mutable push: int;
+  mutable pop: int;
+  mutable jmp: int
+}
+
+type value =
+| Int of int
+| Pointer of pointer
+| Tuple of value list
+
+type 'a map = (var * 'a) list
+
+type env = value VarMap.t
+
 let string_of_sub (var: var) (subs: string VarMap.t): string =
   match VarMap.find_opt var subs with
   | Some str -> str ^ "_" ^ (string_of_int var)
@@ -50,13 +70,19 @@ let rec pp_stack (fmt: Format.formatter) (stack: stack): unit =
 
 let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): unit =
   match expr with
-  | Pointer p -> Format.fprintf fmt "k%d" p
+  | Pointer p -> Format.fprintf fmt "Pointer %d" p
   | Const x -> Format.fprintf fmt "Int %d" x
   | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Var x -> Format.fprintf fmt "%s" (string_of_sub x subs)
-  | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
-  | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (string_of_sub record subs) pos
+  | Tuple [] -> Format.fprintf fmt ""
+  | Tuple [ value ] -> Format.fprintf fmt "%s" (string_of_sub value subs)
+  | Tuple (value :: values') -> begin
+      Format.fprintf fmt "Tuple [%s" (string_of_sub value subs);
+      List.iter (fun v' -> Format.fprintf fmt "; %s" (string_of_sub v' subs)) values';
+      Format.fprintf fmt "]"
+    end
+  | Get (record, pos) -> Format.fprintf fmt "get %s %d" (string_of_sub record subs) pos
 
 let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (cps : instr): unit =
   match cps with
@@ -69,8 +95,26 @@ let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (cps : instr): 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) ((args, e): block): unit =
   Format.fprintf fmt "%a =\n%a%!" (pp_args ~subs ~empty: "()" ~split: " ") args (pp_instr subs) e
 
-let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (block : blocks) : unit =
-  PointerMap.iter (fun k block -> Format.fprintf fmt "and k%d %a\n%!" k (pp_block subs) block) block
+let pp_blocks (subs: string VarMap.t) (fmt: Format.formatter) (blocks: blocks) : unit =
+  match PointerMap.bindings blocks with
+  | [] -> Format.fprintf fmt "@."
+  | [p, b] -> Format.fprintf fmt "let rec _b%d %a\n\n@." p (pp_block subs) b
+  | (p, b) :: bs -> begin
+      Format.fprintf fmt "let rec _b%d %a\n\n@." p (pp_block subs) b;
+      List.iter (fun (p, b) -> Format.fprintf fmt "and k%d %a\n%!" p (pp_block subs) b) bs
+    end
+
+let rec pp_value fmt (value: value) =
+  match value with
+  | Int i -> Format.fprintf fmt "%d" i
+  | Pointer p -> Format.fprintf fmt "k%d" p
+  | Tuple [] -> Format.fprintf fmt ""
+  | Tuple [ value ] -> Format.fprintf fmt "%a" pp_value value
+  | Tuple (value :: values') -> begin
+      Format.fprintf fmt "(%a" pp_value value;
+      List.iter (fun v' -> Format.fprintf fmt ", %a" pp_value v') values';
+      Format.fprintf fmt ")"
+    end
 
 let update_var (var: var) (alias: var VarMap.t): var =
   if VarMap.mem var alias then VarMap.find var alias else var
@@ -177,27 +221,8 @@ let elim_unused_vars_blocks (blocks : blocks) : blocks * int array =
 
 let elim_unused_blocks (conts : int array) (blocks : blocks) : blocks = PointerMap.filter (fun k _ -> Array.get conts k > 0) blocks
 
-type benchmark = { mutable const: int; mutable write: int; mutable read: int; mutable add: int; mutable sub: int; mutable push: int; mutable pop: int; mutable jmp: int }
 
-type value =
-  | Int of int
-  | Pointer of pointer
-  | Tuple of value list
 
-type 'a map = (var * 'a) list
-
-type env = value VarMap.t
-
-let rec pp_value fmt (value: value) =
-  match value with
-  | Int i -> Format.fprintf fmt "%d" i
-  | Pointer p -> Format.fprintf fmt "k%d" p
-  | Tuple values -> Format.fprintf fmt "[%a]" pp_values values
-and pp_values fmt (values: value list) =
-  match values with
-  | [] -> Format.fprintf fmt ""
-  | [ value ] -> Format.fprintf fmt "%a" pp_value value
-  | value :: values' -> Format.fprintf fmt "%a; %a" pp_value value pp_values values'
 
 let get env x = VarMap.find x env
 
