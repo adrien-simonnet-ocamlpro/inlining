@@ -229,7 +229,6 @@ let analysis_expr (expr : expr) (env: environment) (factory: factory): value_typ
       | Top, _ | _, Top -> Value (Int_domain (Int_domain.top))
       | _ -> assert false
     end
-  | Print _ -> Bottom
   | Tuple vars -> Value (Tuple_domain (map_args vars env))
   | Get (var', pos) -> begin
       match get2 env var' factory with
@@ -416,7 +415,6 @@ let propagation_named (expr: expr) (env: environment) (factory: factory): expr *
     | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Sub (x1, x2), Some (Int_domain (Int_domain.top))
     | _ -> assert false
     end
-  | Print x -> Print x, None
   | Tuple vars -> Tuple vars, Some (Tuple_domain (map_args vars env))
   | Get (var', pos) -> begin
       match get env var' factory with
@@ -490,7 +488,6 @@ let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (factory: factory) (var
       | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Const (Int_domain.get_singleton d), asm), vars
       | _ -> Let (var, Sub (x1, x2), asm), vars
     end
-  | Print x -> Let (var, Print x, asm), vars
   | Var x -> Let (var, Var x, asm), vars
   | Tuple args -> Let (var, Tuple args, asm), vars
   | Get (record, pos) -> Let (var, Get (record, pos), asm), vars

@@ -13,7 +13,6 @@ type expr =
 | Const of int
 | Add of var * var
 | Sub of var * var
-| Print of var
 | Tuple of var list
 | Get of var * int
 | Pointer of int
@@ -55,7 +54,6 @@ let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): unit =
   | Const x -> Format.fprintf fmt "Int %d" x
   | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
-  | Print x -> Format.fprintf fmt "print %s" (string_of_sub x subs)
   | Var x -> Format.fprintf fmt "%s" (string_of_sub x subs)
   | Tuple (args) -> Format.fprintf fmt "Tuple [%a]" (pp_args ~split: "; " ~subs ~empty:"") args
   | Get (record, pos) -> Format.fprintf fmt "Get (%s, %d)" (string_of_sub record subs) pos
@@ -89,7 +87,6 @@ let inline_expr (expr : expr) (alias: var VarMap.t): expr =
   | Const x -> Const x
   | Add (x1, x2) -> Add (update_var x1 alias, update_var x2 alias)
   | Sub (x1, x2) -> Sub (update_var x1 alias, update_var x2 alias)
-  | Print x -> Print (update_var x alias)
   | Var x -> Var (update_var x alias)
   | Tuple args -> Tuple (update_vars args alias)
   | Get (record, pos) -> Get (update_var record alias, pos)
@@ -131,7 +128,6 @@ let elim_unused_vars_expr (vars : int array) conts (expr : expr): unit =
   | Const x -> Array.set vars x (Array.get vars x + 1)
   | Add (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
   | Sub (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
-  | Print x -> Array.set vars x (Array.get vars x + 1)
   | Var x -> Array.set vars x (Array.get vars x + 1)
   | Tuple args -> List.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args
   | Get (arg, _) -> Array.set vars arg (Array.get vars arg + 1)
@@ -220,11 +216,6 @@ let interp_expr (expr : expr) (env : env) (benchmark: benchmark): value =
       | Int n1, Int n2 -> Int (n1 - n2)
       | _ -> assert false
     end
-  | Print x1 -> begin
-      match get env x1 with
-      | Int n -> Printf.printf "%d\n" n; get env x1
-      | _ -> assert false
-     end
   | Var x -> benchmark.read <- benchmark.read + 1; get env x
   | Tuple args -> Tuple (List.map (fun arg -> benchmark.read <- benchmark.read + 1; get env arg) args)
   | Get (record, pos) -> begin
@@ -312,7 +303,6 @@ let size_expr (expr : expr): int =
   | Const _ -> 1
   | Add (_, _) -> 2
   | Sub (_, _) -> 2
-  | Print _ -> 1
   | Var _ -> 1
   | Tuple args -> List.length args
   | Get (_, _) -> 2
