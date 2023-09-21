@@ -1,3 +1,4 @@
+open Utils
 
 (* Identifier for variables *)
 type var = int
@@ -31,31 +32,28 @@ type expr =
 | Closure of pointer * VarSet.t (* Closure construction *)
 | Constructor of tag * var list (* Data construction *)
 
-(* Instruction *)
+(* Instructions *)
 type instr =
-| Let of var * expr * instr (* Declaration of variable with associed value. *)
+| Let of var * expr * instr (* Declaration of variable with associated value *)
 | Call_direct of pointer * var * var list * (pointer * VarSet.t)
-| Call of var * var list * (pointer * VarSet.t)
-| If of var * (pointer * VarSet.t) * (pointer * VarSet.t) * VarSet.t
-| Match_pattern of var * (tag * var list * pointer * VarSet.t) list * (pointer * VarSet.t) * VarSet.t
-| Return of var
-| If_return of pointer * var * VarSet.t
-| Match_return of pointer * var * VarSet.t
+| Call of var * var list * (pointer * VarSet.t) (* Closure call with parameters and callback. *)
+| If of var * (pointer * VarSet.t) * (pointer * VarSet.t) * VarSet.t (* If condition Then Else *)
+| Match_pattern of var * (tag * var list * pointer * VarSet.t) list * (pointer * VarSet.t) * VarSet.t (* Pattern matching *)
+| Return of var (* Return value to caller *)
+| If_return of pointer * var * VarSet.t (* Return value from if *)
+| Match_return of pointer * var * VarSet.t (* Return value from pattern matching *)
 
+(* Blocks *)
 type block =
-| Clos of VarSet.t * var list
-| Return of var * VarSet.t
-| If_branch of VarSet.t * VarSet.t
-| If_join of var * VarSet.t
-| Match_branch of var list * VarSet.t * VarSet.t
-| Match_join of var * VarSet.t
+| Clos of VarSet.t * var list (* Closure of environment (free variables) and parameters *)
+| Return of var * VarSet.t (* Block called when function returns *)
+| If_branch of VarSet.t * VarSet.t (* Then or Else branch *)
+| If_join of var * VarSet.t (* Block joining Then and Else branchs *)
+| Match_branch of var list * VarSet.t * VarSet.t (* Branch of pattern matching *)
+| Match_join of var * VarSet.t (* Block joining branchs of pattern matching *)
 
+(* Program *)
 type blocks = (block * instr) PointerMap.t
-
-let string_of_sub (var: var) (subs: string VarMap.t): string =
-  match VarMap.find_opt var subs with
-  | Some str -> str ^ "_" ^ (string_of_int var)
-  | None -> "_" ^ (string_of_int var)
 
 let pp_args (subs: string VarMap.t) (fmt: Format.formatter) (args: var list): unit =
   match args with
@@ -107,6 +105,7 @@ let update_vars (vars: var list) (alias: var VarMap.t): var list = List.map (fun
 let update_env (vars: VarSet.t) (alias: var VarMap.t): VarSet.t =
   VarSet.map (fun var -> update_var var alias) vars
 
+(* Rename variables in an expression. *)
 let clean_expr (expr: expr) (alias: var VarMap.t): expr =
   match expr with
   | Int x -> Int x
@@ -118,6 +117,7 @@ let clean_expr (expr: expr) (alias: var VarMap.t): expr =
   | Closure (k, vars) -> Closure (k, update_env vars alias)
   | Constructor (tag, vars) -> Constructor (tag, update_vars vars alias)
 
+(* Rename variables in an instruction. *)
 let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   match instr with
   | Let (var, expr, instr) -> Let (var, clean_expr expr aliases, clean_instr instr aliases)
@@ -128,7 +128,8 @@ let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   | Match_return (k, arg, args) -> Match_return (k, update_var arg aliases, update_env args aliases)
   | Call (x, args, (k, kargs)) -> Call (update_var x aliases, update_vars args aliases, (k, update_env kargs aliases))
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x aliases, update_vars args aliases, (k, update_env kargs aliases))
-  
+
+(* Rename variables in a block. *)
 let clean_block (block: block) (aliases: var VarMap.t): block =
   match block with
   | Clos (env, args) -> Clos (update_env env aliases, args)
@@ -150,11 +151,6 @@ let clean_blocks (blocks: blocks): blocks =
   end) blocks VarMap.empty in
   PointerMap.map (fun (block, instr) -> clean_block block aliases, clean_instr instr aliases) blocks
 
-let inc (vars: var Seq.t): var * var Seq.t =
-  match Seq.uncons vars with
-  | None -> assert false
-  | Some (i, vars') -> i, vars'
-
 let rec copy_instr (instr: instr) (vars: var Seq.t) (alias: var VarMap.t): instr * var Seq.t=
   match instr with
   | Let (var, expr, instr) -> begin
@@ -170,62 +166,46 @@ let rec copy_instr (instr: instr) (vars: var Seq.t) (alias: var VarMap.t): instr
   | Call (x, args, (k, kargs)) -> Call (update_var x alias, update_vars args alias, (k, update_env kargs alias)), vars
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', update_var x alias, update_vars args alias, (k, update_env kargs alias)), vars
 
-let rec copy_callee (instr: instr) (vars: var Seq.t) (pointers: pointer Seq.t) (blocks: blocks): instr * blocks * var Seq.t * pointer Seq.t =
+let rec copy_callee (instr: instr) (vars: var Seq.t) (pointers: pointer Seq.t) (blocks: blocks) (should_copy: pointer -> bool): instr * blocks * var Seq.t * pointer Seq.t =
   match instr with
   | Let (var, expr, instr) -> begin
-      let instr, blocks', vars, pointers = copy_callee instr vars pointers blocks in
+      let instr, blocks', vars, pointers = copy_callee instr vars pointers blocks should_copy in
       Let (var, expr, instr), blocks', vars, pointers
     end
   | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), PointerMap.empty, vars, pointers
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), PointerMap.empty, vars, pointers
   | Return var -> Return var, PointerMap.empty, vars, pointers
-  | If_return (k, arg, args) when PointerMap.mem k blocks -> begin
-      Logger.start "Copying k%d\n" k;
+  | If_return (k, arg, args) when should_copy k -> begin
       let block, instr = PointerMap.find k blocks in
       let instr', vars = copy_instr instr vars VarMap.empty in
-      (*let instr', blocks, vars, pointers = copy_callee instr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
-      Logger.stop ();
       If_return (k_id, arg, args), PointerMap.add k_id (block, instr') PointerMap.empty, vars, pointers
     end
   | If_return (k, arg, args) -> If_return (k, arg, args), PointerMap.empty, vars, pointers
-  | Match_return (k, arg, args) when PointerMap.mem k blocks -> begin
-      Logger.start "Copying k%d\n" k;
+  | Match_return (k, arg, args) when should_copy k -> begin
       let block, instr = PointerMap.find k blocks in
       let instr', vars = copy_instr instr vars VarMap.empty in
-      (*let instr', blocks, vars, pointers = copy_callee instr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
-      Logger.stop ();
       Match_return (k_id, arg, args), PointerMap.add k_id (block, instr') PointerMap.empty, vars, pointers
     end
   | Match_return (k, arg, args) -> Match_return (k, arg, args), PointerMap.empty, vars, pointers
   | Call (x, args, (k, kargs)) -> Call (x, args, (k, kargs)), PointerMap.empty, vars, pointers
-  | Call_direct (k', x, args, (k, kargs)) when PointerMap.mem k blocks && PointerMap.mem k' blocks -> begin
-      Logger.start "Copying k%d\n" k;
+  | Call_direct (k', x, args, (k, kargs)) when should_copy k && should_copy k' -> begin
       let block2, instr2 = PointerMap.find k blocks in
       let return_id, pointers = inc pointers in
       let instr2', vars = copy_instr instr2 vars VarMap.empty in
-      (*let instr2', blocks2, vars, pointers = copy_callee instr2' vars pointers blocks in*)
-      Logger.stop ();
-
-      Logger.start "Copying k%d\n" k';
       let block, instr = PointerMap.find k' blocks in
       let instr', vars = copy_instr instr vars VarMap.empty in
-      (*let instr', blocks, vars, pointers = copy_callee instr' vars pointers blocks in*)
       let k_id, pointers = inc pointers in
-      Logger.stop ();
       Call_direct (k_id, x, args, (return_id, kargs)), PointerMap.add return_id (block2, instr2') (PointerMap.add k_id (block, instr') PointerMap.empty), vars, pointers
     end
   | Call_direct (k', x, args, (k, kargs)) -> Call_direct (k', x, args, (k, kargs)), PointerMap.empty, vars, pointers
 
-let copy_blocks (blocks: blocks) (targets: PointerSet.t) (vars: var Seq.t) (pointers: pointer Seq.t): blocks * var Seq.t * pointer Seq.t =
-  let targets = PointerMap.filter (fun k _ -> PointerSet.mem k targets) blocks in
+let copy_blocks (blocks0: blocks) (vars: var Seq.t) (pointers: pointer Seq.t) (should_copy: pointer -> bool): blocks * var Seq.t * pointer Seq.t =
   PointerMap.fold (fun k (block, instr) (blocks, vars, pointers) -> begin
-    Logger.start "k%d\n" k;
-    let instr', blocks', vars, pointers = copy_callee instr vars pointers targets in
-    Logger.stop ();
+    let instr', blocks', vars, pointers = copy_callee instr vars pointers blocks0 should_copy in
     PointerMap.union (fun _ _ _ -> assert false) blocks' (PointerMap.add k (block, instr') blocks), vars, pointers
-  end) blocks (PointerMap.empty, vars, pointers)
+  end) blocks0 (PointerMap.empty, vars, pointers)
 
 let fvs_to_list fvs = VarSet.elements fvs
 
@@ -255,11 +235,11 @@ let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq
       let asm, vars = expr_to_asm var expr asm vars in
       asm, vars, pointers, blocks
     end
-  | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
+  | If (var, (kt, argst), (kf, argsf), fvs) -> Switch (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
       let payload_id, vars = inc vars in
-      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), If (tag_id, List.map (fun (n, _, k, args) -> (n, k, payload_id :: (fvs_to_list args) @ (fvs_to_list fvs))) matchs, (kf, payload_id :: (fvs_to_list argsf) @ (fvs_to_list fvs)), [])))), vars, pointers, Asm.PointerMap.empty
+      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), Switch (tag_id, List.map (fun (n, _, k, args) -> (n, k, payload_id :: (fvs_to_list args) @ (fvs_to_list fvs))) matchs, (kf, payload_id :: (fvs_to_list argsf) @ (fvs_to_list fvs)), [])))), vars, pointers, Asm.PointerMap.empty
     end
   | Return var -> Return var, vars, pointers, Asm.PointerMap.empty
   | If_return (k, arg, args) -> Apply_direct (k, arg :: (fvs_to_list args), []), vars, pointers, Asm.PointerMap.empty
@@ -474,4 +454,4 @@ let count_vars_instr_blocks (blocks : blocks): blocks * var array * pointer arra
   let conts = Array.make 10000 0 in
   PointerMap.map (fun (block, instr) -> block, count_vars_instr instr vars conts) blocks, vars, conts
 
-let elim_unused_blocks (blocks : blocks) (conts : int array): blocks = PointerMap.filter (fun k _ -> if Array.get conts k > 0 then true else (Logger.log "Filtred k%d\n" k; false)) blocks
+let elim_unused_blocks (blocks : blocks) (conts : int array): blocks = PointerMap.filter (fun k _ -> Array.get conts k > 0) blocks

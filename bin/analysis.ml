@@ -326,11 +326,7 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
   match conts with
   | [] -> map
   | (k, block', stack''', factory) :: conts' -> begin
-    (*Logger.start "k%d %a Stack: %a Allocs: %a\n" k pp_block  block' pp_stack stack''' pp_factory factory;*)
-    Logger.stop ();
-
       let stack = reduce stack''' in
-      if List.length stack <> List.length stack''' then  Format.printf "%a -> %a@." pp_stack stack''' pp_stack stack;
       
       (* Already seen this block. *)
       if Cps.PointerMap.mem k map then begin
@@ -507,11 +503,11 @@ let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars:
       let asm, vars = expr_to_asm var expr asm factory vars in
       asm, vars, pointers, blocks
     end
-  | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
+  | If (var, (kt, argst), (kf, argsf), fvs) -> Switch (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
       let payload_id, vars = inc vars in
-      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), If (tag_id, List.map (fun (n, _, k, args) -> (n, k, payload_id :: (fvs_to_list args) @ (fvs_to_list fvs))) matchs, (kf, payload_id :: (fvs_to_list argsf) @ (fvs_to_list fvs)), [])))), vars, pointers, Asm.PointerMap.empty
+      Asm.Let (tag_id, Get (cons, 0), (Asm.Let (payload_id, Get (cons, 1), Switch (tag_id, List.map (fun (n, _, k, args) -> (n, k, payload_id :: (fvs_to_list args) @ (fvs_to_list fvs))) matchs, (kf, payload_id :: (fvs_to_list argsf) @ (fvs_to_list fvs)), [])))), vars, pointers, Asm.PointerMap.empty
     end
   | Return var -> Return var, vars, pointers, Asm.PointerMap.empty
   | If_return (k, arg, args) -> Apply_direct (k, arg :: (fvs_to_list args), []), vars, pointers, Asm.PointerMap.empty
