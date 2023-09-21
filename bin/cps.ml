@@ -1,25 +1,39 @@
+
+(* Identifier for variables *)
 type var = int
-type pointer = int
+
+(* Identifier for constructor tags *)
 type tag = int
 
+(* Identifier for pointers *)
+type pointer = int
+
+(* Module for variables map. *)
 module VarMap = Map.Make (Int)
+
+(* Module for variables set. *)
 module VarSet = Set.Make (Int)
+
+(* Module for pointers map. *)
 module PointerMap = Map.Make (Int)
+
+(* Module for pointers set. *)
 module PointerSet = Set.Make (Int)
 
+(* Expressions *)
 type expr =
-| Const of int
-| Add of var * var
-| Sub of var * var
-| Var of var
-| Tuple of var list
-| Get of var * int
-| Closure of pointer * VarSet.t
-| Constructor of tag * var list
+| Int of int (* Integer *)
+| Add of var * var (* Addition *)
+| Sub of var * var (* *)
+| Var of var (* Alias *)
+| Tuple of var list (* Tuple *)
+| Get of var * int (* Read tuple field *)
+| Closure of pointer * VarSet.t (* Closure construction *)
+| Constructor of tag * var list (* Data construction *)
 
+(* Instruction *)
 type instr =
-| Let of var * expr * instr
-| Apply_block of pointer * VarSet.t
+| Let of var * expr * instr (* Declaration of variable with associed value. *)
 | Call_direct of pointer * var * var list * (pointer * VarSet.t)
 | Call of var * var list * (pointer * VarSet.t)
 | If of var * (pointer * VarSet.t) * (pointer * VarSet.t) * VarSet.t
@@ -27,15 +41,16 @@ type instr =
 | Return of var
 | If_return of pointer * var * VarSet.t
 | Match_return of pointer * var * VarSet.t
+| Apply_block of pointer * VarSet.t (* Direct jump inside recursive function *)
 
 type block =
-| Cont of VarSet.t
 | Clos of VarSet.t * var list
 | Return of var * VarSet.t
 | If_branch of VarSet.t * VarSet.t
 | If_join of var * VarSet.t
 | Match_branch of var list * VarSet.t * VarSet.t
 | Match_join of var * VarSet.t
+| Function of VarSet.t
 
 type blocks = (block * instr) PointerMap.t
 
@@ -58,7 +73,7 @@ let pp_env (subs: string VarMap.t) (fmt: Format.formatter) (env: VarSet.t): unit
 
 let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) expr =
   match expr with
-  | Const x -> Format.fprintf fmt "Int %d" x
+  | Int x -> Format.fprintf fmt "Int %d" x
   | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Var x -> Format.fprintf fmt "%s" (string_of_sub x subs)
@@ -81,7 +96,7 @@ let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (block : instr)
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
-  | Cont args -> Format.fprintf fmt "Cont %a" (pp_env subs) args
+  | Function args -> Format.fprintf fmt "Function %a" (pp_env subs) args
   | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" (pp_args subs) args (pp_env subs) env
   | Return (arg, args) -> Format.fprintf fmt "Return %s %a" (string_of_sub arg subs) (pp_env subs) args
   | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" (pp_env subs) args (pp_env subs) fvs
@@ -98,7 +113,7 @@ let update_env (vars: VarSet.t) (alias: var VarMap.t): VarSet.t =
 
 let clean_expr (expr: expr) (alias: var VarMap.t): expr =
   match expr with
-  | Const x -> Const x
+  | Int x -> Int x
   | Add (x1, x2) -> Add (update_var x1 alias, update_var x2 alias)
   | Sub (x1, x2) -> Sub (update_var x1 alias, update_var x2 alias)
   | Var var -> Var (update_var var alias)
@@ -121,7 +136,7 @@ let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   
 let clean_block (block: block) (aliases: var VarMap.t): block =
   match block with
-  | Cont args -> Cont (update_env args aliases)
+  | Function args -> Function (update_env args aliases)
   | Clos (env, args) -> Clos (update_env env aliases, args)
   | Return (arg, args) -> Return (update_var arg aliases, update_env args aliases)
   | If_branch (args, fvs) -> If_branch (update_env args aliases, update_env fvs aliases)
@@ -233,7 +248,7 @@ let fvs_to_list fvs = VarSet.elements fvs
 
 let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (vars: var Seq.t): Asm.instr * var Seq.t =
   match expr with
-  | Const x -> Let (var, Const x, asm), vars
+  | Int x -> Let (var, Int x, asm), vars
   | Add (x1, x2) -> Let (var, Add (x1, x2), asm), vars
   | Sub (x1, x2) -> Let (var, Sub (x1, x2), asm), vars
   | Var x -> Let (var, Var x, asm), vars
@@ -247,7 +262,7 @@ let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (vars: var Seq.t): Asm.
   | Constructor (tag, env) -> begin
       let tag_id, vars = inc vars in
       let env_id, vars = inc vars in
-      Let (tag_id, Const tag, Let (env_id, Tuple env, Let (var, Tuple [tag_id; env_id], asm))), vars
+      Let (tag_id, Int tag, Let (env_id, Tuple env, Let (var, Tuple [tag_id; env_id], asm))), vars
     end
 
 let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq.t): Asm.instr * Asm.var Seq.t * Asm.pointer Seq.t * Asm.blocks =
@@ -279,7 +294,7 @@ let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq
 
 let block_to_asm (block: block) (asm1: Asm.instr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
   match block with
-  | Cont (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
+  | Function (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Return (arg, args') -> (arg :: fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Clos (body_free_variables, args') -> begin
       let function_id, pointers = inc pointers in
@@ -305,7 +320,7 @@ let blocks_to_asm (blocks: blocks) (vars: Asm.var Seq.t) (pointers: Asm.pointer 
 
 let size_expr (expr : expr): int =
   match expr with
-  | Const _ -> 1
+  | Int _ -> 1
   | Add (_, _) -> 2
   | Sub (_, _) -> 2
   | Var _ -> 1
@@ -328,7 +343,7 @@ let rec size_instr (cps : instr): int =
 
 let size_block (block: block): int =
   match block with
-  | Cont (args') -> VarSet.cardinal args'
+  | Function (args') -> VarSet.cardinal args'
   | Return (_, args') -> 1 + VarSet.cardinal args'
   | Clos (body_free_variables, args') -> VarSet.cardinal body_free_variables + List.length args'
   | If_branch (args, fvs) -> VarSet.cardinal fvs + VarSet.cardinal args
@@ -341,7 +356,7 @@ let size_blocks (blocks: blocks): int =
 
 let count_vars_expr (expr : expr) (vars : int array) (pointers: int array): unit =
   match expr with
-  | Const x -> Array.set vars x (Array.get vars x + 1)
+  | Int x -> Array.set vars x (Array.get vars x + 1)
   | Add (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
   | Sub (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
   | Var x -> Array.set vars x (Array.get vars x + 1)

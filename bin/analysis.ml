@@ -17,7 +17,7 @@ type abstract_value =
 | Constructor_domain of arguments Cps.PointerMap.t
 
 type abstract_block =
-| Cont of environment
+| Function of environment
 | Clos of environment * arguments
 | Return of allocations * environment
 | If_branch of environment * environment
@@ -117,7 +117,7 @@ let pp_factory (fmt: Format.formatter) (factory: factory): unit =
 
 let pp_block (fmt: Format.formatter) block =
   match block with
-  | Cont args -> Format.fprintf fmt "Cont %a" pp_env args
+  | Function args -> Format.fprintf fmt "Function %a" pp_env args
   | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" pp_env env pp_args args
   | Return (arg, args) -> Format.fprintf fmt "Return %a %a" pp_alloc arg pp_env args
   | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" pp_env args pp_env fvs
@@ -212,7 +212,7 @@ let map_env (allocs: allocations) (env: environment): environment =
 let analysis_expr (expr : expr) (env: environment) (factory: factory): value_type =
   match expr with
   | Var var' -> get2 env var' factory
-  | Const x -> Value (Int_domain (Int_domain.singleton x))
+  | Int x -> Value (Int_domain (Int_domain.singleton x))
   | Add (x1, x2) -> begin
       match get2 env x1 factory, get2 env x2 factory with
       | Value (Int_domain d1), Value (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Value (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
@@ -262,7 +262,7 @@ let rec analysis_instr (instr: instr) (env: environment) (factory: factory): abs
       | Bottom | Top -> (Cps.VarMap.add var (Cps.VarSet.empty) env), factory) in
       analysis_instr instr env allocs
     end
-  | Apply_block (k', args) -> Jmp [k', Cont (map_env args env)], factory
+  | Apply_block (k', args) -> Jmp [k', Function (map_env args env)], factory
   | If (var, (kt, argst), (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
@@ -299,7 +299,7 @@ let rec analysis_instr (instr: instr) (env: environment) (factory: factory): abs
 
 let block_env (block1: Cps.block) (block2: abstract_block): environment =
   match block1, block2 with
-  | Cont _, Cont args2 -> args2
+  | Function _, Function args2 -> args2
   | Clos (_, args1), Clos (env2, args2) -> Cps.VarMap.union (fun _ a _-> Some a) (map_values args1 args2) env2
   | Return (arg1, _), Return (arg2, args2) -> Cps.VarMap.add arg1 arg2 args2
   | If_branch (_, _), If_branch (args2, fvs2) -> Cps.VarMap.union (fun _ _ b-> Some b) fvs2 args2
@@ -312,7 +312,7 @@ let join_factory a b = Cps.VarMap.union (fun _ value1 value2 -> Some (join_value
 
 let join_blocks (b1: abstract_block) (b2: abstract_block) =
   match b1, b2 with
-  | Cont env1, Cont env2 -> Cont (Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) env1 env2)
+  | Function env1, Function env2 -> Function (Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) env1 env2)
   | Clos (env1, args1), Clos (env2, args2) -> Clos (Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) env1 env2, List.map2 Cps.VarSet.union args1 args2)
   | Return (arg1, args1), Return (arg2, args2) -> Return (Cps.VarSet.union arg1 arg2, Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) args1 args2)
   | If_branch (args1, fvs1), If_branch (args2, fvs2) -> If_branch (Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) args1 args2, Cps.VarMap.union (fun _ e1 e2 -> Some (Cps.VarSet.union e1 e2)) fvs1 fvs2)
@@ -395,23 +395,23 @@ let rec analysis (conts: (int * abstract_block * abstract_stack * factory) list)
 let start_analysis (reduce: abstract_stack -> abstract_stack) (blocks: blocks) =
   let args = begin
     match Cps.PointerMap.find_opt 0 blocks with
-    | Some (Cont args, _) -> args
+    | Some (Clos (args, _), _) -> args
     | _ -> assert false
   end in
-  analysis [0, Cont (Cps.VarSet.fold (fun v env -> Cps.VarMap.add v (Cps.VarSet.empty) env) args Cps.VarMap.empty), [], Cps.VarMap.empty] reduce blocks (Cps.PointerMap.empty)
+  analysis [0, Clos (Cps.VarSet.fold (fun v env -> Cps.VarMap.add v (Cps.VarSet.empty) env) args Cps.VarMap.empty, []), [], Cps.VarMap.empty] reduce blocks (Cps.PointerMap.empty)
 
 let propagation_named (expr: expr) (env: environment) (factory: factory): expr * abstract_value option =
   match expr with
   | Var var' -> Var var', get env var' factory
-  | Const x -> Const x, Some (Int_domain (Int_domain.singleton x))
+  | Int x -> Int x, Some (Int_domain (Int_domain.singleton x))
   | Add (x1, x2) -> begin match get env x1 factory, get env x2 factory with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Const ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Int ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) + (Int_domain.get_singleton d2))))
     | Some (Int_domain _), Some (Int_domain _) -> Add (x1, x2), Some (Int_domain (Int_domain.top))
     | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Add (x1, x2), Some (Int_domain (Int_domain.top))
     | _ -> assert false
     end
   | Sub (x1, x2) -> begin match get env x1 factory, get env x2 factory with
-    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Const ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
+    | Some (Int_domain d1), Some (Int_domain d2) when Int_domain.is_singleton d1 && Int_domain.is_singleton d2 -> Int ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2)), Some (Int_domain (Int_domain.singleton ((Int_domain.get_singleton d1) - (Int_domain.get_singleton d2))))
     | Some (Int_domain _), Some (Int_domain _) -> Sub (x1, x2), Some (Int_domain (Int_domain.top))
     | Some (Int_domain _), None | None, Some (Int_domain _) | None, None -> Sub (x1, x2), Some (Int_domain (Int_domain.top))
     | _ -> assert false
@@ -478,15 +478,15 @@ let fvs_to_list fvs = Cps.VarSet.elements fvs
 
 let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (factory: factory) (vars: var Seq.t): Asm.instr * var Seq.t =
   match expr with
-  | Const x -> Let (var, Const x, asm), vars
+  | Int x -> Let (var, Int x, asm), vars
   | Add (x1, x2) -> begin
       match get_value var factory with
-      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Const (Int_domain.get_singleton d), asm), vars
+      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Int (Int_domain.get_singleton d), asm), vars
       | _ -> Let (var, Add (x1, x2), asm), vars
     end
   | Sub (x1, x2) -> begin
       match get_value var factory with
-      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Const (Int_domain.get_singleton d), asm), vars
+      | Value (Int_domain d) when Int_domain.is_singleton d -> Let (var, Int (Int_domain.get_singleton d), asm), vars
       | _ -> Let (var, Sub (x1, x2), asm), vars
     end
   | Var x -> Let (var, Var x, asm), vars
@@ -500,7 +500,7 @@ let expr_to_asm (var: var) (expr: expr) (asm: Asm.instr) (factory: factory) (var
   | Constructor (tag, env) -> begin
       let tag_id, vars = inc vars in
       let env_id, vars = inc vars in
-      Let (tag_id, Const tag, Let (env_id, Tuple env, Let (var, Tuple [tag_id; env_id], asm))), vars
+      Let (tag_id, Int tag, Let (env_id, Tuple env, Let (var, Tuple [tag_id; env_id], asm))), vars
     end
 
 let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars: var Seq.t) (pointers: Asm.pointer Seq.t): Asm.instr * Asm.var Seq.t * Asm.pointer Seq.t * Asm.blocks =
@@ -532,7 +532,7 @@ let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars:
 
 let block_to_asm (block: block) (asm1: Asm.instr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
   match block with
-  | Cont (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
+  | Function (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Return (arg, args') -> (arg :: fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Clos (body_free_variables, args') -> begin
       let function_id, pointers = inc pointers in

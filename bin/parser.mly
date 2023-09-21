@@ -2,13 +2,12 @@
 
 %}
 
-%token LEFT_PARENTHESIS RIGHT_PARENTHESIS
-%token LEFT_BRACKET RIGHT_BRACKET
-%token LEFT_BRACE RIGHT_BRACE
-
 %token<int> INT
 %token<string> IDENT
 %token<string> CONSTRUCTOR_NAME
+%token LEFT_PARENTHESIS RIGHT_PARENTHESIS
+%token LEFT_BRACKET RIGHT_BRACKET
+%token LEFT_BRACE RIGHT_BRACE
 %token PLUS MINUS
 %token CONS SEMICOLON
 %token IF THEN ELSE
@@ -37,7 +36,6 @@
 %nonassoc DOT
 /* Finally, the first tokens of simple_expr are above everything else. */
 %nonassoc INT LEFT_BRACE LEFT_BRACKET IDENT LEFT_PARENTHESIS
-
 %left app
 
 %start <Ast.expr> file
@@ -134,7 +132,7 @@ payload_exprs:
 | expr = expr { [expr] }
 | expr = expr COMMA pl = payload_exprs { expr :: pl }
 
-bindings :
+bindings:
 | i = IDENT fund = fun_definition { [i, fund] }
 | i = IDENT fund = fun_definition AND bindings = bindings { (i, fund) :: bindings }
 

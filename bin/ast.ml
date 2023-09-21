@@ -1,88 +1,103 @@
-(* Identifiers *)
+open Utils
 
+(* Identifier for variables *)
 type var = string
+
+(* Identifier for constructor tags *)
 type tag = string
-type typename = string
+
+(* Identifier for type names *)
+type type_name = string
+
+(* Identifier for field names *)
 type field_name = string
 
-(* Modules *)
-
-(* Map for variables. *)
+(* Module for variables. *)
 module VarMap = Map.Make (String)
 
-(* Map for tags. *)
+(* Module for tags. *)
 module TagMap = Map.Make (String)
 
-(* Map for abstractions (var -> Cst.var). *)
+(* Module for abstractions (var -> Cst.var). *)
 module Abstractions = struct
   type t = Cst.var VarMap.t
   let empty = VarMap.empty
-  let singleton (var: var) = VarMap.singleton var
-  let add (var: var) (var': Cst.var) (abs: t): t = VarMap.add var var' abs
-  let mem (var: var) (abs: t): bool = VarMap.mem var abs
-  let find (var: var) (abs: t): Cst.var = VarMap.find var abs
+  let singleton (var: var) =
+    VarMap.singleton var
+  let add (var: var) (var': Cst.var) (abs: t): t =
+    VarMap.add var var' abs
+  let mem (var: var) (abs: t): bool =
+    VarMap.mem var abs
+  let find (var: var) (abs: t): Cst.var =
+    VarMap.find var abs
 
   exception AbstractionsNotUnique of var * int * int
-  let union (abs1: t) (abs2: t) = VarMap.union (fun v i1 i2 -> raise (AbstractionsNotUnique (v, i1, i2))) abs1 abs2
+  let union (abs1: t) (abs2: t) =
+    VarMap.union (fun v i1 i2 -> raise (AbstractionsNotUnique (v, i1, i2))) abs1 abs2
 end
 
-(* Map for substitutions (Cst.var -> var). *)
+(* Module for substitutions (Cst.var -> var). *)
 module Substitutions = struct
   type t = var Cst.VarMap.t
   let empty = Cst.VarMap.empty
-  let add (v1: Cst.var) (v2: var) (subs: t): t = Cst.VarMap.add v1 v2 subs
+  let add (v1: Cst.var) (v2: var) (subs: t): t =
+    Cst.VarMap.add v1 v2 subs
 
   exception SubstitutionsNotUnique of int * var * var
-  let union (subs1: t) (subs2: t) = Cst.VarMap.union (fun i v1 v2 -> raise (SubstitutionsNotUnique (i, v1, v2))) subs1 subs2
+  let union (subs1: t) (subs2: t) =
+    Cst.VarMap.union (fun i v1 v2 -> raise (SubstitutionsNotUnique (i, v1, v2))) subs1 subs2
 end
 
-(* Map for free variables (var -> Cst.var). *)
+(* Module for free variables (var -> Cst.var). *)
 module FreeVariables = Abstractions
 
-(* AST *)
-
+(* Binary operators *)
 type binary_operator =
-| Add
-| Sub
+| Add (* + *)
+| Sub (* - *)
 
+(* Match patterns *)
 type match_pattern =
-| Deconstructor of tag * var list
-| Joker of var
+| Deconstructor of tag * var list (* Catch pattern *)
+| Joker of var (* Catch all *)
 
+(* Type definitions *)
 type type_definition =
-| Type_name of typename
-| Star of type_definition * type_definition
-| Arrow of type_definition * type_definition
+| Type_name of type_name (* Alias *)
+| Star of type_definition * type_definition (* Tuple *)
+| Arrow of type_definition * type_definition (* Fun *)
 
+(* Type declarations *)
 type type_declaration =
-| Alias of type_definition
-| Data of (var * type_definition list) list
-| Record of (field_name * type_definition) list
+| Alias of type_definition (* Alias *)
+| Data of (var * type_definition list) list (* Data type with constructors *)
+| Record of (field_name * type_definition) list (* Record type with fields *)
 
+(* Expressions *)
 type expr =
-| Var of var
-| Fun of var list * expr
-| App of expr * expr
-| Tuple of expr list
-| Let of var * expr * expr
-| Let_tuple of var list * expr * expr
-| Let_rec of (var * expr) list * expr
-| Int of int
-| Binary of binary_operator * expr * expr
-| If of expr * expr * expr
-| Type of var * type_declaration * expr
-| Constructor of tag * (expr list)
-| Match of expr * (match_pattern * expr) list
-| Record_construction of (field_name * expr) list
-| Record_field of expr * field_name
+| Var of var (* Variable *)
+| Fun of var list * expr (* Abstraction *)
+| App of expr * expr (* Application *)
+| Tuple of expr list (* Tuple of expressions *)
+| Let of var * expr * expr (* Let *)
+| Let_tuple of var list * expr * expr (* Let unpack tuple *)
+| Let_rec of (var * expr) list * expr (* Let rec of functions *)
+| Int of int (* Integer *)
+| Binary of binary_operator * expr * expr (* Binary operation *)
+| If of expr * expr * expr (* If cond then else *)
+| Type of type_name * type_declaration * expr (* Typle declaration *)
+| Constructor of tag * expr list (* Constructor application *)
+| Match of expr * (match_pattern * expr) list (* Pattern matching *)
+| Record_construction of (field_name * expr) list (* Record construction *)
+| Record_field of expr * field_name (* Read record field *)
 
-(* Pretty printers *)
-
+(* Pretty printer for binary operators. *)
 let pp_binary_operator (fmt: Format.formatter) (operator: binary_operator): unit =
   match operator with
   | Add -> Format.fprintf fmt "+"
   | Sub -> Format.fprintf fmt "-"
 
+(* Pretty printer for match patterns. *)
 let pp_match_pattern (fmt: Format.formatter) (pattern: match_pattern): unit =
   match pattern with
   | Deconstructor (name, []) -> Format.fprintf fmt "%s" name
@@ -90,12 +105,14 @@ let pp_match_pattern (fmt: Format.formatter) (pattern: match_pattern): unit =
   | Deconstructor (name, var :: vars) -> Format.fprintf fmt "%s (%s" name var; List.iter (fun var' -> Format.fprintf fmt ", %s" var') vars; Format.fprintf fmt ")"
   | Joker s -> Format.fprintf fmt "%s" s
 
+(* Pretty printer for type definitions. *)
 let rec pp_type_definition (fmt: Format.formatter) (tdef: type_definition): unit =
   match tdef with
   | Type_name n -> Format.fprintf fmt "%s" n
   | Star (tdef1, tdef2) -> Format.fprintf fmt "(%a * %a)" pp_type_definition tdef1 pp_type_definition tdef2
   | Arrow (tdef1, tdef2) -> Format.fprintf fmt "(%a -> %a)" pp_type_definition tdef1 pp_type_definition tdef2
 
+(* Pretty printer for type declarations. *)
 let pp_type_declaration (fmt: Format.formatter) (tdec: type_declaration): unit =
   match tdec with
   | Alias alias -> Format.fprintf fmt "%a" pp_type_definition alias
@@ -116,6 +133,7 @@ let pp_type_declaration (fmt: Format.formatter) (tdec: type_declaration): unit =
       Format.fprintf fmt "\n}%!"
     end
 
+(* Pretty printer for expressions. *)
 let rec pp_expr fmt expr =
   match expr with
   | Int i -> Format.fprintf fmt "%d%!" i
@@ -166,25 +184,21 @@ let rec pp_expr fmt expr =
       Format.fprintf fmt " }"
     end
   | Record_field (e, fname) -> Format.fprintf fmt "%a.%s" pp_expr e fname
-  
-let inc (vars: Cst.var Seq.t): Cst.var * Cst.var Seq.t =
-  match Seq.uncons vars with
-  | None -> assert false
-  | Some (i, vars') -> i, vars'
 
-(* AST conversion to CST *)
-
+(* Converts binary operators. *)
 let binary_to_cst (binary: binary_operator): Cst.binary_operator =
   match binary with
   | Add -> Add
   | Sub -> Sub
 
+(* Add new constructors and records to type environment. *)
 let type_declaration_to_cst (tdec: type_declaration) (constructors: Cst.tag TagMap.t) (records: int VarMap.t): Cst.tag TagMap.t * int VarMap.t =
   match tdec with
   | Alias _ -> constructors, records
   | Data constructors' -> (List.fold_left (fun constructors'' ((constructor_name, _), index) -> TagMap.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors')), records
   | Record fields -> constructors, (List.fold_left (fun records'' ((fname, _), index) -> TagMap.add (fname) index records'') records (List.mapi (fun i v -> v, i) fields))
 
+(* Converts an expression by transforming every string to an unique identifier. *)
 let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abstractions.t) (constructors: Cst.tag TagMap.t) (records: int VarMap.t): Cst.expr * Cst.var Seq.t * Substitutions.t * FreeVariables.t =
   match expr with
   | Int i -> Int i, vars, Substitutions.empty, Abstractions.empty

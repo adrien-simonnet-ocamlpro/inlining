@@ -36,8 +36,8 @@ rule tokens = parse
 | ":" { COLONS }
 | "," { COMMA }
 | "." { DOT }
-| ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as id { CONSTRUCTOR_NAME (id) }
-| ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as id { IDENT (id) }
+| ['A'-'Z']['a'-'z''A'-'Z''0'-'9''_']* as id { CONSTRUCTOR_NAME id }
+| ['a'-'z''A'-'Z''_']['a'-'z''A'-'Z''0'-'9''_']* as id { IDENT id }
 | [' ' '\t' '\n' '\r'] { tokens lexbuf }
 | eof { EOF }
 | _ as c { raise (Unexpected_character (String.make 1 c)) }

@@ -1,7 +1,7 @@
 (executable
  (public_name cps)
  (name main)
- (modules logger int_domain ast cst cps asm analysis lexer main parser env)
+ (modules utils logger int_domain ast cst cps asm analysis lexer main parser env)
  (libraries cps))
 
 (ocamllex lexer)

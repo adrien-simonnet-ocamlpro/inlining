@@ -10,7 +10,7 @@ module PointerSet = Set.Make (Int)
 
 type expr =
 | Var of var
-| Const of int
+| Int of int
 | Add of var * var
 | Sub of var * var
 | Tuple of var list
@@ -71,7 +71,7 @@ let rec pp_stack (fmt: Format.formatter) (stack: stack): unit =
 let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) (expr: expr): unit =
   match expr with
   | Pointer p -> Format.fprintf fmt "Pointer %d" p
-  | Const x -> Format.fprintf fmt "Int %d" x
+  | Int x -> Format.fprintf fmt "Int %d" x
   | Add (x1, x2) -> Format.fprintf fmt "add %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Sub (x1, x2) -> Format.fprintf fmt "sub %s %s" (string_of_sub x1 subs) (string_of_sub x2 subs)
   | Var x -> Format.fprintf fmt "%s" (string_of_sub x subs)
@@ -128,7 +128,7 @@ let update_stack_vars (alias: var VarMap.t) (stack: stack): stack =
 
 let inline_expr (expr : expr) (alias: var VarMap.t): expr =
   match expr with
-  | Const x -> Const x
+  | Int x -> Int x
   | Add (x1, x2) -> Add (update_var x1 alias, update_var x2 alias)
   | Sub (x1, x2) -> Sub (update_var x1 alias, update_var x2 alias)
   | Var x -> Var (update_var x alias)
@@ -169,7 +169,7 @@ let inline_blocks (blocks : blocks) (targets: PointerSet.t): blocks =
 
 let elim_unused_vars_expr (vars : int array) conts (expr : expr): unit =
   match expr with
-  | Const x -> Array.set vars x (Array.get vars x + 1)
+  | Int x -> Array.set vars x (Array.get vars x + 1)
   | Add (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
   | Sub (x1, x2) -> Array.set vars x1 (Array.get vars x1 + 1); Array.set vars x2 (Array.get vars x2 + 1)
   | Var x -> Array.set vars x (Array.get vars x + 1)
@@ -228,7 +228,7 @@ let get env x = VarMap.find x env
 
 let interp_expr (expr : expr) (env : env) (benchmark: benchmark): value =
   match expr with
-  | Const x -> benchmark.const <- benchmark.const + 1; Int x
+  | Int x -> benchmark.const <- benchmark.const + 1; Int x
   | Add (x1, x2) -> begin
       benchmark.add <- benchmark.add + 1; 
       match get env x1, get env x2 with
@@ -315,17 +315,12 @@ let rec interp (stack: (pointer * value list) list) (cps : instr) (env : env) (c
       | _ -> failwith ("invalid type")
     end
 
-let interp_blocks (blocks : blocks) k env: value * benchmark =
-  let benchmark = { const =  0; write = 0; read = 0; add =  0; sub =  0; push =  0; pop =  0; jmp =  0 } in
-  let _, e = PointerMap.find k blocks in
-  interp [] e env blocks benchmark, benchmark
-
 let pp_benchmark (benchmark: benchmark) fmt: unit =
   Format.fprintf fmt "const: %d; write: %d; read: %d; add: %d; sub: %d; push: %d; pop: %d; jmp: %d\n%!" benchmark.const benchmark.write benchmark.read benchmark.add benchmark.sub benchmark.push benchmark.pop benchmark.jmp
 
 let size_expr (expr : expr): int =
   match expr with
-  | Const _ -> 1
+  | Int _ -> 1
   | Add (_, _) -> 2
   | Sub (_, _) -> 2
   | Var _ -> 1
