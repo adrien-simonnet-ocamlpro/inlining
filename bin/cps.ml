@@ -41,7 +41,6 @@ type instr =
 | Return of var
 | If_return of pointer * var * VarSet.t
 | Match_return of pointer * var * VarSet.t
-| Apply_block of pointer * VarSet.t (* Direct jump inside recursive function *)
 
 type block =
 | Clos of VarSet.t * var list
@@ -50,7 +49,6 @@ type block =
 | If_join of var * VarSet.t
 | Match_branch of var list * VarSet.t * VarSet.t
 | Match_join of var * VarSet.t
-| Function of VarSet.t
 
 type blocks = (block * instr) PointerMap.t
 
@@ -85,7 +83,6 @@ let pp_expr (subs: string VarMap.t) (fmt: Format.formatter) expr =
 let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (block : instr) : unit =
   match block with
   | Let (var, expr, instr) -> Format.fprintf fmt "\tlet %s = %a in\n%a" (string_of_sub var subs) (pp_expr subs) expr (pp_instr subs) instr
-  | Apply_block (k, args) -> Format.fprintf fmt "\tk%d %a" k (pp_env subs) args
   | If (var, (kt, argst), (kf, argsf), fvs) -> Format.fprintf fmt "\tif %s = 0 then k%d %a else k%d %a" (string_of_sub var subs) kt (pp_env subs) (VarSet.union argst fvs) kf (pp_env subs) (VarSet.union argsf fvs)
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> Format.fprintf fmt "\tmatch %s with%s | _ -> k%d %a" (string_of_sub var subs) (List.fold_left (fun acc (n, pld, kt, argst) -> acc ^ (Format.asprintf "| Int %d (%a) -> f%d %a " n (pp_args subs) pld kt (pp_env subs) (VarSet.union argst fvs))) " " matchs) kf (pp_env subs) (VarSet.union argsf fvs)
   | Return x -> Format.fprintf fmt "\t%s" (string_of_sub x subs)
@@ -96,7 +93,6 @@ let rec pp_instr (subs: string VarMap.t) (fmt: Format.formatter) (block : instr)
 
 let pp_block (subs: string VarMap.t) (fmt: Format.formatter) (block : block) : unit =
   match block with
-  | Function args -> Format.fprintf fmt "Function %a" (pp_env subs) args
   | Clos (env, args) -> Format.fprintf fmt "Closure %a %a" (pp_args subs) args (pp_env subs) env
   | Return (arg, args) -> Format.fprintf fmt "Return %s %a" (string_of_sub arg subs) (pp_env subs) args
   | If_branch (args, fvs) -> Format.fprintf fmt "If_branch %a %a" (pp_env subs) args (pp_env subs) fvs
@@ -125,7 +121,6 @@ let clean_expr (expr: expr) (alias: var VarMap.t): expr =
 let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   match instr with
   | Let (var, expr, instr) -> Let (var, clean_expr expr aliases, clean_instr instr aliases)
-  | Apply_block (k, args) -> Apply_block (k, update_env args aliases)
   | If (var, (kt, argst), (kf, argsf), fvs) -> If (update_var var aliases, (kt, update_env argst aliases), (kf, update_env argsf aliases), update_env fvs aliases)
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id aliases, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args aliases) matchs, (kf, update_env argsf aliases), update_env fvs aliases)
   | Return var -> Return (update_var var aliases)
@@ -136,7 +131,6 @@ let rec clean_instr (instr: instr) (aliases: var VarMap.t): instr =
   
 let clean_block (block: block) (aliases: var VarMap.t): block =
   match block with
-  | Function args -> Function (update_env args aliases)
   | Clos (env, args) -> Clos (update_env env aliases, args)
   | Return (arg, args) -> Return (update_var arg aliases, update_env args aliases)
   | If_branch (args, fvs) -> If_branch (update_env args aliases, update_env fvs aliases)
@@ -168,7 +162,6 @@ let rec copy_instr (instr: instr) (vars: var Seq.t) (alias: var VarMap.t): instr
       let instr, vars = copy_instr instr vars (VarMap.add var var_id alias) in
       Let (var_id, clean_expr expr alias, instr), vars
     end
-  | Apply_block (k, args) -> Apply_block (k, update_env args alias), vars
   | If (var, (kt, argst), (kf, argsf), fvs) -> If (update_var var alias, (kt, update_env argst alias), (kf, update_env argsf alias), update_env fvs alias), vars
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (update_var pattern_id alias, List.map (fun (n, k, pld, args) -> n, k, pld, update_env args alias) matchs, (kf, update_env argsf alias), update_env fvs alias), vars
   | Return var -> Return (update_var var alias), vars
@@ -183,16 +176,6 @@ let rec copy_callee (instr: instr) (vars: var Seq.t) (pointers: pointer Seq.t) (
       let instr, blocks', vars, pointers = copy_callee instr vars pointers blocks in
       Let (var, expr, instr), blocks', vars, pointers
     end
-  | Apply_block (k, args) when PointerMap.mem k blocks -> begin
-      Logger.start "Copying k%d\n" k;
-      let block, instr = PointerMap.find k blocks in
-      let instr', vars = copy_instr instr vars VarMap.empty in
-      (*let instr', blocks, vars, pointers = copy_callee instr' vars pointers blocks in*)
-      let k_id, pointers = inc pointers in
-      Logger.stop ();
-      Apply_block (k_id, args), PointerMap.add k_id (block, instr') PointerMap.empty, vars, pointers
-    end
-  | Apply_block (k, args) -> Apply_block (k, args), PointerMap.empty, vars, pointers
   | If (var, matchs, (kf, argsf), fvs) -> If (var, matchs, (kf, argsf), fvs), PointerMap.empty, vars, pointers
   | Match_pattern (pattern_id, matchs, (kf, argsf), fvs) -> Match_pattern (pattern_id, matchs, (kf, argsf), fvs), PointerMap.empty, vars, pointers
   | Return var -> Return var, PointerMap.empty, vars, pointers
@@ -272,7 +255,6 @@ let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq
       let asm, vars = expr_to_asm var expr asm vars in
       asm, vars, pointers, blocks
     end
-  | Apply_block (k, args) -> Apply_direct (k, fvs_to_list args, []), vars, pointers, Asm.PointerMap.empty
   | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
@@ -294,7 +276,6 @@ let rec instr_to_asm (block: instr) (vars: var Seq.t) (pointers: Asm.pointer Seq
 
 let block_to_asm (block: block) (asm1: Asm.instr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
   match block with
-  | Function (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Return (arg, args') -> (arg :: fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Clos (body_free_variables, args') -> begin
       let function_id, pointers = inc pointers in
@@ -332,7 +313,6 @@ let size_expr (expr : expr): int =
 let rec size_instr (cps : instr): int =
   match cps with
   | Let (_, expr, instr) -> 1 + size_expr expr + size_instr instr
-  | Apply_block (_, args) -> 1 + VarSet.cardinal args
   | If (_, (_, argst), (_, argsf), fvs) -> 1 + VarSet.cardinal argst + VarSet.cardinal fvs + 1 + VarSet.cardinal argsf + VarSet.cardinal fvs
   | Match_pattern (_, matchs, (_, argsf), fvs) -> List.fold_left (fun size (_, pld, _, args) -> size + 1 + List.length pld + VarSet.cardinal args + VarSet.cardinal fvs) 0 matchs + 1 + VarSet.cardinal argsf + VarSet.cardinal fvs
   | Return _ -> 1
@@ -343,7 +323,6 @@ let rec size_instr (cps : instr): int =
 
 let size_block (block: block): int =
   match block with
-  | Function (args') -> VarSet.cardinal args'
   | Return (_, args') -> 1 + VarSet.cardinal args'
   | Clos (body_free_variables, args') -> VarSet.cardinal body_free_variables + List.length args'
   | If_branch (args, fvs) -> VarSet.cardinal fvs + VarSet.cardinal args
@@ -418,11 +397,6 @@ let rec count_vars_instr (instr : instr) (vars : int array) (conts: int array): 
       Array.set vars arg (Array.get vars arg + 1);
       VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
       Match_return (k, arg, args)
-    end
-  | Apply_block (k, args) -> begin
-      Array.set conts k (Array.get conts k + 1);
-      VarSet.iter (fun arg -> Array.set vars arg (Array.get vars arg + 1)) args;
-      Apply_block (k, args)
     end
   | Match_pattern (var, matchs, (kf, argsf), fvs) -> begin
       Array.set vars var (Array.get vars var + 1);

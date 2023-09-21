@@ -245,18 +245,16 @@ let rec expr_to_cps (vars: Cps.var Seq.t) (pointers: Cps.pointer Seq.t) (fvs: Cp
     let all_binding_bodies_free_variables = FreeVariables.fold closures_caller_free_variable_ids in
 
     let vars, pointers, scope_cps, _scope_free_variables_no_bindings'', scope_and_closures_conts = List.fold_left (fun (vars, pointers, scope_cps', _scope_free_variables_no_bindings', scope_and_closures_conts') ((scope_binding_variable_id, binding_body_closure_continuation_id, binding_body_cps, bindind_body_bindind_variable_ids, binding_body_arg_id, binding_body_free_variables_no_arg_no_bindings), _caller_free_variable_ids) ->
-      (* *)
-      let binding_body_function_continuation_id, pointers = inc pointers in
                 
       (* *)
       let bindind_body_bindind_closures_ids = List.map2 (fun bindind_body_bindind_variable_id (_, binding_body_binding_closure_continuation, _, _, _, _) -> (bindind_body_bindind_variable_id, binding_body_binding_closure_continuation)) bindind_body_bindind_variable_ids closures2 in
       
       (* TODO MUST FIX closure_continuation_id -> need Closure_rec *)
       (* *)
-      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) (Apply_block (binding_body_function_continuation_id, (FreeVariables.union (FreeVariables.from_list bindind_body_bindind_variable_ids) (FreeVariables.union (FreeVariables.from_list binding_body_arg_id) all_binding_bodies_free_variables)))) bindind_body_bindind_closures_ids in
+      let binding_body_with_free_and_binding_variables = List.fold_left (fun binding_body_with_free_variables' (bindind_body_bindind_variable_id, bindind_body_bindind_closures_id) -> Cps.Let (bindind_body_bindind_variable_id, Closure (bindind_body_bindind_closures_id, all_binding_bodies_free_variables), binding_body_with_free_variables')) binding_body_cps bindind_body_bindind_closures_ids in
 
       (* *)
-      vars, pointers, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (FreeVariables.remove binding_body_free_variables_no_arg_no_bindings var), Blocks.add binding_body_closure_continuation_id (Clos (all_binding_bodies_free_variables, binding_body_arg_id), binding_body_with_free_and_binding_variables) (Blocks.add binding_body_function_continuation_id (Function ((FreeVariables.union (FreeVariables.from_list bindind_body_bindind_variable_ids) (FreeVariables.union (FreeVariables.from_list binding_body_arg_id) binding_body_free_variables_no_arg_no_bindings))), binding_body_cps) scope_and_closures_conts')
+      vars, pointers, Cps.Let (scope_binding_variable_id, Closure (binding_body_closure_continuation_id, all_binding_bodies_free_variables), scope_cps'), (FreeVariables.remove binding_body_free_variables_no_arg_no_bindings var), Blocks.add binding_body_closure_continuation_id (Clos (all_binding_bodies_free_variables, binding_body_arg_id), binding_body_with_free_and_binding_variables) scope_and_closures_conts'
     
     ) (vars, pointers, scope_cps, scope_free_variables_no_bindings, scope_and_closures_conts) (List.combine closures2 closures_caller_free_variable_ids) in
     scope_cps, vars, pointers, FreeVariables.union all_binding_bodies_free_variables scope_free_variables_no_bindings, scope_and_closures_conts

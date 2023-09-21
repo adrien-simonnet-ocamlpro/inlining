@@ -262,7 +262,6 @@ let rec analysis_instr (instr: instr) (env: environment) (factory: factory): abs
       | Bottom | Top -> (Cps.VarMap.add var (Cps.VarSet.empty) env), factory) in
       analysis_instr instr env allocs
     end
-  | Apply_block (k', args) -> Jmp [k', Function (map_env args env)], factory
   | If (var, (kt, argst), (kf, argsf), fvs) -> begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
@@ -299,7 +298,6 @@ let rec analysis_instr (instr: instr) (env: environment) (factory: factory): abs
 
 let block_env (block1: Cps.block) (block2: abstract_block): environment =
   match block1, block2 with
-  | Function _, Function args2 -> args2
   | Clos (_, args1), Clos (env2, args2) -> Cps.VarMap.union (fun _ a _-> Some a) (map_values args1 args2) env2
   | Return (arg1, _), Return (arg2, args2) -> Cps.VarMap.add arg1 arg2 args2
   | If_branch (_, _), If_branch (args2, fvs2) -> Cps.VarMap.union (fun _ _ b-> Some b) fvs2 args2
@@ -434,7 +432,6 @@ let rec propagation (instr : Cps.instr) (env: environment) (factory: factory): i
       | Some value' -> Let (var, expr, propagation instr (Cps.VarMap.add var (Cps.VarSet.singleton var) env) (Cps.VarMap.add var value' factory))
       | None -> Let (var, expr, propagation instr (Cps.VarMap.add var (Cps.VarSet.empty) env) factory)
     end
-  | Apply_block (k', args) -> Apply_block (k', args)
   | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, (kt, argst), (kf, argsf), fvs) (*begin
       match get env var factory with
       | Some (Int_domain i) when Int_domain.is_singleton i -> begin
@@ -510,7 +507,6 @@ let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars:
       let asm, vars = expr_to_asm var expr asm factory vars in
       asm, vars, pointers, blocks
     end
-  | Apply_block (k, args) -> Apply_direct (k, fvs_to_list args, []), vars, pointers, Asm.PointerMap.empty
   | If (var, (kt, argst), (kf, argsf), fvs) -> If (var, [ 0, kf, (fvs_to_list argsf) @ (fvs_to_list fvs) ], (kt, (fvs_to_list argst) @ (fvs_to_list fvs)), []), vars, pointers, Asm.PointerMap.empty
   | Match_pattern (cons, matchs, (kf, argsf), fvs) -> begin
       let tag_id, vars = inc vars in
@@ -532,7 +528,6 @@ let rec instr_to_asm (block: instr) (env: environment) (factory: factory) (vars:
 
 let block_to_asm (block: block) (asm1: Asm.instr) (vars: Asm.var Seq.t) (pointers: Asm.pointer Seq.t): Asm.block * var Seq.t * Asm.pointer Seq.t * Asm.blocks =
   match block with
-  | Function (args') -> (fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Return (arg, args') -> (arg :: fvs_to_list args', asm1), vars, pointers, Asm.PointerMap.empty
   | Clos (body_free_variables, args') -> begin
       let function_id, pointers = inc pointers in
