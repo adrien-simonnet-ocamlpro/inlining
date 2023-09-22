@@ -1,1 +1,1 @@
-if 0 then 53 else f
+if a then b else c

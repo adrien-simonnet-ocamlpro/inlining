@@ -1,201 +1,318 @@
+open Utils
+
+(* Identifier for variables *)
 type var = string
 
-type prim =
-  | Add
-  | Const of int
-  | Print
+(* Identifier for constructor tags *)
+type tag = string
 
+(* Identifier for type names *)
+type type_name = string
+
+(* Identifier for field names *)
+type field_name = string
+
+(* Module for variables. *)
+module VarMap = Map.Make (String)
+
+(* Module for tags. *)
+module TagMap = Map.Make (String)
+
+(* Module for abstractions (var -> Cst.var). *)
+module Abstractions = struct
+  type t = Cst.var VarMap.t
+  let empty = VarMap.empty
+  let singleton (var: var) =
+    VarMap.singleton var
+  let add (var: var) (var': Cst.var) (abs: t): t =
+    VarMap.add var var' abs
+  let mem (var: var) (abs: t): bool =
+    VarMap.mem var abs
+  let find (var: var) (abs: t): Cst.var =
+    VarMap.find var abs
+
+  exception AbstractionsNotUnique of var * int * int
+  let union (abs1: t) (abs2: t) =
+    VarMap.union (fun v i1 i2 -> raise (AbstractionsNotUnique (v, i1, i2))) abs1 abs2
+end
+
+(* Module for substitutions (Cst.var -> var). *)
+module Substitutions = struct
+  type t = var Cst.VarMap.t
+  let empty = Cst.VarMap.empty
+  let add (v1: Cst.var) (v2: var) (subs: t): t =
+    Cst.VarMap.add v1 v2 subs
+
+  exception SubstitutionsNotUnique of int * var * var
+  let union (subs1: t) (subs2: t) =
+    Cst.VarMap.union (fun i v1 v2 -> raise (SubstitutionsNotUnique (i, v1, v2))) subs1 subs2
+end
+
+(* Module for free variables (var -> Cst.var). *)
+module FreeVariables = Abstractions
+
+(* Binary operators *)
+type binary_operator =
+| Add (* + *)
+| Sub (* - *)
+
+(* Match patterns *)
+type match_pattern =
+| Deconstructor of tag * var list (* Catch pattern *)
+| Joker of var (* Catch all *)
+
+(* Type definitions *)
+type type_definition =
+| Type_name of type_name (* Alias *)
+| Star of type_definition * type_definition (* Tuple *)
+| Arrow of type_definition * type_definition (* Fun *)
+
+(* Type declarations *)
+type type_declaration =
+| Alias of type_definition (* Alias *)
+| Data of (var * type_definition list) list (* Data type with constructors *)
+| Record of (field_name * type_definition) list (* Record type with fields *)
+
+(* Expressions *)
 type expr =
-  | Var of var
-  | Let of var * expr * expr
-  | Fun of var * expr
-  | App of expr * expr
-  | Prim of Cps.prim * expr list
-  | If of expr * expr * expr
+| Var of var (* Variable *)
+| Fun of var list * expr (* Abstraction *)
+| App of expr * expr (* Application *)
+| Tuple of expr list (* Tuple of expressions *)
+| Let of var * expr * expr (* Let *)
+| Let_tuple of var list * expr * expr (* Let unpack tuple *)
+| Let_rec of (var * expr) list * expr (* Let rec of functions *)
+| Int of int (* Integer *)
+| Binary of binary_operator * expr * expr (* Binary operation *)
+| If of expr * expr * expr (* If cond then else *)
+| Type of type_name * type_declaration * expr (* Typle declaration *)
+| Constructor of tag * expr list (* Constructor application *)
+| Match of expr * (match_pattern * expr) list (* Pattern matching *)
+| Record_construction of (field_name * expr) list (* Record construction *)
+| Record_field of expr * field_name (* Read record field *)
 
-(* let rec sprintf_prim (prim : prim) args =
-  match prim, args with
-  | Const x, _ -> string_of_int x
-  | Add, x1 :: x2 :: _ -> Printf.sprintf "(%s + %s)" (sprintf x1) (sprintf x2)
-  | Print, x1 :: _ -> Printf.sprintf "(print %s)" (sprintf x1)
-  | _ -> failwith "invalid args"
+(* Pretty printer for binary operators. *)
+let pp_binary_operator (fmt: Format.formatter) (operator: binary_operator): unit =
+  match operator with
+  | Add -> Format.fprintf fmt "+"
+  | Sub -> Format.fprintf fmt "-"
 
-and sprintf (ast : expr) : string =
-  match ast with
-  | Fun (x, e) -> Printf.sprintf "(fun %s -> %s)" x (sprintf e)
-  | Var x -> x
-  | Prim (prim, args) -> sprintf_prim prim args
-  | Let (var, e1, e2) ->
-    Printf.sprintf "(let %s = %s in\n%s)" var (sprintf e1) (sprintf e2)
-  | If (cond, t, f) ->
-    Printf.sprintf "(if %s = 0 then %s else %s)" (sprintf cond) (sprintf t) (sprintf f)
-  | App (e1, e2) -> Printf.sprintf "(%s %s)" (sprintf e1) (sprintf e2)
-;; *)
+(* Pretty printer for match patterns. *)
+let pp_match_pattern (fmt: Format.formatter) (pattern: match_pattern): unit =
+  match pattern with
+  | Deconstructor (name, []) -> Format.fprintf fmt "%s" name
+  | Deconstructor (name, [ var ]) -> Format.fprintf fmt "%s %s" name var
+  | Deconstructor (name, var :: vars) -> Format.fprintf fmt "%s (%s" name var; List.iter (fun var' -> Format.fprintf fmt ", %s" var') vars; Format.fprintf fmt ")"
+  | Joker s -> Format.fprintf fmt "%s" s
 
-let rec pp_expr fmt = function
-  | Fun (x, e) -> Format.fprintf fmt "(fun %s -> %a)" x pp_expr e
-  | Var x -> Format.fprintf fmt "%s" x
-  | Prim (Const x, _) -> Format.fprintf fmt "%d" x
-  | Prim (Add, x1 :: x2 :: _) -> Format.fprintf fmt "(%a + %a)" pp_expr x1 pp_expr x2
-  | Prim (Print, x1 :: _) -> Format.fprintf fmt "(print %a)" pp_expr x1
-  | Let (var, e1, e2) ->
-    Format.fprintf fmt "(let %s = %a in\n%a)" var pp_expr e1 pp_expr e2
-  | If (cond, t, f) ->
-    Format.fprintf fmt "(if %a = 0 then %a else %a)" pp_expr cond pp_expr t pp_expr f
-  | App (e1, e2) -> Format.fprintf fmt "(%a %a)" pp_expr e1 pp_expr e2
-  | _ -> failwith "invalid args"
-;;
+(* Pretty printer for type definitions. *)
+let rec pp_type_definition (fmt: Format.formatter) (tdef: type_definition): unit =
+  match tdef with
+  | Type_name n -> Format.fprintf fmt "%s" n
+  | Star (tdef1, tdef2) -> Format.fprintf fmt "(%a * %a)" pp_type_definition tdef1 pp_type_definition tdef2
+  | Arrow (tdef1, tdef2) -> Format.fprintf fmt "(%a -> %a)" pp_type_definition tdef1 pp_type_definition tdef2
 
-let print_expr e = pp_expr Format.std_formatter e
-let sprintf e = Format.asprintf "%a" pp_expr e
+(* Pretty printer for type declarations. *)
+let pp_type_declaration (fmt: Format.formatter) (tdec: type_declaration): unit =
+  match tdec with
+  | Alias alias -> Format.fprintf fmt "%a" pp_type_definition alias
+  | Data constructors -> begin
+      List.iter (fun (cname, ctype) -> begin
+        match ctype with
+        | [] -> Format.fprintf fmt "\n| %s" cname
+        | [t] -> Format.fprintf fmt "\n| %s of %a" cname pp_type_definition t
+        | t :: ts -> begin
+            Format.fprintf fmt "\n| %s of %a" cname pp_type_definition t;
+            List.iter (fun t -> Format.fprintf fmt " * %a" pp_type_definition t) ts
+          end
+      end) constructors
+    end
+  | Record fields -> begin
+      Format.fprintf fmt "{";
+      List.iter (fun (cname, ctype) -> Format.fprintf fmt "\n\t%s: %a" cname pp_type_definition ctype) fields;
+      Format.fprintf fmt "\n}%!"
+    end
 
-(* let through_buf e =
-  let buf = Buffer.create 512 in 
-  let fmt = Format.formatter_of_buffer buf in 
-  print_expr fmt "%a" pp_expr e *)
+(* Pretty printer for expressions. *)
+let rec pp_expr fmt expr =
+  match expr with
+  | Int i -> Format.fprintf fmt "%d%!" i
+  | Binary (op, a, b) -> Format.fprintf fmt "(%a %a %a)%!" pp_expr a pp_binary_operator op pp_expr b
+  | Fun ([], e) -> Format.fprintf fmt "(fun () -> %a)%!" pp_expr e
+  | Fun ([arg], e) -> Format.fprintf fmt "(fun %s -> %a)%!" arg pp_expr e
+  | Fun (arg :: args, e) -> begin
+      Format.fprintf fmt "(fun %s" arg;
+      List.iter (fun arg' -> Format.fprintf fmt " %s" arg') args;
+      Format.fprintf fmt "-> %a)%!" pp_expr e
+    end
+  | Tuple [] -> Format.fprintf fmt "()"
+  | Tuple [expr] -> Format.fprintf fmt "%a" pp_expr expr
+  | Tuple (expr :: exprs) -> Format.fprintf fmt "(%a" pp_expr expr; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs; Format.fprintf fmt ")"
+  | Var x -> Format.fprintf fmt "%s%!" x
+  | Let (var, e1, e2) -> Format.fprintf fmt "let %s = %a in\n\n%a%!" var pp_expr e1 pp_expr e2
+  | Let_tuple ([], e1, e2) -> Format.fprintf fmt "let () = %a in\n\n%a%!" pp_expr e1 pp_expr e2
+  | Let_tuple ([var], e1, e2) -> Format.fprintf fmt "let %s = %a in\n\n%a%!" var pp_expr e1 pp_expr e2
+  | Let_tuple (var :: vars, e1, e2) -> Format.fprintf fmt "let %s" var; List.iter (fun var -> Format.fprintf fmt ", %s" var) vars; Format.fprintf fmt " = %a in\n\n%a)%!"  pp_expr e1 pp_expr e2
+  | Let_rec (bindings, expr') -> begin
+      Format.fprintf fmt "let rec"; begin
+        match bindings with
+        | [] -> Format.fprintf fmt "\n"
+        | [var, e] -> Format.fprintf fmt " %s = %a" var pp_expr e
+        | (var, e) :: bindings' -> begin
+            Format.fprintf fmt " %s = %a" var pp_expr e;
+            List.iter (fun (var, expr) -> Format.fprintf fmt "\nand %s = %a" var pp_expr expr) bindings'
+          end;
+      end;
+      Format.fprintf fmt " in\n\n%a%!" pp_expr expr'
+    end
+  | If (cond, t, f) -> Format.fprintf fmt "(if %a = 0 then %a else %a)%!" pp_expr cond pp_expr t pp_expr f
+  | App (e1, e2) -> Format.fprintf fmt "(%a %a)%!" pp_expr e1 pp_expr e2
+  | Type (name, tdec, expr) -> Format.fprintf fmt "type %s = %a\n\n%a" name pp_type_declaration tdec pp_expr expr
+  | Constructor (name, []) -> Format.fprintf fmt "%s" name
+  | Constructor (name, [ e ]) -> Format.fprintf fmt "%s %a" name pp_expr e
+  | Constructor (name, e :: exprs') -> Format.fprintf fmt "%s (%a" name pp_expr e; List.iter (fun e' -> Format.fprintf fmt ", %a" pp_expr e') exprs'; Format.fprintf fmt ")"
+  | Match (e, matchs) -> begin
+      Format.fprintf fmt "(match %a with" pp_expr e;
+      List.iter (fun (pattern, e) -> Format.fprintf fmt "\n| %a -> %a" pp_match_pattern pattern pp_expr e) matchs;
+      Format.fprintf fmt ")%!"
+    end
+  | Record_construction [] -> Format.fprintf fmt "{ }"
+  | Record_construction [fn, e] -> Format.fprintf fmt "{ %s = %a }" fn pp_expr e
+  | Record_construction ((fn, e) :: exprs') -> begin
+      Format.fprintf fmt "{ %s = %a" fn pp_expr e;
+      List.iter (fun (fn, e) -> Format.fprintf fmt "; %s = %a" fn pp_expr e) exprs';
+      Format.fprintf fmt " }"
+    end
+  | Record_field (e, fname) -> Format.fprintf fmt "%a.%s" pp_expr e fname
 
-let rec replace_var var new_var (ast : expr) : expr =
-  match ast with
-  | Fun (x, e) when x = var -> Fun (x, e)
-  | Fun (x, e) -> Fun (x, replace_var var new_var e)
-  | Var x when x = var -> Var new_var
-  | Var x -> Var x
-  | Prim (prim, args) ->
-    Prim (prim, List.map (fun arg -> replace_var var new_var arg) args)
-  | Let (var', e1, e2) when var' = var -> Let (var', replace_var var new_var e1, e2)
-  | Let (var', e1, e2) ->
-    Let (var', replace_var var new_var e1, replace_var var new_var e2)
-  | If (cond, t, f) ->
-    If (replace_var var new_var cond, replace_var var new_var t, replace_var var new_var f)
-  | App (e1, e2) -> App (replace_var var new_var e1, replace_var var new_var e2)
-;;
+(* Converts binary operators. *)
+let binary_to_cst (binary: binary_operator): Cst.binary_operator =
+  match binary with
+  | Add -> Add
+  | Sub -> Sub
 
-let vars = ref 0
-let conts = ref 0
+(* Add new constructors and records to type environment. *)
+let type_declaration_to_cst (tdec: type_declaration) (constructors: Cst.tag TagMap.t) (records: int VarMap.t): Cst.tag TagMap.t * int VarMap.t =
+  match tdec with
+  | Alias _ -> constructors, records
+  | Data constructors' -> (List.fold_left (fun constructors'' ((constructor_name, _), index) -> TagMap.add constructor_name index constructors'') constructors (List.mapi (fun i v -> v, i) constructors')), records
+  | Record fields -> constructors, (List.fold_left (fun records'' ((fname, _), index) -> TagMap.add (fname) index records'') records (List.mapi (fun i v -> v, i) fields))
 
-let inc vars =
-  vars := !vars + 1;
-  !vars
-;;
-
-let inc_conts () =
-  conts := !conts + 1;
-  !conts
-;;
-
-let add_subs env var va = (var, va) :: env
-
-let get_subs env var =
-  match List.find_opt (fun (var', _) -> var = var') env with
-  | Some (_, v) -> v
-  | None ->
-    failwith
-      (var
-       ^ " not found in "
-       ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env
-       ^ " ].")
-;;
-
-let rec to_cps conts fv0 (ast : expr) var (expr : Cps.expr) (substitutions : (string * int) list)
-  : Cps.expr * (string * int) list * int list * Cps.cont
-  =
-  match ast with
-  | Fun (x, e) ->
-    let k1 = inc_conts () in
-    let v1 = inc vars in
-    let v2 = inc vars in
-    let v3 = inc vars in
-    let v4 = inc vars in
-    let cps1, substitutions1, fv, conts1 =
-      to_cps conts [] e v2 (Return (v2)) []
-    in
-    Env.print_subs substitutions1;
-    Env.print_fv fv;
-    let v5 = if Env.has substitutions1 x then Env.get substitutions1 x else inc vars in
-    let fv =  (List.filter (fun fv' -> fv' != v5) fv) in
-    let _, body = List.fold_left (fun (pos, cps') fv' -> pos + 1, Cps.Let (fv', Cps.Get (v1, pos), cps')) (0, cps1) fv in
-    Let (v3, Prim (Pointer k1, []),
-      Let (v4, Tuple fv,
-        Let (var, Tuple [v3; v4], expr))), substitutions1 @ substitutions, (List.filter (fun fv' -> fv' != var) fv) @ fv0, (Let_cont (k1, [v1; v5], body, conts1))
-  (*
-      let var = x in (expr var fv...)
-  *)
-  | Var x ->
-    if Env.has substitutions x
-    then Let (var, Var (get_subs substitutions x), expr), substitutions, List.filter (fun fv' -> fv' != var) fv0, conts
-    else (
-      let v1 = inc vars in
-      Let (var, Var v1, expr), ( x, v1 )::substitutions, v1::(List.filter (fun fv' -> fv' != var) fv0), conts)
-  
-  (*
-      let v1 = e1 in
-      ...
-      let vn = en in
-      let var = prim v1 ... vn in
-      expr var f0...
-  *)
-  | Prim (prim, args) ->
-    let vars = List.map (fun arg -> inc vars, arg) args in
-    List.fold_left
-      (fun (expr', substitutions', fv', conts') (var, e) ->
-        let cps1, substitutions1, fv1, conts1 = to_cps conts' fv' e var expr' substitutions' in
-        cps1, substitutions1, fv1, conts1)
-      (Let (var, Prim (prim, List.map (fun (var, _) -> var) vars), expr), substitutions, fv0, conts)
-      vars
-
-    (*
-       let v1 = e1 in
-       let var = e2 in expr var fv0...
-    *)
-  | Let (var', e1, e2) ->
-    let cps1, substitutions1, fv1, conts1 = to_cps conts fv0 e2 var expr substitutions in
-    let v1 = if Env.has_var substitutions1 var' then Env.get_value substitutions1 var' else inc vars in
-    let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 (List.filter (fun (_, v) -> not (v = v1)) substitutions1) in
-    cps2, (if Env.has_var substitutions1 var' then substitutions2 else add_subs substitutions2 var' v1), fv2, conts2
-
-    (*
-       let v1 = cond in
-       let k1 fv1 =
-        let var = t in expr
-       in
-       let k2 fv2 =
-        let var = t in expr
-       in
-        if v1 then k1 fv1 else k2 fv2
-    *)
-    | If (cond, t, f) ->
-    let v1 = inc vars in
-    let k0 = inc_conts () in
-    let k1 = inc_conts () in
-    let k2 = inc_conts () in
-    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k0, var :: fv0, expr, conts)) fv0 t var (Apply_cont (k0, var :: fv0)) [] in
-    let cps2, substitutions2, fv2, conts2 = to_cps conts1 fv0 f var (Apply_cont (k0, var :: fv0)) [] in
-    let fv1' = List.filter (fun fv -> not (Env.has3 substitutions1 fv) || not (Env.has_var substitutions (Env.get_var substitutions1 fv))) fv1 in
-    let fv2' = List.filter (fun fv -> not (Env.has3 substitutions2 fv) || not (Env.has_var substitutions (Env.get_var substitutions2 fv))) fv2 in
-    let cps3, substitutions3, fv3, conts3 =
-      to_cps (Let_cont
-      (k1, fv1, cps1, Let_cont (k2, fv2, cps2, conts2))) fv0
-        cond
-        v1
-        (If (v1, (k1, (List.map (fun fv -> if Env.has3 substitutions1 fv then let fval = Env.get_var substitutions1 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) fv1)), (k2, (List.map (fun fv -> if Env.has3 substitutions2 fv then let fval = Env.get_var substitutions2 fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) fv2))))
-        substitutions
-    in
-    cps3, substitutions1 @ substitutions2 @ substitutions3, fv1' @ fv2' @ fv3, conts3
-  (*
-     let k var [fv0] =
-      expr
-     in
-      let v1 = e1 in
-      let v2 = e2 in
-      (v1 k v2)
-  *)
-  | App (e1, e2) ->
-    let k = inc_conts () in
-    let v1 = inc vars in
-    let v2 = inc vars in
-    let v3 = inc vars in
-    let v4 = inc vars in
-    let cps1, substitutions1, fv1, conts1 = to_cps (Let_cont (k, [var]@fv0, expr, conts)) (v1::fv0) e2 v2 (Let (v3, Get (v1, 0), Let (v4, Get (v1, 1), Call (v3, (List.map (fun fv -> if Env.has3 substitutions fv then let fval = Env.get_var substitutions fv in if Env.has_var substitutions fval then Env.get_value substitutions fval else fv else fv) [v4; v2]), (k, fv0))))) substitutions in
-    let cps2, substitutions2, fv2, conts2 = to_cps conts1 (List.filter (fun fv -> not (fv = v1)) fv1) e1 v1 cps1 substitutions1 in
-    cps2, substitutions2, fv2, conts2
-;;
+(* Converts an expression by transforming every string to an unique identifier. *)
+let rec expr_to_cst (expr: expr) (vars: Cst.var Seq.t) (substitutions: Abstractions.t) (constructors: Cst.tag TagMap.t) (records: int VarMap.t): Cst.expr * Cst.var Seq.t * Substitutions.t * FreeVariables.t =
+  match expr with
+  | Int i -> Int i, vars, Substitutions.empty, Abstractions.empty
+  | Binary (op, e1, e2) -> begin
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (FreeVariables.union fvs1 substitutions) constructors records in
+      Binary (binary_to_cst op, e1', e2'), vars, Substitutions.union subs1 subs2, FreeVariables.union fvs1 fvs2
+    end
+  | Fun (args, e) -> begin
+      let vars, args_ids = List.fold_left_map (fun vars _ -> begin
+        let arg_id, vars = inc vars in
+        vars, arg_id
+      end) vars args in
+      let e', vars, subs, fvs = expr_to_cst e vars (List.fold_left (fun substitutions' (arg, arg_id) -> Abstractions.add arg arg_id substitutions') substitutions (List.combine args args_ids)) constructors records in
+      Fun (args_ids, e'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Substitutions.add arg_id arg subs') subs (List.combine args args_ids)), fvs
+    end
+  | Tuple exprs -> begin
+      let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (FreeVariables.union fvs substitutions) constructors records in
+        (vars, Substitutions.union subs' subs, FreeVariables.union fvs' fvs), expr'
+      end) (vars, Substitutions.empty, Abstractions.empty) exprs in
+      Tuple exprs', vars, subs, fvs
+    end
+  | Var x -> if Abstractions.mem x substitutions then Var (Abstractions.find x substitutions), vars, Substitutions.empty, FreeVariables.empty else begin
+      let var_id, vars = inc vars in
+      Var (var_id), vars, Substitutions.empty, FreeVariables.singleton x var_id
+    end
+  | Constructor (str, exprs) -> begin
+      let index = TagMap.find str constructors in
+      let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (FreeVariables.union fvs substitutions) constructors records in
+        (vars, Substitutions.union subs' subs, FreeVariables.union fvs' fvs), expr'
+      end) (vars, Substitutions.empty, Abstractions.empty) exprs in
+      Constructor (index, exprs'), vars, subs, fvs
+    end
+  | Let (var, e1, e2) -> begin
+      let var_id, vars = inc vars in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (Abstractions.add var var_id (FreeVariables.union fvs1 substitutions)) constructors records in
+      Let (var_id, e1', e2'), vars, Substitutions.add var_id var (Substitutions.union subs1 subs2), FreeVariables.union fvs1 fvs2
+    end
+  | Let_tuple (vars', e1, e2) -> begin
+      let vars, vars_ids = List.fold_left_map (fun vars _ -> begin
+        let arg_id, vars = inc vars in
+        vars, arg_id
+      end) vars vars' in
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (List.fold_left (fun substitutions (var, var_id) -> Abstractions.add var var_id substitutions) (FreeVariables.union fvs1 substitutions) (List.combine vars' vars_ids)) constructors records in
+      Let_tuple (vars_ids, e1', e2'), vars, (List.fold_left (fun subs' (arg, arg_id) -> Substitutions.add arg_id arg subs') (Substitutions.union subs1 subs2) (List.combine vars' vars_ids)), FreeVariables.union fvs1 fvs2
+    end
+  | If (e1, e2, e3) -> begin
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (FreeVariables.union fvs1 substitutions) constructors records in
+      let e3', vars, subs3, fvs3 = expr_to_cst e3 vars (FreeVariables.union fvs2 (FreeVariables.union fvs1 substitutions)) constructors records in
+      If (e1', e2', e3'), vars, Substitutions.union subs1 (Substitutions.union subs2 subs3), FreeVariables.union fvs1 (FreeVariables.union fvs2 fvs3)
+    end
+  | App (e1, e2) -> begin
+      let e1', vars, subs1, fvs1 = expr_to_cst e1 vars substitutions constructors records in
+      let e2', vars, subs2, fvs2 = expr_to_cst e2 vars (FreeVariables.union fvs1 substitutions) constructors records in
+      App (e1', e2'), vars, Substitutions.union subs1 subs2, FreeVariables.union fvs1 fvs2
+    end
+  | Let_rec (bindings, e) -> begin
+      let vars, bindings_ids = List.fold_left_map (fun vars (var, _) -> begin
+        let var_id, vars = inc vars in
+        vars, (var, var_id)
+      end) vars bindings in
+      let (vars, subs, fvs), bindings' = List.fold_left_map (fun (vars, subs, fvs) ((_, expr), (_, var_id)) -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (Abstractions.union (List.fold_left (fun subs'' (b, b_id) -> Abstractions.add b b_id subs'') Abstractions.empty bindings_ids) (FreeVariables.union fvs substitutions)) constructors records in
+        (vars, Substitutions.union subs' subs, FreeVariables.union fvs' fvs), (var_id, expr')
+      end) (vars, Substitutions.empty, Abstractions.empty) (List.combine bindings bindings_ids) in
+      let e', vars, subs', fvs' = expr_to_cst e vars (Abstractions.union (List.fold_left (fun subs'' (b, b_id) -> Abstractions.add b b_id subs'') Abstractions.empty bindings_ids) (FreeVariables.union fvs substitutions)) constructors records in
+      Let_rec (bindings', e'), vars, Substitutions.union (List.fold_left (fun subs'' (b, b_id) -> Substitutions.add b_id b subs'') Substitutions.empty bindings_ids) (Substitutions.union subs subs'), FreeVariables.union fvs fvs'
+    end
+  | Match (x, branchs) -> begin
+      let is_joker (t, _) =
+        match t with
+        | Joker _ -> true
+        | _ -> false in
+      
+      let default_expr =
+        match List.find_opt is_joker branchs with
+        | Some (_, e) -> e
+        | None -> Int 123456789 in
+      
+      let (vars, subs, fvs), branchs' = List.fold_left_map (fun (vars, subs, fvs) (pattern, e) -> begin
+        match pattern with
+        | Deconstructor (constructor_name, payload_values) -> begin
+            let vars, args_ids = List.fold_left_map (fun vars var -> begin
+              let var_id, vars = inc vars in
+              vars, (var, var_id)
+            end) vars payload_values in
+            let pattern_index = TagMap.find constructor_name constructors in
+            let e', vars, subs', fvs' = expr_to_cst e vars (Abstractions.union (List.fold_left (fun subs'' (b, b_id) -> Abstractions.add b b_id subs'') Abstractions.empty args_ids) (FreeVariables.union fvs substitutions)) constructors records in
+            (vars, Substitutions.union (List.fold_left (fun subs'' (b, b_id) -> Substitutions.add b_id b subs'') Substitutions.empty args_ids) (Substitutions.union subs subs'), FreeVariables.union fvs fvs'), (pattern_index, List.map (fun (_, arg_id) -> arg_id) args_ids, e')
+          end
+        | _ -> assert false
+      end) (vars, Substitutions.empty, Abstractions.empty) (List.filter (fun (pattern, _) -> match pattern with | Deconstructor _ -> true | _ -> false) branchs) in
+      let e', vars, subs', fvs' = expr_to_cst x vars (FreeVariables.union fvs substitutions) constructors records in
+      let default_expr, vars, subs'', fvs'' = expr_to_cst default_expr vars (FreeVariables.union fvs' (FreeVariables.union fvs substitutions)) constructors records in
+      Match (e', branchs', default_expr), vars, Substitutions.union subs (Substitutions.union subs' subs''), FreeVariables.union fvs (FreeVariables.union fvs' fvs'')
+    end
+  | Type (_tname, tdec, e) -> begin
+      let constructors, records = type_declaration_to_cst tdec constructors records in
+      expr_to_cst e vars substitutions constructors records
+    end
+  | Record_construction fields -> begin
+      let (vars, subs, fvs), exprs' = List.fold_left_map (fun (vars, subs, fvs) expr -> begin
+        let expr', vars, subs', fvs' = expr_to_cst expr vars (FreeVariables.union fvs substitutions) constructors records in
+        (vars, Substitutions.union subs' subs, FreeVariables.union fvs' fvs), expr'
+      end) (vars, Substitutions.empty, Abstractions.empty) (List.map (fun (_, e) -> e) (List.sort (fun (fn1, _) (fn2, _) -> TagMap.find fn1 records - TagMap.find fn2 records) fields)) in
+      Tuple exprs', vars, subs, fvs
+    end
+  | Record_field (e, fname) -> begin
+      let index = TagMap.find fname records in
+      let e', vars, subs, fvs = expr_to_cst e vars substitutions constructors records in
+      Get (e', index), vars, subs, fvs
+    end

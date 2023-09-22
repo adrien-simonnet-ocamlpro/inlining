@@ -1,1 +1,1 @@
-fun x -> y
+(fun x -> y)

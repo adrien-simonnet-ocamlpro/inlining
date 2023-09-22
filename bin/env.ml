@@ -6,7 +6,7 @@ let get env var =
   | Some (_, v) -> v
   | None ->
     failwith
-      ("x"
+      ("(Env.get) x"
        ^ var
        ^ " not found in "
        ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ x) "[" env
@@ -18,7 +18,7 @@ let get2 env var =
   | Some (_, v) -> v
   | None ->
     failwith
-      ("x"
+      ("(Env.get2) x"
        ^ (string_of_int var)
        ^ " not found in "
        ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ (string_of_int x)) "[" env
@@ -30,7 +30,7 @@ let get3 env var =
   | Some (v, _) -> v
   | None ->
     failwith
-      ("x"
+      ("(Env.get3) x"
        ^ (string_of_int var)
        ^ " not found in "
        ^ List.fold_left (fun str (x, _) -> str ^ " x" ^ (string_of_int x)) "[" env
@@ -47,7 +47,7 @@ let get_value env var =
   | Some (_, v) -> v
   | None ->
     failwith
-      (var
+      ("(Env.get_value) " ^ var
        ^ " not found in "
        ^ List.fold_left (fun str (x, _) -> str ^ x) "[" env
        ^ " ].")
@@ -58,7 +58,7 @@ let get_var env var =
   | Some (v, _) -> v
   | None ->
     failwith
-      ("_"
+      ("(Env.get_var) _"
        ^ (string_of_int var)
        ^ " not found in "
        ^ List.fold_left (fun str (_, x) -> str ^ " _" ^ (string_of_int x)) "[" env
@@ -73,7 +73,7 @@ let get_cont env var =
   | Some (_, args, v, env') -> args, v, env'
   | None ->
     failwith
-      ("k"
+      ("(Env.get_cont) k"
        ^ string_of_int var
        ^ " not found in "
        ^ List.fold_left (fun str (x, _, _, _) -> str ^ " k" ^ string_of_int x) "[" env
@@ -94,4 +94,8 @@ let print_subs env =
 
 let print_fv env =
   Printf.printf "%s ]\n%!" (List.fold_left (fun str v -> str ^ " " ^ (string_of_int v)) "[" env)
+;;
+
+let print_vars env =
+  Printf.printf "%s ]\n%!" (List.fold_left (fun str v -> str ^ " " ^ v) "[" env)
 ;;

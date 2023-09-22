@@ -1,0 +1,1 @@
+let rec f = fun x -> (f (f x)) in (f 0)
