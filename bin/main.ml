@@ -18,7 +18,7 @@ let rec periodic_stack_heuristic stack = let n = cherche_periode [] stack in if 
 let cfa n stack = if n < 0 then stack else []
 
 
-let usage_msg = "cps <file1> [<file2>] ... -o <output>"
+let usage_msg = "cps <file1> [<file2>] ... [-verbose] [-max n] [-copy b1] ... [-copy bn] [-rounds n] [-inline b1] ... [-inline bn]"
 let verbose = ref false
 let input_files = ref []
 let rounds = ref 1
